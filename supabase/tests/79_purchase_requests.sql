@@ -10,7 +10,7 @@ begin;
 set local role postgres;
 set local search_path = extensions, public;
 select set_config('request.jwt.claims','',true);
-select plan(226);
+select plan(246);
 
 create function pg_temp.sid(n integer) returns uuid language sql immutable as $$select ('79100000-0000-4000-8000-'||lpad(n::text,12,'0'))::uuid$$;
 create function pg_temp.claim(r text, t integer default 1, s integer default null, m integer default null, u integer default null, extra jsonb default '{}'::jsonb) returns void language plpgsql as $$begin perform set_config('request.jwt.claims',(jsonb_strip_nulls(jsonb_build_object('role','authenticated','app_role',r,'tenant_id',pg_temp.sid(t),'staff_id',pg_temp.sid(s),'member_id',pg_temp.sid(m),'sub',pg_temp.sid(u)))||extra)::text,true); end$$;
@@ -69,7 +69,7 @@ insert into rpc_contract values
 ('public.reject_purchase_request(uuid,uuid,text,uuid)',true,'v','authenticated'),
 ('public.attach_payment_proof(uuid,uuid,uuid,uuid)',true,'v','authenticated'),
 ('public.reject_payment_proof(uuid,uuid,uuid,text,uuid)',true,'v','authenticated'),
-('public.record_purchase_request(uuid,uuid,uuid,text,text,text)',false,'v','authenticated'),
+('public.record_purchase_request(uuid,uuid,uuid,text,text,text,jsonb,uuid,uuid)',false,'v','authenticated'),
 ('public.read_member_purchase_requests(integer,timestamptz,uuid)',true,'s','authenticated'),
 ('public.read_purchase_requests(integer,timestamptz,uuid)',true,'s','authenticated'),
 ('public.read_purchase_request(uuid)',true,'s','authenticated'),
@@ -241,7 +241,7 @@ set local role postgres;
 select pg_temp.claim('front_desk',1,23,null,903);
 set local role authenticated;
 select lives_ok($q$select public.record_addon_sale(pg_temp.sid(31),pg_temp.sid(102),1,(select quote_version from quotes where id=pg_temp.sid(102)),null,null,null,'cash','Counter sale after hold release',pg_temp.sid(610))$q$,'BUY-006 hard hold released on cancellation');
-select is(pg_temp.refusal($q$select public.record_purchase_request((select id from req where label='KA'),pg_temp.rev('KA'),pg_temp.sid(611),'10000','INR','cash')$q$) <> 'NO ERROR',true,'BUY-006 cancelled request never activates a purchase');
+select is(pg_temp.refusal($q$select public.record_purchase_request((select id from req where label='KA'),pg_temp.rev('KA'),pg_temp.sid(611),'10000','INR','cash',null,null,null)$q$) <> 'NO ERROR',true,'BUY-006 cancelled request never activates a purchase');
 set local role postgres;
 select pg_temp.claim('gym_owner',1,21,null,901);
 set local role authenticated;
@@ -270,17 +270,17 @@ insert into exp_before select 'K6',(pg_temp.rq('K6')->>'expires_at')::timestampt
 insert into money_before select (select count(*) from public.payments),(select count(*) from public.addon_orders);
 select pg_temp.claim('member',1,null,31,906);
 set local role authenticated;
-select is(pg_temp.refusal($q$select public.attach_payment_proof((select id from req where label='KB'),pg_temp.sid(144),null,pg_temp.sid(615))$q$) <> 'NO ERROR',true,'BUY-008 proof attach requires the accepted live request');
-select is(pg_temp.refusal($q$select public.attach_payment_proof((select id from req where label='K6'),pg_temp.sid(147),null,pg_temp.sid(616))$q$) <> 'NO ERROR',true,'BUY-008 unknown asset refused without existence detail');
-select is(pg_temp.refusal($q$select public.attach_payment_proof((select id from req where label='K6'),(select id from assets where label='product-photo'),null,pg_temp.sid(617))$q$) <> 'NO ERROR',true,'BUY-008 verified non-proof media kind refused');
-select lives_ok($q$select public.attach_payment_proof((select id from req where label='K6'),pg_temp.sid(144),null,pg_temp.sid(618))$q$,'BUY-008 verified proof attached to the accepted request');
+select is(pg_temp.refusal($q$select public.attach_payment_proof((select id from req where label='KB'),pg_temp.sid(144),pg_temp.rev('KB'),pg_temp.sid(615))$q$) <> 'NO ERROR',true,'BUY-008 proof attach requires the accepted live request');
+select is(pg_temp.refusal($q$select public.attach_payment_proof((select id from req where label='K6'),pg_temp.sid(147),pg_temp.rev('K6'),pg_temp.sid(616))$q$) <> 'NO ERROR',true,'BUY-008 unknown asset refused without existence detail');
+select is(pg_temp.refusal($q$select public.attach_payment_proof((select id from req where label='K6'),(select id from assets where label='product-photo'),pg_temp.rev('K6'),pg_temp.sid(617))$q$) <> 'NO ERROR',true,'BUY-008 verified non-proof media kind refused');
+select lives_ok($q$select public.attach_payment_proof((select id from req where label='K6'),pg_temp.sid(144),pg_temp.rev('K6'),pg_temp.sid(618))$q$,'BUY-008 verified proof attached to the accepted request');
 select is(pg_temp.rq('K6')->>'status','payment_proof_uploaded','BUY-005 upload state recorded');
 select is(pg_temp.nproof('K6','active'),1,'BUY-010 exactly one active proof');
-select lives_ok($q$select public.attach_payment_proof((select id from req where label='K6'),pg_temp.sid(145),null,pg_temp.sid(619))$q$,'BUY-010 member replaces the proof before verification');
+select lives_ok($q$select public.attach_payment_proof((select id from req where label='K6'),pg_temp.sid(145),pg_temp.rev('K6'),pg_temp.sid(619))$q$,'BUY-010 member replaces the proof before verification');
 select is(pg_temp.pj(144)->>'disposition','superseded','BUY-010 superseded proof is immutable history');
 select is(pg_temp.aproof('K6'),pg_temp.sid(145),'BUY-010 replacement is the single active proof');
 select is(pg_temp.rq('K6')->>'status','payment_proof_uploaded','BUY-005 replacement retains proof-uploaded');
-select is(pg_temp.refusal($q$select public.attach_payment_proof((select id from req where label='K6'),pg_temp.sid(144),null,pg_temp.sid(620))$q$) like 'GL124%',true,'BUY-010/GL124 superseded proof cannot regain active status');
+select is(pg_temp.refusal($q$select public.attach_payment_proof((select id from req where label='K6'),pg_temp.sid(144),pg_temp.rev('K6'),pg_temp.sid(620))$q$) like 'GL124%',true,'BUY-010/GL124 superseded proof cannot regain active status');
 set local role postgres;
 select pg_temp.claim('front_desk',1,23,null,903);
 set local role authenticated;
@@ -294,13 +294,16 @@ set local role postgres;
 select pg_temp.claim('member',1,null,31,906);
 set local role authenticated;
 select is(pg_temp.refusal($q$select public.reject_payment_proof((select id from req where label='K6'),pg_temp.sid(145),pg_temp.rev('K6'),'Member says no',pg_temp.sid(624))$q$) like '42501%',true,'BUY-011 only the desk rejects proofs');
-select is(pg_temp.refusal($q$select public.attach_payment_proof((select id from req where label='K6'),pg_temp.sid(143),null,pg_temp.sid(625))$q$) <> 'NO ERROR',true,'BUY-008 unconfirmed media cannot become an active proof');
+select is(pg_temp.refusal($q$select public.attach_payment_proof((select id from req where label='K6'),pg_temp.sid(143),pg_temp.rev('K6'),pg_temp.sid(625))$q$) <> 'NO ERROR',true,'BUY-008 unconfirmed media cannot become an active proof');
+select is(pg_temp.refusal($q$select public.record_purchase_request((select id from req where label='K6'),pg_temp.rev('K6'),pg_temp.sid(660),'300000','INR','cash',null,pg_temp.sid(144),pg_temp.rev('K6'))$q$) <> 'NO ERROR',true,'BUY-010/012 recording refuses a verifier context bound to the superseded proof');
+select is(pg_temp.refusal($q$select public.record_purchase_request((select id from req where label='K6'),pg_temp.rev('K6'),pg_temp.sid(661),'300000','INR','cash',null,pg_temp.sid(145),pg_temp.sid(999))$q$) <> 'NO ERROR',true,'BUY-012 recording refuses a viewed revision that is not the current request revision');
+select is(pg_temp.refusal($q$select public.record_purchase_request((select id from req where label='K6'),pg_temp.rev('K6'),pg_temp.sid(662),'300000','INR','cash',null,null,pg_temp.rev('K6'))$q$) <> 'NO ERROR',true,'BUY-012 proof-backed recording refuses a null viewed asset while an active proof exists');
 set local role postgres;
 select pg_temp.claim('front_desk',1,23,null,903);
 set local role authenticated;
 select lives_ok($q$select public.reject_purchase_request((select id from req where label='K6'),pg_temp.rev('K6'),'Wrong item requested',pg_temp.sid(626))$q$,'BUY-011 desk rejects the accepted request with a reason');
 select is(pg_temp.rq('K6')->>'status','rejected','BUY-005 request rejection is terminal');
-select is(pg_temp.refusal($q$select public.record_purchase_request((select id from req where label='K6'),pg_temp.rev('K6'),pg_temp.sid(627),'300000','INR','cash')$q$) <> 'NO ERROR',true,'BUY-005 rejected request cannot be recorded');
+select is(pg_temp.refusal($q$select public.record_purchase_request((select id from req where label='K6'),pg_temp.rev('K6'),pg_temp.sid(627),'300000','INR','cash',null,pg_temp.sid(145),pg_temp.rev('K6'))$q$) <> 'NO ERROR',true,'BUY-005 rejected request cannot be recorded');
 set local role postgres;
 select is((select count(*) from public.payments)=(select p from money_before) and (select count(*) from public.addon_orders)=(select o from money_before),true,'BUY-008 upload and rejection created no money rows');
 
@@ -316,11 +319,11 @@ select lives_ok($q$select public.accept_purchase_request((select id from req whe
 set local role postgres;
 select pg_temp.claim('member',1,null,31,906);
 set local role authenticated;
-select lives_ok($q$select public.attach_payment_proof((select id from req where label='KR1'),pg_temp.sid(146),null,pg_temp.sid(629))$q$,'BUY-012 proof attached before recording');
+select lives_ok($q$select public.attach_payment_proof((select id from req where label='KR1'),pg_temp.sid(146),pg_temp.rev('KR1'),pg_temp.sid(629))$q$,'BUY-012 proof attached before recording');
 set local role postgres;
 select pg_temp.claim('front_desk',1,23,null,903);
 set local role authenticated;
-select lives_ok($q$select public.record_purchase_request((select id from req where label='KR1'),pg_temp.rev('KR1'),pg_temp.sid(630),(select price_paise::text from public.addon_products where id=pg_temp.sid(101)),'INR','cash')$q$,'BUY-012 exact-price recording succeeds');
+select lives_ok($q$select public.record_purchase_request((select id from req where label='KR1'),pg_temp.rev('KR1'),pg_temp.sid(630),(select price_paise::text from public.addon_products where id=pg_temp.sid(101)),'INR','cash',null,(select aproof('KR1')),pg_temp.rev('KR1'))$q$,'BUY-012 exact-price recording succeeds');
 set local role postgres;
 select is(pg_temp.rq('KR1')->>'status','recorded','BUY-005 recorded state is terminal');
 select ok((pg_temp.rq('KR1')->>'recorded_payment_id') is not null and (pg_temp.rq('KR1')->>'recorded_order_id') is not null,'BUY-015 request bound to its payment and order');
@@ -330,7 +333,7 @@ select is((select count(*)::integer from public.addon_orders where id=(pg_temp.r
 select is((select stock_quantity from public.addon_products where id=pg_temp.sid(101)),9,'BUY-012 recording consumed the hold as an ordinary sale');
 select pg_temp.claim('front_desk',1,23,null,903);
 set local role authenticated;
-select is(pg_temp.replayed($q$select public.record_purchase_request((select id from req where label='KR1'),pg_temp.rev('KR1'),pg_temp.sid(630),(select price_paise::text from public.addon_products where id=pg_temp.sid(101)),'INR','cash')$q$),'true','BUY-016 recording replay returns the original result read-only');
+select is(pg_temp.replayed($q$select public.record_purchase_request((select id from req where label='KR1'),pg_temp.rev('KR1'),pg_temp.sid(630),(select price_paise::text from public.addon_products where id=pg_temp.sid(101)),'INR','cash',null,(select aproof('KR1')),pg_temp.rev('KR1'))$q$),'true','BUY-016 recording replay returns the original result read-only');
 select is(pg_temp.refusal($q$select public.record_purchase_request((select id from req where label='KR1'),pg_temp.rev('KR1'),pg_temp.sid(630),'200000','INR','cash')$q$) like 'GL068%',true,'BUY-016 changed amount under the same command key conflicts');
 set local role postgres;
 select is((select count(*)::integer from public.addon_orders where id=(pg_temp.rq('KR1')->>'recorded_order_id')::uuid),1,'BUY-016 replay created no second order');
@@ -348,11 +351,11 @@ select lives_ok($q$select public.accept_purchase_request((select id from req whe
 set local role postgres;
 select pg_temp.claim('member',1,null,31,906);
 set local role authenticated;
-select lives_ok($q$select public.attach_payment_proof((select id from req where label='KR2'),pg_temp.sid(141),null,pg_temp.sid(632))$q$,'BUY-014 mismatch scenario proof attached');
+select lives_ok($q$select public.attach_payment_proof((select id from req where label='KR2'),pg_temp.sid(141),pg_temp.rev('KR2'),pg_temp.sid(632))$q$,'BUY-014 mismatch scenario proof attached');
 set local role postgres;
 select pg_temp.claim('front_desk',1,23,null,903);
 set local role authenticated;
-select lives_ok($q$select public.record_purchase_request((select id from req where label='KR2'),pg_temp.rev('KR2'),pg_temp.sid(633),'200000','INR','upi')$q$,'BUY-014 mismatched funds recorded as received');
+select lives_ok($q$select public.record_purchase_request((select id from req where label='KR2'),pg_temp.rev('KR2'),pg_temp.sid(633),'200000','INR','upi',null,(select aproof('KR2')),pg_temp.rev('KR2'))$q$,'BUY-014 mismatched funds recorded as received');
 set local role postgres;
 select is(pg_temp.rq('KR2')->>'status','mismatch_recorded','BUY-005/014 mismatch closes the request terminally');
 select ok((select p.amount_paise=200000 and p.currency='INR' and p.method='upi' and p.status='paid' and p.membership_id is null from public.payments p where p.id=(pg_temp.rq('KR2')->>'recorded_payment_id')::uuid),'BUY-014 actual amount recorded with no entitlement');
@@ -361,7 +364,7 @@ select is(pg_temp.rq('KR2')->>'recorded_order_id',null,'BUY-014 mismatch created
 select is((select stock_quantity from public.addon_products where id=pg_temp.sid(101)),9,'BUY-014 mismatch released the hold without a sale');
 select pg_temp.claim('front_desk',1,23,null,903);
 set local role authenticated;
-select is(pg_temp.replayed($q$select public.record_purchase_request((select id from req where label='KR2'),pg_temp.rev('KR2'),pg_temp.sid(633),'200000','INR','upi')$q$),'true','BUY-016 mismatch replay resolves read-only');
+select is(pg_temp.replayed($q$select public.record_purchase_request((select id from req where label='KR2'),pg_temp.rev('KR2'),pg_temp.sid(633),'200000','INR','upi',null,(select aproof('KR2')),pg_temp.rev('KR2'))$q$),'true','BUY-016 mismatch replay resolves read-only');
 set local role postgres;
 
 -- BUY-012/014 renewal at the recorded sold terms with cumulative-period truth.
@@ -379,7 +382,7 @@ select pg_temp.claim('front_desk',1,23,null,903);
 set local role authenticated;
 select lives_ok($q$select public.accept_purchase_request((select id from req where label='KRN'),null,pg_temp.sid(634))$q$,'BUY-004 renewal accepted');
 select ok((pg_temp.rq('KRN')->'snapshot') ? 'membershipId' and (pg_temp.rq('KRN')->'snapshot') ? 'netPricePaise','renewal revision token pins the held membership and sold terms');
-select lives_ok($q$select public.record_purchase_request((select id from req where label='KRN'),pg_temp.rev('KRN'),pg_temp.sid(635),'90000','INR','cash')$q$,'BUY-012 renewal recorded at the sold net price');
+select lives_ok($q$select public.record_purchase_request((select id from req where label='KRN'),pg_temp.rev('KRN'),pg_temp.sid(635),'90000','INR','cash',null,null,null)$q$,'BUY-012 renewal recorded at the sold net price');
 set local role postgres;
 select is(pg_temp.rq('KRN')->>'status','recorded','BUY-005 renewal recorded');
 select ok((select p.membership_id=pg_temp.sid(131) and p.amount_paise=90000 from public.payments p where p.id=(pg_temp.rq('KRN')->>'recorded_payment_id')::uuid),'BUY-012 renewal payment attached to the held membership at sold terms');
@@ -387,18 +390,18 @@ select ok((select m.periods_granted=1 and m.ends_on>(select b.ends_on from mem_b
 select pg_temp.claim('front_desk',1,23,null,903);
 set local role authenticated;
 select lives_ok($q$select public.accept_purchase_request((select id from req where label='KRP'),null,pg_temp.sid(636))$q$,'BUY-014 partial renewal accepted');
-select is(pg_temp.refusal($q$select public.record_purchase_request((select id from req where label='KRP'),pg_temp.rev('KRP'),pg_temp.sid(637),'50000','USD','cash')$q$) <> 'NO ERROR',true,'BUY-014 unsupported collection currency refused, not converted');
-select is(pg_temp.refusal($q$select public.record_purchase_request((select id from req where label='KRP'),pg_temp.rev('KRP'),pg_temp.sid(638),'50000','INR','upi')$q$) <> 'NO ERROR',true,'BUY-012 non-cash recording without any proof refused');
+select is(pg_temp.refusal($q$select public.record_purchase_request((select id from req where label='KRP'),pg_temp.rev('KRP'),pg_temp.sid(637),'50000','USD','cash',null,null,null)$q$) <> 'NO ERROR',true,'BUY-014 unsupported collection currency refused, not converted');
+select is(pg_temp.refusal($q$select public.record_purchase_request((select id from req where label='KRP'),pg_temp.rev('KRP'),pg_temp.sid(638),'50000','INR','upi',null,null,null)$q$) <> 'NO ERROR',true,'BUY-012 non-cash recording without any proof refused');
 select is(pg_temp.rq('KRP')->>'status','owner_accepted','BUY-014 refused recordings changed nothing');
-select lives_ok($q$select public.record_purchase_request((select id from req where label='KRP'),pg_temp.rev('KRP'),pg_temp.sid(639),'50000','INR','cash')$q$,'BUY-014 partial renewal money recorded honestly as confirmed cash');
+select lives_ok($q$select public.record_purchase_request((select id from req where label='KRP'),pg_temp.rev('KRP'),pg_temp.sid(639),'50000','INR','cash',null,null,null)$q$,'BUY-014 partial renewal money recorded honestly as confirmed cash');
 set local role postgres;
 select ok((select p.amount_paise=50000 and p.membership_id=pg_temp.sid(132) from public.payments p where p.id=(pg_temp.rq('KRP')->>'recorded_payment_id')::uuid),'BUY-014 partial payment attached to the held membership');
 select ok((select m.periods_granted=0 and m.ends_on=(select b.ends_on from mem_before b where b.id=pg_temp.sid(132)) from public.memberships m where m.id=pg_temp.sid(132)),'BUY-014 partial money grants no period and promises none');
 select pg_temp.claim('front_desk',1,23,null,903);
 set local role authenticated;
-select is(pg_temp.replayed($q$select public.record_purchase_request((select id from req where label='KRP'),pg_temp.rev('KRP'),pg_temp.sid(639),'50000','INR','cash')$q$),'true','BUY-016 renewal recording replay returns the original result');
+select is(pg_temp.replayed($q$select public.record_purchase_request((select id from req where label='KRP'),pg_temp.rev('KRP'),pg_temp.sid(639),'50000','INR','cash',null,null,null)$q$),'true','BUY-016 renewal recording replay returns the original result');
 select is(pg_temp.refusal($q$select public.record_purchase_request((select id from req where label='KRP'),pg_temp.rev('KRP'),pg_temp.sid(639),'60000','INR','cash')$q$) like 'GL068%',true,'BUY-016 renewal command key binds its exact facts');
-select is(pg_temp.refusal($q$select public.record_purchase_request((select id from req where label='KRP'),pg_temp.rev('KRP'),pg_temp.sid(640),'50000','INR','cash')$q$) <> 'NO ERROR',true,'BUY-005 a recorded renewal cannot be recorded again under a new key');
+select is(pg_temp.refusal($q$select public.record_purchase_request((select id from req where label='KRP'),pg_temp.rev('KRP'),pg_temp.sid(640),'50000','INR','cash',null,null,null)$q$) <> 'NO ERROR',true,'BUY-005 a recorded renewal cannot be recorded again under a new key');
 set local role postgres;
 
 -- BUY-018 the daily creation cap is one total per member: ten creations already stand.
@@ -409,7 +412,21 @@ set local role postgres;
 
 -- Trusted-writer bounds and the service boundary.
 set local role service_role;
-select is(pg_temp.refusal('select public.record_purchase_request(null,null,null,null,null,null)') like '42501%',true,'BUY-019 service_role holds no application-command EXECUTE');
+-- BUY-012 p_initial_slot (owner-approved serial amendment): exact-price PT
+-- recording validates the slot server-side through the existing PTF locks and
+-- never strands the request unbound.
+select pg_temp.claim('member',1,null,31,906);
+set local role authenticated;
+select lives_ok($q$select public.create_purchase_request(pg_temp.sid(530),'pt',pg_temp.sid(105),1,(select quote_version from public.addon_products where id=pg_temp.sid(105)))$q$,'BUY-003 the PT recording scenario request is created');
+select pg_temp.cap('KPT',530);
+set local role postgres;
+select pg_temp.claim('front_desk',1,23,null,903);
+set local role authenticated;
+select lives_ok($q$select public.accept_purchase_request((select id from req where label='KPT'),(select quote_version from public.addon_products where id=pg_temp.sid(105)),pg_temp.sid(652))$q$,'BUY-004 the PT recording scenario is accepted');
+select is(pg_temp.refusal($q$select public.record_purchase_request((select id from req where label='KPT'),pg_temp.rev('KPT'),pg_temp.sid(653),(select price_paise::text from public.addon_products where id=pg_temp.sid(105)),'INR','cash',null,null,null)$q$) <> 'NO ERROR',true,'BUY-012 exact-price PT recording without a valid initial slot refuses');
+select is(pg_temp.refusal($q$select public.record_purchase_request((select id from req where label='KPT'),pg_temp.rev('KPT'),pg_temp.sid(654),(select price_paise::text from public.addon_products where id=pg_temp.sid(105)),'INR','cash',jsonb_build_object('trainerStaffId',pg_temp.sid(24),'slotId',pg_temp.sid(999)),null,null)$q$) <> 'NO ERROR',true,'BUY-012 a fabricated slot is never client-trusted: PT recording validates it server-side');
+set local role postgres;
+select is(pg_temp.refusal('select public.record_purchase_request(null,null,null,null,null,null,null,null,null)') like '42501%',true,'BUY-019 service_role holds no application-command EXECUTE');
 set local role postgres;
 
 -- BUY-019 safe reads: scoping, projection, pagination.
@@ -524,7 +541,7 @@ select pg_temp.claim('member',1,null,32,907);
 set local role authenticated;
 select is(pg_temp.regn('KF3',4),4,'BUY-018 further proof registrations fill the member rolling hour');
 select lives_ok($q$select pg_temp.reg('S3','KF3')$q$,'BUY-018 the tenth proof registration in the rolling hour succeeds');
-select is(pg_temp.refusal($q$select pg_temp.reg('S9','KF3')$q$) like 'GL126%',true,'BUY-018/GL126 the eleventh proof registration in the rolling hour refused');
+select is(pg_temp.refusal($q$select pg_temp.reg('S9','KF3')$q$) like '22023:purchase_cap%',true,'BUY-018 the eleventh proof registration in the rolling hour refuses with the stable 22023 purchase_cap marker (no GL126 exists)');
 set local role postgres;
 select pg_temp.claim('member',1,null,35,910);
 set local role authenticated;
@@ -545,9 +562,35 @@ select is(public.finalize_media_asset((select asset from regs where label='W1'),
 set local role postgres;
 select pg_temp.claim('member',1,null,35,910);
 set local role authenticated;
-select lives_ok($q$select public.attach_payment_proof((select id from req where label='KF4'),(select asset from regs where label='W1'),null,pg_temp.sid(645))$q$,'BUY-010 the confirmed winner attaches');
+select lives_ok($q$select public.attach_payment_proof((select id from req where label='KF4'),(select asset from regs where label='W1'),pg_temp.rev('KF4'),pg_temp.sid(645))$q$,'BUY-010 the confirmed winner attaches');
 select lives_ok($q$select pg_temp.reg('W2','KF4')$q$,'BUY-010 a fresh registration on a proof-uploaded request is allowed');
 select ok(pg_temp.mst('W1')->>'deleted_at' is null and pg_temp.mst('W1')->>'object_key' = pg_temp.pub(156,'payment_proof'),'BUY-010 a fresh registration never disturbs the confirmed attached winner');
+-- BUY-016/018 keyed registration replay: one logical upload keeps one command UUID.
+select lives_ok($q$insert into regs(label,asset,skey) select 'RK1',(r->>'assetId')::uuid,r->>'stagingObjectKey' from (select public.register_payment_proof((select id from req where label='KF4'),'image/jpeg',1000,pg_temp.sid(680)) as r) v$q$,'BUY-016 the keyed registration creates the logical upload once');
+select lives_ok($q$insert into regs(label,asset,skey) select 'RK2',(r->>'assetId')::uuid,r->>'stagingObjectKey' from (select public.register_payment_proof((select id from req where label='KF4'),'image/jpeg',1000,pg_temp.sid(680)) as r) v$q$,'BUY-016 the same keyed registration replays read-only');
+select is((select asset from regs where label='RK1'),(select asset from regs where label='RK2'),'BUY-016 replay returns the same registered asset without a second candidate');
+select is((select skey from regs where label='RK1'),(select skey from regs where label='RK2'),'BUY-016 replay returns the same staging facts without a new deadline');
+select is(pg_temp.refusal($q$select public.register_payment_proof((select id from req where label='KF4'),'image/jpeg',2000,pg_temp.sid(680))$q$) <> 'NO ERROR',true,'BUY-016 changed facts under the same registration key conflict');
+-- BUY-010/003 exact registration-to-request linkage enforced at attachment: a confirmed asset registered for KF4 can never attach to another request, first attach included.
+set local role postgres;
+select set_config('request.jwt.claims','{"role":"service_role"}',true);
+set local role service_role;
+select is(public.finalize_media_asset((select asset from regs where label='W2'),pg_temp.sid(910),null,'member',pg_temp.sid(1),'payment_proof','image/jpeg',1000,(select skey from regs where label='W2'),'source-W2',pg_temp.pub(158,'payment_proof'),'published-W2'),true,'BUY-010 the second confirmed-winner candidate finalizes for its own request');
+set local role postgres;
+select pg_temp.claim('member',1,null,35,910);
+set local role authenticated;
+select lives_ok($q$select public.create_purchase_request(pg_temp.sid(529),'shop',pg_temp.sid(101),1,(select quote_version from public.addon_products where id=pg_temp.sid(101)))$q$,'BUY-003 the same member opens a second accepted request');
+select pg_temp.cap('KF5',529);
+set local role postgres;
+select pg_temp.claim('front_desk',1,23,null,903);
+set local role authenticated;
+select lives_ok($q$select public.accept_purchase_request((select id from req where label='KF5'),(select quote_version from public.addon_products where id=pg_temp.sid(101)),pg_temp.sid(648))$q$,'BUY-003 the second request is accepted');
+set local role postgres;
+select pg_temp.claim('member',1,null,35,910);
+set local role authenticated;
+select is(pg_temp.refusal($q$select public.attach_payment_proof((select id from req where label='KF5'),(select asset from regs where label='W2'),pg_temp.rev('KF5'),pg_temp.sid(649))$q$) <> 'NO ERROR',true,'BUY-010 an asset registered for KF4 can never attach to KF5 (first attach included)');
+select lives_ok($q$select public.attach_payment_proof((select id from req where label='KF4'),(select asset from regs where label='W2'),pg_temp.rev('KF4'),pg_temp.sid(650))$q$,'BUY-010 the same confirmed asset still attaches to its own registered request');
+select is(pg_temp.refusal($q$select public.attach_payment_proof((select id from req where label='KF5'),(select asset from regs where label='W2'),pg_temp.sid(999),pg_temp.sid(651))$q$) <> 'NO ERROR',true,'BUY-008/016 attach validates the expected revision server-side');
 set local role postgres;
 select pg_temp.claim('member',1,null,32,907);
 set local role authenticated;
@@ -558,27 +601,44 @@ set local role service_role;
 select is(pg_temp.refusal($q$select public.finalize_media_asset((select asset from regs where label='M3'),pg_temp.sid(907),null,'member',pg_temp.sid(1),'payment_proof','image/jpeg',1000,(select skey from regs where label='M3'),'source-M3',pg_temp.pub(157,'payment_proof'),'published-M3')$q$) like 'GL066%',true,'BUY-008 finalization proves the registered request still live and accepted');
 set local role postgres;
 
--- BUY-009 owner decision 3 (binding, 2026-10-04): the private proof URL stays
--- obtainable after recording — the owning member and the same-tenant
+-- BUY-009 active-only proof viewing (frozen decision 1, 2026-10-04): only the
+-- currently ACTIVE proof of a live request is viewable, by the owning member or
+-- the real same-tenant front-office verifier; recorded/mismatch/bound history
+-- is safe metadata only and refuses for everyone.
+select pg_temp.claim('member',1,null,32,907);
+set local role authenticated;
+select lives_ok($q$insert into urls(label,payload) values ('KF3U',public.read_purchase_proof_url((select id from req where label='KF3')))$q$,'BUY-009 the owning member obtains the private proof URL for the live request''s active proof');
+select is((select (payload->>'requestId')::uuid from urls where label='KF3U'),(select id from req where label='KF3'),'BUY-009 the proof URL names its own request');
+select is((select payload->>'url' from urls where label='KF3U'),'/api/purchase-requests/'||(select id from req where label='KF3')::text||'/proof-asset','BUY-009 the proof URL is the application proof-asset path only');
+select ok((select (payload->>'expiresAt')::timestamptz from urls where label='KF3U') is not null and (select (payload->>'expiresAt')::timestamptz from urls where label='KF3U') <= now() + interval '60 seconds','BUY-018 the issued proof URL is bounded to sixty seconds');
+select is((select payload ?& array['requestId','proofId','assetId','expiresAt','url'] and not (payload ?| array['stagingObjectKey','objectKey','etag','publishedEtag','proofKey','object_key']) from urls where label='KF3U'),true,'BUY-009 the proof URL payload carries exactly the five safe keys and no storage metadata');
+set local role postgres;
+select pg_temp.claim('front_desk',1,23,null,903);
+set local role authenticated;
+select lives_ok($q$insert into urls(label,payload) values ('KF3V',public.read_purchase_proof_url((select id from req where label='KF3')))$q$,'BUY-009 the same-tenant front-office verifier obtains the active proof URL');
+set local role postgres;
+select pg_temp.claim('member',1,null,31,906);
+set local role authenticated;
+select is(pg_temp.refusal($q$select public.read_purchase_proof_url((select id from req where label='KF3'))$q$) like 'P0002%',true,'BUY-009 another member shares the one external proof-URL refusal');
+set local role postgres;
+
+-- BUY-009 active-only: after recording, the bound proof is history and the URL
+-- refuses for the owner member and the verifier alike (reverses the earlier
+-- bound-viewing allowance; no owner amendment permits it). — the owning member and the same-tenant
 -- front-office verifier may still view the bound proof (≤60s, no storage
 -- metadata); trainer, foreign and platform-preview actors keep the one
 -- external refusal; a request closed without binding keeps the refusal.
 select pg_temp.claim('member',1,null,31,906);
 set local role authenticated;
-select lives_ok($q$insert into urls(label,payload) values ('KR1U',public.read_purchase_proof_url((select id from req where label='KR1')))$q$,'BUY-009 the owning member obtains the private proof URL after the request is recorded');
-select is((select (payload->>'requestId')::uuid from urls where label='KR1U'),(select id from req where label='KR1'),'BUY-009 the recorded request''s proof URL names its own request');
-select is((select payload->>'url' from urls where label='KR1U'),'/api/purchase-requests/'||(select id from req where label='KR1')::text||'/proof-asset','BUY-009 the bound proof URL is the application proof-asset path only');
-select ok((select (payload->>'expiresAt')::timestamptz from urls where label='KR1U') is not null and (select (payload->>'expiresAt')::timestamptz from urls where label='KR1U') <= now() + interval '60 seconds','BUY-018 the post-recording proof URL is bounded to sixty seconds');
-select ok((select not (payload ?| array['stagingObjectKey','objectKey','etag','publishedEtag','proofKey','object_key']) from urls where label='KR1U'),'BUY-009 the proof URL payload carries no storage keys or ETags');
+select is(pg_temp.refusal($q$select public.read_purchase_proof_url((select id from req where label='KR1'))$q$) like 'P0002%',true,'BUY-009 the owning member cannot view a recorded request bound proof: history is metadata only');
 set local role postgres;
 select pg_temp.claim('front_desk',1,23,null,903);
 set local role authenticated;
-select lives_ok($q$insert into urls(label,payload) values ('KR1V',public.read_purchase_proof_url((select id from req where label='KR1')))$q$,'BUY-009 the same-tenant front-office verifier obtains the recorded request''s proof URL');
-select is((select (payload->>'requestId')::uuid from urls where label='KR1V'),(select id from req where label='KR1'),'BUY-009 the verifier''s bound proof URL names the same request');
+select is(pg_temp.refusal($q$select public.read_purchase_proof_url((select id from req where label='KR1'))$q$) like 'P0002%',true,'BUY-009 the verifier cannot view a recorded request bound proof either');
 set local role postgres;
 select pg_temp.claim('member',1,null,31,906);
 set local role authenticated;
-select lives_ok($q$insert into urls(label,payload) values ('KR2U',public.read_purchase_proof_url((select id from req where label='KR2')))$q$,'BUY-009 the owning member obtains the proof URL after a mismatch recording');
+select is(pg_temp.refusal($q$select public.read_purchase_proof_url((select id from req where label='KR2'))$q$) like 'P0002%',true,'BUY-009 a mismatch_recorded request bound proof refuses for everyone');
 set local role postgres;
 select pg_temp.claim('trainer',1,24,null,904);
 set local role authenticated;
