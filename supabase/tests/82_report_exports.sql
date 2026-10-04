@@ -187,9 +187,9 @@ select is(r->>'replayed_at_utc' is not null,true,'RPE D8: replay stamp kept (ATT
 select is(r->>'source','front_desk','RPE D9: canonical attendance source') from (select (v->'rows'->>2)::jsonb r from res where k='att') s;
 select is(r->>'attendance_id',pg_temp.u(422)::text,'RPE D10: ordering by (checked_in_at,id) — earliest first') from (select (v->'rows'->>0)::jsonb r from res where k='att') s;
 delete from res where k='att';
-select is(pg_temp.val($q$select coalesce(jsonb_array_length(public.export_report_snapshot('attendance',date '2026-01-01',date '2026-01-31',pg_temp.u(13),1000)->'rows'),-1))::int,1,'RPE D11: the branch filter uses the stored branch');
+select is(pg_temp.val($q$select coalesce(jsonb_array_length(public.export_report_snapshot('attendance',date '2026-01-01',date '2026-01-31',pg_temp.u(13),1000)->'rows'),-1)$q$)::int,1,'RPE D11: the branch filter uses the stored branch');
 select pg_temp.claim('gym_owner',25,null,905,2);
-select is(pg_temp.val($q$select jsonb_array_length(public.export_report_snapshot('attendance',date '2026-01-01',date '2026-01-31',null,1000)))::int,1,'RPE D12: tenant 2 reads only its own visit — cross-tenant rows never enter');
+select is(pg_temp.val($q$select jsonb_array_length(public.export_report_snapshot('attendance',date '2026-01-01',date '2026-01-31',null,1000)->'rows')$q$)::int,1,'RPE D12: tenant 2 reads only its own visit — cross-tenant rows never enter');
 select pg_temp.claim('gym_owner',21,null,901,1);
 
 -- ============ E. members dataset: joining cohort of non-erased members ============

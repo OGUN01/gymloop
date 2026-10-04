@@ -128,15 +128,36 @@ select pg_temp.ntf_claim('member',null,101,906,1,false);
 set local role authenticated;
 create temp table ntf_reg as select public.register_member_push_device(pg_temp.aid(652),'fcm-token-781-A','android') as result;
 select is((select (result->>'tokenRevision')::int from ntf_reg),1,'NTF-003: first registration is revision one');
+-- Frozen serial NTF grant matrix: privileged fixture observation only.
+set local role postgres;
 select is((select registered_user_id from public.member_devices where id=(select (result->>'deviceId')::uuid from ntf_reg)),pg_temp.aid(906),'NTF-003: device binds the authenticated account');
+set local role authenticated;
+-- Frozen serial NTF grant matrix: privileged fixture observation only.
+set local role postgres;
 select is((select is_active from public.member_devices where id=(select (result->>'deviceId')::uuid from ntf_reg)),true,'NTF-003: registered device active');
+set local role authenticated;
 select public.register_member_push_device(pg_temp.aid(652),'fcm-token-781-A','android') as result;
+-- Frozen serial NTF grant matrix: privileged fixture observation only.
+set local role postgres;
 select is((select token_revision from public.member_devices where installation_id=pg_temp.aid(652) and member_id=pg_temp.aid(101)),1::bigint,'NTF-003: same installation/token replay inert, no revision bump');
+set local role authenticated;
+-- Frozen serial NTF grant matrix: privileged fixture observation only.
+set local role postgres;
 select is((select count(*)::integer from public.member_devices where member_id=pg_temp.aid(101) and installation_id=pg_temp.aid(652)),1,'NTF-003: replay creates no second row');
+set local role authenticated;
 select public.register_member_push_device(pg_temp.aid(652),'fcm-token-781-A2','android') as result;
+-- Frozen serial NTF grant matrix: privileged fixture observation only.
+set local role postgres;
 select is((select token_revision from public.member_devices where installation_id=pg_temp.aid(652) and member_id=pg_temp.aid(101)),2::bigint,'NTF-004: rotation increments revision atomically');
+set local role authenticated;
+-- Frozen serial NTF grant matrix: privileged fixture observation only.
+set local role postgres;
 select is((select token_revision from public.member_devices where installation_id=pg_temp.aid(652) and member_id=pg_temp.aid(101)),2::bigint,'NTF-004: rotation leaves the frozen revision readable without reading the raw token');
+set local role authenticated;
+-- Frozen serial NTF grant matrix: privileged fixture observation only.
+set local role postgres;
 select is((select is_active from public.member_devices where installation_id=pg_temp.aid(652) and member_id=pg_temp.aid(101)),true,'NTF-004: rotated device stays active with cleared invalidation');
+set local role authenticated;
 select is(pg_temp.ntf_refusal($q$select public.register_member_push_device(pg_temp.aid(653),'fcm-token-781-B','ios')$q$),'22023','NTF-003: non-Android platform refused');
 select is(pg_temp.ntf_refusal($q$select public.register_member_push_device(pg_temp.aid(653),'','android')$q$),'22023','NTF-003: blank token refused');
 select is(pg_temp.ntf_refusal($q$select public.register_member_push_device(pg_temp.aid(653),repeat('x',4097),'android')$q$),'22023','NTF contract: token above 4096 characters refused');
@@ -148,7 +169,10 @@ select pg_temp.ntf_claim('member',null,102,907,1,false);
 set local role authenticated;
 select is(pg_temp.ntf_refusal($q$select public.register_member_push_device(pg_temp.aid(654),'fcm-token-781-A2','android')$q$),'23505','NTF-003: another member registering the same token is a generic conflict');
 select ok(pg_temp.ntf_refusal($q$select public.register_member_push_device(pg_temp.aid(654),'fcm-token-781-A2','android')$q$) not like '%PRIVATE%' and pg_temp.ntf_refusal($q$select public.register_member_push_device(pg_temp.aid(654),'fcm-token-781-A2','android')$q$) not like '%78100000-0000-4000-8000-000000000101%','NTF-003/013: token conflict leaks no other member identity');
+-- Frozen serial NTF grant matrix: privileged fixture observation only.
+set local role postgres;
 select is((select count(*)::integer from public.member_devices where installation_id=pg_temp.aid(654)),0,'NTF-003: refused collision creates no row');
+set local role authenticated;
 reset role;
 select pg_temp.ntf_claim('member',null,103,908,1,false);
 set local role authenticated;
@@ -157,7 +181,10 @@ reset role;
 select pg_temp.ntf_claim('member',null,104,909,1,false);
 set local role authenticated;
 create temp table ntf_minor_reg as select public.register_member_push_device(pg_temp.aid(657),'fcm-token-781-D','android') as result;
+-- Frozen serial NTF grant matrix: privileged fixture observation only.
+set local role postgres;
 select is((select registered_user_id from public.member_devices where id=(select (result->>'deviceId')::uuid from ntf_minor_reg)),pg_temp.aid(909),'NTF-003: guardian-linked minor with a complete record registers on the linked account');
+set local role authenticated;
 reset role;
 select pg_temp.ntf_claim('member',null,105,910,1,false);
 set local role authenticated;
@@ -173,9 +200,18 @@ select pg_temp.ntf_claim('member',null,101,906,1,false);
 set local role authenticated;
 select is((select bool_and((d.value->>'active')='false') from jsonb_array_elements(public.read_member_push_settings()::jsonb->'devices') d where d.value->>'id'=pg_temp.aid(601)::text),true,'NTF-003: legacy provenance-null device is inactive until self-registration');
 select public.register_member_push_device(pg_temp.aid(651),'legacy-token-781','android') as result;
+-- Frozen serial NTF grant matrix: privileged fixture observation only.
+set local role postgres;
 select is((select registered_user_id from public.member_devices where installation_id=pg_temp.aid(651)),pg_temp.aid(906),'NTF-003: matching self-registration adopts the legacy row');
+set local role authenticated;
+-- Frozen serial NTF grant matrix: privileged fixture observation only.
+set local role postgres;
 select is((select is_active from public.member_devices where installation_id=pg_temp.aid(651)),true,'NTF-003: adopted legacy device becomes active');
+set local role authenticated;
+-- Frozen serial NTF grant matrix: privileged fixture observation only.
+set local role postgres;
 select is((select token_revision from public.member_devices where installation_id=pg_temp.aid(651)),1::bigint,'NTF-003: adopting an untouched legacy row starts at revision one');
+set local role authenticated;
 reset role;
 
 -- ============ D. unregister ============
@@ -186,11 +222,14 @@ select pg_temp.ntf_claim('member',null,101,906,1,false);
 set local role authenticated;
 create temp table ntf_unreg as select public.unregister_member_push_device(pg_temp.aid(660)) as result;
 select is((select (result->>'disabled')::text from ntf_unreg),'true','NTF-004: unregister answers disabled:true');
-select is((select count(*)::integer from public.member_devices where installation_id=pg_temp.aid(660)),0,'NTF-004: another member''s device rows are invisible, not refused (no existence oracle)');
+select is((select count(*)::integer from jsonb_array_elements(public.read_member_push_settings()::jsonb->'devices') d where d->>'id'=(select result->>'deviceId' from ntf_b_reg)),0,'NTF-004: another member''s device rows are invisible through the safe RPC (no existence oracle)');
 create temp table ntf_unreg2 as select public.unregister_member_push_device(pg_temp.aid(699)) as result;
 select is((select (result->>'disabled')::text from ntf_unreg2),'true','NTF-004: unknown installation is inert disabled:true');
 select public.unregister_member_push_device(pg_temp.aid(652)) as result;
+-- Frozen serial NTF grant matrix: privileged fixture observation only.
+set local role postgres;
 select is((select is_active from public.member_devices where installation_id=pg_temp.aid(652)),false,'NTF-004: own unregister deactivates the exact device');
+set local role authenticated;
 reset role;
 
 -- ============ E. read settings ============

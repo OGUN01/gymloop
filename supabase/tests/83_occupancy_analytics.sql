@@ -73,7 +73,8 @@ insert into public.plans(id,tenant_id,name,duration_days,price_paise) values(pg_
 -- membership is the member's first, so created_at is pinned explicitly.
 insert into public.memberships(id,tenant_id,member_id,plan_id,status,starts_on,ends_on,price_paise,created_at) values
 (pg_temp.u(301),pg_temp.u(1),pg_temp.u(101),pg_temp.u(201),'active','2025-06-01','2026-12-31',10000,'2025-06-01T00:00:00Z'),
-(pg_temp.u(302),pg_temp.u(1),pg_temp.u(101),pg_temp.u(201),'active','2026-01-10','2026-12-31',9000,'2026-01-10T00:00:00Z'),
+-- Historical successor is closed: only one live membership per member.
+(pg_temp.u(302),pg_temp.u(1),pg_temp.u(101),pg_temp.u(201),'expired','2026-01-10','2026-12-31',9000,'2026-01-10T00:00:00Z'),
 (pg_temp.u(305),pg_temp.u(1),pg_temp.u(102),pg_temp.u(201),'active','2026-01-05','2026-12-31',10000,'2026-01-05T00:00:00Z'),
 (pg_temp.u(306),pg_temp.u(2),pg_temp.u(106),pg_temp.u(202),'active','2026-01-05','2026-12-31',10000,'2026-01-05T00:00:00Z');
 insert into public.organization_holidays(id,tenant_id,holiday_on,name) values(pg_temp.u(851),pg_temp.u(1),'2026-09-14','OCC fixture holiday');
