@@ -271,16 +271,75 @@ begin
     insert into h83_seed_errors values ('class_bookings: ' || SQLERRM);
   end;
   begin
-    insert into public.addon_orders(id, tenant_id, member_id, payment_id, total_paise, currency, status)
-    values ('83900000-0000-4000-8000-0000000000ad','83900000-0000-4000-8000-000000000001','83900000-0000-4000-8000-0000000000b3','83900000-0000-4000-8000-0000000000f4',25000,'INR','paid');
+    -- Role re-set immediately before the offer staging: the fixtures run as
+    -- postgres (row_security_active false), so RLS-gated guard clauses skip;
+    -- unconditional offer-match conjuncts are satisfied by exact mirroring.
+    set local role postgres;
+    -- Lawful exact-buy staging per the phase6 ownsale guard: the order
+    -- mirrors a dedicated on-clock payment (same member, exact total, same
+    -- currency INR, paid with paid_at, no membership/mandate/coupon/
+    -- provider, recorded_by = sold_by) and the payment's idempotency key is
+    -- exactly 'addon-sale:' || the order's key. The USD payment …f4 keeps
+    -- its per-currency pin and is NOT the order's payment.
+    -- A listable product offer carries complete disclosed terms: non-blank
+    -- description and cancellation_terms and validity_days > 0 (the same
+    -- completeness checks record_addon_sale applies to active offers).
+    insert into public.addon_products(id, tenant_id, kind, name, description, price_paise, currency, gst_rate_bp, stock_quantity, validity_days, cancellation_terms, quote_version, is_active)
+      values ('83900000-0000-4000-8000-0000000000ae','83900000-0000-4000-8000-000000000001','product','H83 Towel Pass','H83 towel service for the analytics cohort',25000,'INR',0,10,30,'Non-refundable; usable for 30 days from sale.','83900000-0000-4000-8000-0000000000af',true);
+    insert into public.payments(id, tenant_id, member_id, membership_id, amount_paise, currency, status, method, receipt_number, recorded_by_staff_id, idempotency_key, paid_at, created_at)
+      values ('83900000-0000-4000-8000-0000000000ac','83900000-0000-4000-8000-000000000001','83900000-0000-4000-8000-0000000000b3',null,25000,'INR','paid','cash','H83-RAC','83900000-0000-4000-8000-0000000000a1','addon-sale:83900000-0000-4000-8000-0000000000b0', now() - interval '40 minutes', now() - interval '40 minutes');
+    -- A keyed sale begins pending with complete frozen evidence: snapshot
+    -- exactly six keys matching the product (trainerQualification explicit
+    -- jsonb null because the product carries none), request exactly nine keys
+    -- with numeric quantity and the product's quote_version; the uid-shaped
+    -- key satisfies the guard's key regex.
+    -- A pending sale carries NO payment link yet: the frozen-terms guard
+    -- arms once payment_id is set, and the acceptance UPDATE is what links
+    -- the payment while the row is still pending and unpaid.
+    insert into public.addon_orders(id, tenant_id, member_id, addon_product_id, status, quantity, unit_price_paise, total_paise, currency, idempotency_key, sold_by_staff_id, sale_snapshot, sale_request)
+      values ('83900000-0000-4000-8000-0000000000ad','83900000-0000-4000-8000-000000000001','83900000-0000-4000-8000-0000000000b3','83900000-0000-4000-8000-0000000000ae','pending',1,25000,25000,'INR','83900000-0000-4000-8000-0000000000b0','83900000-0000-4000-8000-0000000000a1',
+        -- The snapshot derives FROM the live product row at insert time, so
+        -- it mirrors every guarded field exactly (including trainer_
+        -- qualification as the row actually carries it — jsonb null when the
+        -- column is SQL NULL).
+        (select jsonb_build_object('kind',p.kind,'name',p.name,'description',p.description,'cancellationTerms',p.cancellation_terms,'validityDays',p.validity_days,'trainerQualification',p.trainer_qualification)
+           from public.addon_products p
+          where p.tenant_id = '83900000-0000-4000-8000-000000000001' and p.id = '83900000-0000-4000-8000-0000000000ae'),
+        jsonb_build_object('memberId','83900000-0000-4000-8000-0000000000b3','productId','83900000-0000-4000-8000-0000000000ae','quantity',1,'quoteVersion',(select p.quote_version::text from public.addon_products p where p.tenant_id = '83900000-0000-4000-8000-000000000001' and p.id = '83900000-0000-4000-8000-0000000000ae'),'trainerStaffId',null,'initialStartsAt',null,'initialEndsAt',null,'method','cash','reason','H83 analytics staging'));
+    -- The pending->paid acceptance derives the gym-local validity window from
+    -- the acceptance instant: starts_on = sold date, expires_on = +29 days.
+    -- The acceptance UPDATE carries the acceptance instant and derives the
+    -- gym-local validity window from THAT SAME instant (the guard computes
+    -- v_expected_start := new.sold_at at gym zone ::date and
+    -- v_expected_end := starts_on + validityDays - 1; now() is
+    -- transaction-stable, so the three expressions agree exactly).
+    -- PAYCHECK diagnostic: stage the payment's live values ahead of the
+    -- acceptance UPDATE so the staging-health text names any mismatching
+    -- exact-buy guard column.
+    insert into h83_seed_errors values ('PAYCHECK: member='||(select member_id::text from public.payments where id='83900000-0000-4000-8000-0000000000ac')||' amt='||(select amount_paise::text from public.payments where id='83900000-0000-4000-8000-0000000000ac')||' cur='||(select currency from public.payments where id='83900000-0000-4000-8000-0000000000ac')||' status='||(select status from public.payments where id='83900000-0000-4000-8000-0000000000ac')||' paid_at='||(select coalesce(paid_at::text,'NULL') from public.payments where id='83900000-0000-4000-8000-0000000000ac')||' idemp='||(select coalesce(idempotency_key,'NULL') from public.payments where id='83900000-0000-4000-8000-0000000000ac')||' recby='||(select coalesce(recorded_by_staff_id::text,'NULL') from public.payments where id='83900000-0000-4000-8000-0000000000ac')||' memb_id='||(select coalesce(membership_id::text,'NULL') from public.payments where id='83900000-0000-4000-8000-0000000000ac')||' mandate='||(select coalesce(mandate_id::text,'NULL') from public.payments where id='83900000-0000-4000-8000-0000000000ac')||' coupon='||(select coalesce(coupon_id::text,'NULL') from public.payments where id='83900000-0000-4000-8000-0000000000ac')||' provider='||(select coalesce(provider,'NULL')||'/'||coalesce(provider_order_id,'NULL')||'/'||coalesce(provider_payment_id,'NULL') from public.payments where id='83900000-0000-4000-8000-0000000000ac'));
+    update public.addon_orders
+      set status = 'paid',
+          payment_id = '83900000-0000-4000-8000-0000000000ac',
+          sold_at = now(),
+          starts_on = (now() at time zone 'Asia/Kolkata')::date,
+          expires_on = (now() at time zone 'Asia/Kolkata')::date + 29
+      where id = '83900000-0000-4000-8000-0000000000ad';
   exception when others then
-    insert into h83_seed_errors values ('addon_orders: ' || SQLERRM);
+    declare v_ctx text; v_detail text;
+    begin
+      get stacked diagnostics v_ctx = pg_exception_context, v_detail = pg_exception_detail;
+      insert into h83_seed_errors values ('addon_orders: ' || SQLERRM || ' ctx=' || v_ctx || ' detail=' || v_detail);
+    end;
   end;
+  -- Unconditional post-block probe: reads the payments row's committed
+  -- state after the addon staging (ABSENT if the block rolled back), so the
+  -- staging-health text names any exact-buy divergence directly.
+  insert into h83_seed_errors values ('PAYCHECK-POST '||coalesce((select jsonb_build_object('id',id,'status',status,'amount',amount_paise,'currency',currency,'member',member_id,'paid_at',paid_at::text,'idempotency_key',idempotency_key,'recby',recorded_by_staff_id::text,'memb',membership_id::text,'mandate',mandate_id::text,'coupon',coupon_id::text,'prov',provider,'provoid',provider_order_id,'provpay',provider_payment_id)::text from public.payments where id='83900000-0000-4000-8000-0000000000ac'),'ABSENT'));
 end $seed$;
 
 select ok((select count(*) from h83_seed_errors) = 0,
           'real attendance/class staging succeeded'
-          || coalesce((select ' (first error: ' || line || ')' from h83_seed_errors limit 1), ''));
+          || coalesce((select ' (errors: ' || (select string_agg(line, ' ;; ' order by ctid) from h83_seed_errors) || ')' from h83_seed_errors), ''));
 
 -- Owner identity for every materialized snapshot.
 select set_config('request.jwt.claims','{"sub":"83900000-0000-4000-8000-0000000000a1","role":"authenticated","app_role":"gym_owner","staff_id":"83900000-0000-4000-8000-0000000000a1","tenant_id":"83900000-0000-4000-8000-000000000001"}',true);
