@@ -65,9 +65,13 @@ create function pg_temp.cash(js jsonb, cur text) returns jsonb language sql as $
   where c->>'currency' = $2 limit 1
 $f$;
 
+-- The frozen categories shape is an OBJECT: {label, newMember, renewal,
+-- addon, unallocated}, each category {collectedPaise,returnedPaise,netPaise}
+-- (+ unknownReturnPaise on unallocated only). The helper returns the
+-- categories object only when its carried label matches the declared string,
+-- so a divergent label surfaces as null and fails the assertions loudly.
 create function pg_temp.cat(cash_row jsonb, label text) returns jsonb language sql as $f$
-  select c from jsonb_array_elements(cash_row->'categories') c
-  where c->>'label' = $2 limit 1
+  select case when cash_row->'categories'->>'label' = $2 then cash_row->'categories' end
 $f$;
 
 create function pg_temp.pay(js jsonb, pid text) returns jsonb language sql as $f$
@@ -204,7 +208,7 @@ begin
       -- one at 18:30, one exactly at the range-start local midnight.
       ('83900000-0000-4000-8000-0000000000e1','83900000-0000-4000-8000-000000000001','83900000-0000-4000-8000-000000000011','83900000-0000-4000-8000-0000000000b1', ((current_date - 1)::timestamp + time '09:00') at time zone 'Asia/Kolkata'),
       ('83900000-0000-4000-8000-0000000000e2','83900000-0000-4000-8000-000000000001','83900000-0000-4000-8000-000000000011','83900000-0000-4000-8000-0000000000b2', ((current_date - 1)::timestamp + time '09:00') at time zone 'Asia/Kolkata'),
-      ('83900000-0000-4000-8000-0000000000e10','83900000-0000-4000-8000-000000000001','83900000-0000-4000-8000-000000000011','83900000-0000-4000-8000-0000000000b1', ((current_date - 1)::timestamp + time '09:30') at time zone 'Asia/Kolkata'),
+      ('83900000-0000-4000-8000-000000000e10','83900000-0000-4000-8000-000000000001','83900000-0000-4000-8000-000000000011','83900000-0000-4000-8000-0000000000b1', ((current_date - 1)::timestamp + time '09:30') at time zone 'Asia/Kolkata'),
       ('83900000-0000-4000-8000-0000000000e3','83900000-0000-4000-8000-000000000001','83900000-0000-4000-8000-000000000011','83900000-0000-4000-8000-0000000000b2', ((current_date - 1)::timestamp + time '18:30') at time zone 'Asia/Kolkata'),
       ('83900000-0000-4000-8000-0000000000e6','83900000-0000-4000-8000-000000000001','83900000-0000-4000-8000-000000000011','83900000-0000-4000-8000-0000000000b3', ((current_date - 1)::timestamp) at time zone 'Asia/Kolkata'),
       -- Today (holiday): one visit inside the current day, hour pinned to one
@@ -221,11 +225,11 @@ begin
       -- DST gap: Sunday 2026-09-27 02:00-03:00 NZST does not exist; the visit
       -- sits on Sunday 2026-09-20 02:30 NZST so the Sunday/02 cell gains one
       -- eligible date while 2026-09-27 contributes none.
-      ('83900000-0000-4000-8000-0000000000e11','83900000-0000-4000-8000-000000000001','83900000-0000-4000-8000-000000000012','83900000-0000-4000-8000-0000000000b3', '2026-09-19T14:30:00Z'::timestamptz),
+      ('83900000-0000-4000-8000-000000000e11','83900000-0000-4000-8000-000000000001','83900000-0000-4000-8000-000000000012','83900000-0000-4000-8000-0000000000b3', '2026-09-19T14:30:00Z'::timestamptz),
       -- DST repeat: Sunday 2026-04-05 02:30 occurs twice (NZDT then NZST);
       -- both instants bucket into the same coordinate and the date counts once.
-      ('83900000-0000-4000-8000-0000000000e12','83900000-0000-4000-8000-000000000001','83900000-0000-4000-8000-000000000012','83900000-0000-4000-8000-0000000000b3', '2026-04-04T13:30:00Z'::timestamptz),
-      ('83900000-0000-4000-8000-0000000000e13','83900000-0000-4000-8000-000000000001','83900000-0000-4000-8000-000000000012','83900000-0000-4000-8000-0000000000b3', '2026-04-04T14:30:00Z'::timestamptz);
+      ('83900000-0000-4000-8000-000000000e12','83900000-0000-4000-8000-000000000001','83900000-0000-4000-8000-000000000012','83900000-0000-4000-8000-0000000000b3', '2026-04-04T13:30:00Z'::timestamptz),
+      ('83900000-0000-4000-8000-000000000e13','83900000-0000-4000-8000-000000000001','83900000-0000-4000-8000-000000000012','83900000-0000-4000-8000-0000000000b3', '2026-04-04T14:30:00Z'::timestamptz);
   exception when others then
     insert into h83_seed_errors values ('attendance: ' || SQLERRM);
   end;
@@ -465,7 +469,8 @@ select is(pg_temp.cat(pg_temp.cash(pg_temp.snap('main')->'collection'->'currenci
 select is(pg_temp.cat(pg_temp.cash(pg_temp.snap('main')->'collection'->'currencies','USD'),'Membership linkage (derived classification)')->'unallocated'->>'netPaise','-7500','the returns-only unallocated category is a visible negative, spelled with a sign and never -0');
 select is(pg_temp.cash(pg_temp.snap('main')->'collection'->'currencies','USD')->>'netPaise','17500','USD cash net nets collected and returned exactly');
 select is((select (a->>'collectedPaise')::numeric from jsonb_array_elements(pg_temp.snap('main')->'collection'->'currencies') a where a->>'currency'='INR'),
-          (select sum((c->>'collectedPaise')::numeric) from jsonb_array_elements(pg_temp.cash(pg_temp.snap('main')->'collection'->'currencies','INR')->'categories') c),
+          (select sum((e.value->>'collectedPaise')::numeric) from jsonb_each(pg_temp.cash(pg_temp.snap('main')->'collection'->'currencies','INR')->'categories') e
+           where e.key in ('newMember','renewal','addon','unallocated')),
           'the four categories sum exactly to the currency cash collected');
 select ok(not exists (select 1 from jsonb_array_elements(pg_temp.snap('main')->'collection'->'components'->'collected') v where v->>'paymentId' = '83900000-0000-4000-8000-0000000000f5'),'a created (never-arrived) attempt contributes no collected cash');
 select ok(not exists (select 1 from jsonb_array_elements(pg_temp.snap('main')->'collection'->'components'->'collected') v where v->>'paymentId' = '83900000-0000-4000-8000-0000000000f8'),'a payment at or after asOf contributes nothing');

@@ -109,4 +109,61 @@ to the exact PSD clause.
    left to CI/live gates.
 
 Static checks: `scripts/check-pgtap-rollback.mjs` clean for this file.
-File sha256: `e9a074971310334328b9ab184da2bd174466bc2b257f533d081ab7553b4fc89f`.
+Runtime fix (2026-10-04): `search_path` corrected to `public, extensions` so
+pgTAP's `plan()` in the extensions schema resolves; plan(94) and all
+assertions unchanged.
+Runtime fix 2 (2026-10-04): plpgsql variable/column name clashes removed —
+`pg_temp.posture` locals renamed (`v_oid` etc., `pg_proc` references
+alias-qualified), `pg_temp.probe`/`pg_temp.p` parameters renamed, and the
+`h84_marks` lookup table-qualified. Plan(94) unchanged.
+Runtime fix 3 (2026-10-04): every `is()` operand pair mixing a `count(*)`
+bigint against a bare integer literal now casts the literal `::bigint`
+(B7, C5, D4, F4, G4, H3, I4, J2, J3; A4 was already cast). Plan(94)
+unchanged. File sha256:
+`9556f6345d144b6fe4b226fcfa80fc8bede1905cc1d4ef6a09c5e88d442e3a5e`.
+Runtime fix 4 (2026-10-04): the nineteen `ok(...)` calls inside the E and J
+plpgsql DO blocks are now `perform ok(...)` — bare function calls are not
+valid statements in plpgsql and raised `42601 syntax error at or near "ok"`.
+Plan(94) unchanged (assertion count identical). File sha256:
+`0cbf4d1881085ca4cc9298b04fba96efe1e13357e8983358386417174726cef2`.
+
+Builder-adjudication round (2026-10-04, plan(94) preserved, sha256
+`0272bb49864ef1737ced7d6bd6441350f1d2533eff57cf90a1d3cb8b23745e47`):
+
+- Staging repaired (was the real J2/J3 cascade root): the committed platform
+  migration `20261004090000_push_delivery.sql` (read as existing committed
+  schema, not scheduler implementation) defines
+  `push_provider_configurations(tenant_id PK, firebase_project_id,
+  activated_at, ...)` — no `id` column; and `organizations.gym_code`
+  requires exactly `^[A-Z0-9]{6}$`. Bulk series now `generate_series(100,204)`
+  with 6-char codes; provider inserts use `(tenant_id, firebase_project_id,
+  activated_at)`. Fixture tenant count unchanged (4 + 105 = 109).
+- C1/C2 re-derived: the declaration does not pin the advisory-lock key
+  derivation, so the suite no longer assumes a single derivation — it holds
+  the job-name lock under both plausible derivations
+  (`hashtextextended('push-dispatch-minute',0)` and `hashtext(...)`) and pins
+  the OBSERVABLE semantics: a contended tick is an inert skipped tick. A
+  third derivation would surface as a loud RED and a contract conversation,
+  not a silent pass.
+- A29 re-derived: the declaration pins the semantic JSON content type, not
+  the source spelling; the prosrc pin is now case-insensitive
+  (`content-type` + `application/json` present). The endpoint URL and
+  `x-gymloop-push-dispatch-secret` header name remain exact-case pins —
+  those ARE the declared spellings.
+- D1–D4 re-derived: blank-secret staging is now branchable. If the extension
+  stores a blank value, the tick must refuse with the declared value-free
+  error (unchanged pins). If the extension refuses to store blank secrets at
+  all, that structural denial is the pinned defense; the staging refusal is
+  recorded in `h84_flags` (not `h84_errors`) so a legitimate structural
+  branch does not trip the staging-health gate, and the refusal text is
+  disclosed here via the flag note.
+- E re-staged from a nonblank base so duplicate-entry semantics no longer
+  depend on which blank branch ran.
+- F5 kept as-is: the declared seam signature
+  `app.enqueue_push_dispatch_wakeup(p_secret text) returns void` is exactly
+  what the suite installs, and F5 pins that the driver passes the decrypted
+  Vault value verbatim.
+- Note: A8 ("no provider configuration row with firebase_project_id
+  'samuraiapi-51996' pre-staging") assumes the demo database holds no such
+  row; if production/demo data ever contains one, that is a finding, not a
+  fixture bug.

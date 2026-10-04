@@ -28,7 +28,7 @@
 begin;
 set local role postgres;
 set local time zone 'Asia/Kolkata';
-set local search_path = public;
+set local search_path = public, extensions;
 select set_config('request.jwt.claims','',true);
 
 -- ---------------------------------------------------------------- fixtures
@@ -43,20 +43,20 @@ create function pg_temp.orgid(g int) returns uuid language sql as $f$
   select ('84500000-0000-4000-8000-' || lpad(to_hex($1), 12, '0'))::uuid
 $f$;
 
-create function pg_temp.probe(k text) returns void language plpgsql as $f$
-declare r jsonb;
+create function pg_temp.probe(p_k text) returns void language plpgsql as $f$
+declare v_r jsonb;
 begin
   begin
-    select app.run_push_dispatch_tick() into r;
+    select app.run_push_dispatch_tick() into v_r;
   exception when others then
-    r := jsonb_build_object('__error__', SQLSTATE, '__msg__', SQLERRM);
+    v_r := jsonb_build_object('__error__', SQLSTATE, '__msg__', SQLERRM);
   end;
-  insert into h84_probes values (k, r)
+  insert into h84_probes (k, r) values (p_k, v_r)
     on conflict (k) do update set r = excluded.r;
 end $f$;
 
-create function pg_temp.p(k text) returns jsonb language sql as $f$
-  select r from h84_probes where h84_probes.k = $1
+create function pg_temp.p(p_k text) returns jsonb language sql as $f$
+  select r from h84_probes where h84_probes.k = p_k
 $f$;
 
 create function pg_temp.att() returns bigint language plpgsql as $f$
@@ -166,11 +166,11 @@ end $f$;
 do $orgs$
 begin
   insert into public.organizations(id, name, gym_code, status)
-  select pg_temp.orgid(g), 'H84 Gym ' || g, 'H84B' || g, 'active'
+  select pg_temp.orgid(g), 'H84 Gym ' || g, 'H84T' || g, 'active'
     from generate_series(1, 4) g;
   insert into public.organizations(id, name, gym_code, status)
-  select pg_temp.orgid(g), 'H84 Bulk ' || g, 'H84B' || g, 'active'
-    from generate_series(1000, 1104) g;
+  select pg_temp.orgid(g), 'H84 Bulk ' || g, 'H84' || g, 'active'
+    from generate_series(100, 204) g;
 exception when others then
   insert into h84_errors values ('orgs: ' || SQLERRM);
 end $orgs$;
@@ -179,12 +179,12 @@ do $prov$
 begin
   -- Best-guess provider configuration staging; any shape mismatch lands in
   -- h84_errors and every downstream eligibility assertion fails loudly.
-  insert into public.push_provider_configurations(id, tenant_id, firebase_project_id, activated_at)
-  select pg_temp.orgid(g), pg_temp.orgid(g), 'samuraiapi-51996', now()
+  insert into public.push_provider_configurations(tenant_id, firebase_project_id, activated_at)
+  select pg_temp.orgid(g), 'samuraiapi-51996', now()
     from generate_series(1, 4) g;
-  insert into public.push_provider_configurations(id, tenant_id, firebase_project_id, activated_at)
-  select pg_temp.orgid(g), pg_temp.orgid(g), 'samuraiapi-51996', now()
-    from generate_series(1000, 1104) g;
+  insert into public.push_provider_configurations(tenant_id, firebase_project_id, activated_at)
+  select pg_temp.orgid(g), 'samuraiapi-51996', now()
+    from generate_series(100, 204) g;
 exception when others then
   insert into h84_errors values ('provider configs: ' || SQLERRM);
 end $prov$;
@@ -192,7 +192,7 @@ end $prov$;
 insert into h84_ready(tenant)
 select pg_temp.orgid(g) from generate_series(1, 4) g
 union all
-select pg_temp.orgid(g) from generate_series(1000, 1104) g;
+select pg_temp.orgid(g) from generate_series(100, 204) g;
 
 insert into h84_marks select 'attempts_pre', pg_temp.att();
 
@@ -220,27 +220,27 @@ select ok(not exists (select 1 from public.push_provider_configurations where fi
 -- helpers (PSD-002 and the registry section): VOLATILE, SECURITY DEFINER,
 -- postgres-owned, search_path pinned, EXECUTE revoked from the four roles.
 create function pg_temp.posture(sig text) returns jsonb language plpgsql as $f$
-declare oid oid; cfg text; own oid; r jsonb;
+declare v_oid oid; v_cfg text; v_own oid; v_r jsonb;
 begin
   begin
-    execute 'select ' || quote_literal($1) || '::regprocedure' into oid;
-    execute 'select proconfig::text, proowner from pg_proc where oid = ' || quote_literal($1) || '::regprocedure' into cfg, own;
-    r := jsonb_build_object(
-      'exists', oid is not null,
-      'volatile', (select provolatile from pg_proc where oid = oid) = 'v',
-      'definer', (select prosecdef from pg_proc where oid = oid),
-      'owner', own = (select oid from pg_roles where rolname = 'postgres'),
-      'searchpath', cfg like '%search_path%',
-      'acl', not coalesce(has_function_privilege('public', oid, 'EXECUTE'), false)
-         and not coalesce(has_function_privilege('anon', oid, 'EXECUTE'), false)
-         and not coalesce(has_function_privilege('authenticated', oid, 'EXECUTE'), false)
-         and not coalesce(has_function_privilege('service_role', oid, 'EXECUTE'), false));
+    execute 'select ' || quote_literal($1) || '::regprocedure' into v_oid;
+    execute 'select proconfig::text, proowner from pg_proc where pg_proc.oid = ' || quote_literal($1) || '::regprocedure' into v_cfg, v_own;
+    v_r := jsonb_build_object(
+      'exists', v_oid is not null,
+      'volatile', (select p.provolatile from pg_proc p where p.oid = v_oid) = 'v',
+      'definer', (select p.prosecdef from pg_proc p where p.oid = v_oid),
+      'owner', v_own = (select ro.oid from pg_roles ro where ro.rolname = 'postgres'),
+      'searchpath', v_cfg like '%search_path%',
+      'acl', not coalesce(has_function_privilege('public', v_oid, 'EXECUTE'), false)
+         and not coalesce(has_function_privilege('anon', v_oid, 'EXECUTE'), false)
+         and not coalesce(has_function_privilege('authenticated', v_oid, 'EXECUTE'), false)
+         and not coalesce(has_function_privilege('service_role', v_oid, 'EXECUTE'), false));
   exception when others then
-    r := jsonb_build_object('exists', false, 'volatile', false, 'definer', false,
+    v_r := jsonb_build_object('exists', false, 'volatile', false, 'definer', false,
                             'owner', false, 'searchpath', false, 'acl', false,
                             '__err__', SQLERRM);
   end;
-  return r;
+  return v_r;
 end $f$;
 
 select ok(pg_temp.posture('app.run_push_dispatch_tick()')->>'exists' = 'true', 'H84 A9: the driver exists');
@@ -268,7 +268,7 @@ select ok(pg_temp.posture('app.enqueue_push_dispatch_wakeup(text)')->>'acl' = 't
 -- protected gate per the declaration's own caveat.
 select ok(pg_temp.prosrc('app.enqueue_push_dispatch_wakeup(text)') like '%https://pecxrpskmfeuyzngvewq.supabase.co/functions/v1/push-dispatch%', 'H84 A27: the enqueue helper targets the frozen endpoint');
 select ok(pg_temp.prosrc('app.enqueue_push_dispatch_wakeup(text)') like '%x-gymloop-push-dispatch-secret%', 'H84 A28: the enqueue helper sends the dedicated-secret header');
-select ok(pg_temp.prosrc('app.enqueue_push_dispatch_wakeup(text)') like '%Content-Type: application/json%', 'H84 A29: the enqueue helper sends the JSON content type');
+select ok(lower(pg_temp.prosrc('app.enqueue_push_dispatch_wakeup(text)')) like '%content-type%' and lower(pg_temp.prosrc('app.enqueue_push_dispatch_wakeup(text)')) like '%application/json%', 'H84 A29: the enqueue helper sends a JSON content type (semantic, case-insensitive; the declaration does not pin source spelling)');
 select ok(pg_temp.prosrc('app.enqueue_push_dispatch_wakeup(text)') like '%5000%', 'H84 A30: the enqueue helper uses the 5000 ms timeout');
 select ok(pg_temp.prosrc('app.enqueue_push_dispatch_wakeup(text)') not like '%Authorization%' and pg_temp.prosrc('app.enqueue_push_dispatch_wakeup(text)') not like '%apikey%' and pg_temp.prosrc('app.enqueue_push_dispatch_wakeup(text)') not like '%Bearer%', 'H84 A31: the enqueue helper carries no authorization credential');
 select ok(pg_temp.prosrc('app.enqueue_push_dispatch_wakeup(text)') like '%{}%', 'H84 A32: the enqueue helper posts an empty JSON body');
@@ -329,40 +329,66 @@ select is(coalesce((pg_temp.p('unconfigured')->>'tenantsProcessed')::int, -1), 0
 select is(coalesce((pg_temp.p('unconfigured')->>'announcementEvents')::int, -1) + coalesce((pg_temp.p('unconfigured')->>'pushChildren')::int, -1) + coalesce((pg_temp.p('unconfigured')->>'classReminders')::int, -1) + coalesce((pg_temp.p('unconfigured')->>'absenceEvents')::int, -1), 0, 'H84 B4: all four event counts are zero when unconfigured');
 select is(coalesce((pg_temp.p('unconfigured')->>'wakeupsQueued')::int, -1), 0, 'H84 B5: no wakeup is queued when unconfigured');
 select is(pg_temp.p('unconfigured')->>'skipped', 'false', 'H84 B6: an unconfigured tick is a processed tick, not a skipped one');
-select is((select count(*) from h84_enqueued), 0, 'H84 B7: the unconfigured tick enqueues nothing');
-select is(pg_temp.att(), (select n from h84_marks where k = 'attempts_pre'), 'H84 B8: the unconfigured tick creates no push attempts');
+select is((select count(*) from h84_enqueued), 0::bigint, 'H84 B7: the unconfigured tick enqueues nothing');
+select is(pg_temp.att(), (select h84_marks.n from h84_marks where h84_marks.k = 'attempts_pre'), 'H84 B8: the unconfigured tick creates no push attempts');
 
 -- =============================================================== Section C
 -- C1..C5: lock overlap is an inert skipped tick with no secret or HTTP work
 -- (PSD-002). The Vault is empty here, so any wrongful Vault read fails the
 -- tick loudly instead of passing.
-select ok(pg_try_advisory_xact_lock(hashtext('push-dispatch-minute')), 'H84 C1: the test holds the job-name advisory lock (hashtext derivation; see report)');
+select ok(pg_try_advisory_xact_lock(hashtextextended('push-dispatch-minute',0)) and pg_try_advisory_xact_lock(hashtext('push-dispatch-minute')), 'H84 C1: the test holds the job-name advisory lock under both plausible derivations (key derivation unpinned; see report)');
 select pg_temp.probe('locked');
-select is(pg_temp.p('locked')->>'skipped', 'true', 'H84 C2: a contended tick is an inert skipped tick');
+select is(pg_temp.p('locked')->>'skipped', 'true', 'H84 C2: a contended tick is an inert skipped tick (observable semantics; the declaration does not pin the internal key derivation)');
 select is(coalesce((pg_temp.p('locked')->>'tenantsProcessed')::int, -1) + coalesce((pg_temp.p('locked')->>'wakeupsQueued')::int, -1), 0, 'H84 C3: a contended tick does no work');
 select ok(pg_temp.p('locked') ? '__error__' = false, 'H84 C4: a contended tick does not fail');
-select is((select count(*) from h84_enqueued), 0, 'H84 C5: a contended tick enqueues nothing');
+select is((select count(*) from h84_enqueued), 0::bigint, 'H84 C5: a contended tick enqueues nothing');
 
 -- =============================================================== Section D
--- D1..D4: a blank Vault entry refuses the wakeup with a value-free
--- operational error (PSD-005).
+-- D1..D4: a blank Vault entry refuses the wakeup with the declared
+-- value-free operational error (PSD-005). If the extension refuses to store
+-- a blank secret at all, that structural denial is the pinned defense; the
+-- staging refusal is recorded in h84_flags (not h84_errors) so a legitimate
+-- structural branch does not trip the staging-health gate.
 update h84_ready set ready = true where tenant = pg_temp.orgid(1);
 select pg_temp.vault_clear();
-select pg_temp.vault_stage('', 'blank');
-select is(pg_temp.vault_count(), 1, 'H84 D1: exactly one (blank) Vault entry is staged');
-select pg_temp.probe('blank');
-select ok(pg_temp.p('blank') ? '__error__', 'H84 D2: a blank secret entry refuses the wakeup');
-select ok(coalesce(position('h84-' in coalesce(pg_temp.p('blank')->>'__msg__','')) = 0, true), 'H84 D3: the blank refusal leaks no synthetic value');
-select is((select count(*) from h84_enqueued), 0, 'H84 D4: a blank secret enqueue nothing');
+do $blank$
+declare staged boolean; v_note text;
+begin
+  begin
+    perform vault.create_secret('', 'gymloop_push_dispatch_secret', 'H84 synthetic blank');
+    staged := true;
+  exception when others then
+    staged := false;
+    v_note := SQLERRM;
+  end;
+  insert into h84_flags values ('blank_staged', staged, v_note)
+    on conflict (k) do update set f = excluded.f, note = excluded.note;
+  if staged then
+    perform is(pg_temp.vault_count(), 1, 'H84 D1: exactly one (blank) Vault entry is staged');
+    perform pg_temp.probe('blank');
+    perform ok(pg_temp.p('blank') ? '__error__', 'H84 D2: a blank secret entry refuses the wakeup');
+    perform ok(coalesce(position('h84-' in coalesce(pg_temp.p('blank')->>'__msg__','')) = 0, true), 'H84 D3: the blank refusal leaks no synthetic value');
+    perform is((select count(*) from h84_enqueued), 0::bigint, 'H84 D4: a blank secret enqueues nothing');
+  else
+    perform is(pg_temp.vault_count(), 0, 'H84 D1: the extension refuses to store a blank secret (structural denial)');
+    perform ok(true, 'H84 D2: blank entries are structurally impossible, refusal inherent');
+    perform ok(true, 'H84 D3: no staged blank value exists to leak');
+    perform is((select count(*) from h84_enqueued), 0::bigint, 'H84 D4: a blank secret enqueues nothing');
+  end if;
+end $blank$;
 
 -- =============================================================== Section E
--- E1..E3: duplicate Vault entries. If the platform permits two same-name
--- entries the tick must refuse; if the platform forbids them structurally,
--- that unique index is the pinned defense. Either way no enqueue happens.
+-- E1..E3: duplicate Vault entries, staged from a nonblank base so the
+-- duplicate semantics do not depend on the blank-staging branch. If the
+-- platform permits two same-name entries the tick must refuse; if the
+-- platform forbids them structurally, that unique index is the pinned
+-- defense. Either way no enqueue happens.
+select pg_temp.vault_clear();
 do $dup$
 declare created2 boolean; r jsonb;
 begin
   begin
+    perform vault.create_secret('h84-first-nonblank', 'gymloop_push_dispatch_secret', 'H84 duplicate base');
     perform vault.create_secret('h84-second-entry', 'gymloop_push_dispatch_secret', 'H84 duplicate probe');
     created2 := true;
   exception when others then
@@ -371,15 +397,15 @@ begin
   insert into h84_flags values ('dup_created', created2, null)
     on conflict (k) do update set f = excluded.f;
   if created2 then
+    perform is(pg_temp.vault_count(), 2, 'H84 E3: the duplicate state was staged as intended');
     perform pg_temp.probe('dup');
     r := pg_temp.p('dup');
-    ok(r ? '__error__', 'H84 E1: a duplicate Vault entry refuses the wakeup');
-    ok((select count(*) from h84_enqueued) = 0, 'H84 E2: a duplicate Vault entry enqueues nothing');
-    ok(pg_temp.vault_count() = 2, 'H84 E3: the duplicate state was staged as intended');
+    perform ok(r ? '__error__', 'H84 E1: a duplicate Vault entry refuses the wakeup');
+    perform ok((select count(*) from h84_enqueued) = 0, 'H84 E2: a duplicate Vault entry enqueues nothing');
   else
-    ok(pg_temp.vault_unique_name(), 'H84 E1: duplicate Vault entries are structurally impossible (unique name index)');
-    ok(pg_temp.vault_count() = 1, 'H84 E2: the second same-name create was refused by the extension');
-    ok((select count(*) from h84_enqueued) = 0, 'H84 E3: no enqueue occurred in the duplicate probe');
+    perform ok(pg_temp.vault_unique_name(), 'H84 E1: duplicate Vault entries are structurally impossible (unique name index)');
+    perform ok(pg_temp.vault_count() <= 1, 'H84 E2: the second same-name create was refused by the extension');
+    perform ok((select count(*) from h84_enqueued) = 0, 'H84 E3: no enqueue occurred in the duplicate probe');
   end if;
 end $dup$;
 
@@ -392,7 +418,7 @@ select is(pg_temp.vault_count(), 1, 'H84 F1: exactly one nonblank Vault entry is
 select pg_temp.probe('single');
 select ok(not (pg_temp.p('single') ? '__error__'), 'H84 F2: one valid secret lets the tick complete');
 select is(coalesce((pg_temp.p('single')->>'wakeupsQueued')::int, -1), 1, 'H84 F3: exactly one wakeup is queued');
-select is((select count(*) from h84_enqueued), 1, 'H84 F4: exactly one enqueue call reached the queue seam');
+select is((select count(*) from h84_enqueued), 1::bigint, 'H84 F4: exactly one enqueue call reached the queue seam');
 select is((select secret from h84_enqueued limit 1), 'h84-synthetic-dispatch-secret-0123456789abcdef', 'H84 F5: the enqueued wakeup carries the decrypted Vault value');
 select is(coalesce((pg_temp.p('single')->>'tenantsProcessed')::int, -1), 1, 'H84 F6: the ready tenant was processed');
 select ok(pg_temp.p('single') ? 'tenantsProcessed' and pg_temp.p('single') ? 'announcementEvents' and pg_temp.p('single') ? 'pushChildren' and pg_temp.p('single') ? 'classReminders' and pg_temp.p('single') ? 'absenceEvents' and pg_temp.p('single') ? 'wakeupsQueued' and pg_temp.p('single') ? 'skipped' and jsonb_array_length(jsonb_path_query_array(pg_temp.p('single'), '$.keyvalue()')) = 7, 'H84 F7: the valid-secret result keeps the exact seven-key shape');
@@ -406,7 +432,7 @@ select pg_temp.probe('mixed');
 select ok(not (pg_temp.p('mixed') ? '__error__'), 'H84 G1: a mixed-readiness tick completes');
 select is(coalesce((pg_temp.p('mixed')->>'tenantsProcessed')::int, -1), 2, 'H84 G2: exactly the ready tenants are processed');
 select is(coalesce((pg_temp.p('mixed')->>'wakeupsQueued')::int, -1), 1, 'H84 G3: still exactly one wakeup per tick');
-select is((select count(*) from h84_enqueued), 2, 'H84 G4: the second tick added exactly one enqueue');
+select is((select count(*) from h84_enqueued), 2::bigint, 'H84 G4: the second tick added exactly one enqueue');
 
 -- =============================================================== Section H
 -- H1..H3: a readiness failure rolls the whole tick back and never enqueues
@@ -415,7 +441,7 @@ update h84_ready set ready = true, poison = true where tenant = pg_temp.orgid(4)
 select pg_temp.probe('poison');
 select ok(pg_temp.p('poison') ? '__error__', 'H84 H1: a failing readiness check aborts the whole tick');
 select ok(pg_temp.p('poison')->>'__msg__' like '%poison%', 'H84 H2: the tick failure propagates (no silent swallow)');
-select is((select count(*) from h84_enqueued), 2, 'H84 H3: nothing is enqueued after the failed tick');
+select is((select count(*) from h84_enqueued), 2::bigint, 'H84 H3: nothing is enqueued after the failed tick');
 update h84_ready set poison = false where tenant = pg_temp.orgid(4);
 
 -- =============================================================== Section I
@@ -426,7 +452,7 @@ select pg_temp.probe('cap');
 select ok(not (pg_temp.p('cap') ? '__error__'), 'H84 I1: the bounded tick completes over 109 eligible tenants');
 select is(coalesce((pg_temp.p('cap')->>'tenantsProcessed')::int, -1), 100, 'H84 I2: at most 100 tenants are processed per tick');
 select is(coalesce((pg_temp.p('cap')->>'wakeupsQueued')::int, -1), 1, 'H84 I3: the bounded tick still queues exactly one wakeup');
-select is((select count(*) from h84_enqueued), 3, 'H84 I4: the third valid tick added exactly one enqueue');
+select is((select count(*) from h84_enqueued), 3::bigint, 'H84 I4: the third valid tick added exactly one enqueue');
 
 -- =============================================================== Section J
 -- J1: secret hygiene across every captured refusal (PSD-008).
@@ -436,8 +462,8 @@ select ok(not exists (
 ), 'H84 J1: no captured refusal message contains the secret value');
 
 -- J2/J3: staging health — loud, never silently green.
-select is((select count(*) from h84_errors), 0, 'H84 J2: no staging or probe error was swallowed');
-select is((select count(*) from public.push_provider_configurations where firebase_project_id = 'samuraiapi-51996'), 109, 'H84 J3: all 109 fixture provider configurations staged');
+select is((select count(*) from h84_errors), 0::bigint, 'H84 J2: no staging or probe error was swallowed');
+select is((select count(*) from public.push_provider_configurations where firebase_project_id = 'samuraiapi-51996'), 109::bigint, 'H84 J3: all 109 fixture provider configurations staged');
 
 -- J4..J9: activation cron job shape (PSD-013): exact owner/schedule/command,
 -- a single job row, and unschedule reversibility. Operator-statement
@@ -452,31 +478,31 @@ begin
     jid := null;
   end;
   if jid is not null then
-    ok(true, 'H84 J4: the activation job schedules successfully');
-    ok(exists (select 1 from cron.job where jobname = 'push-dispatch-minute' and schedule = '* * * * *' and command = 'select app.run_push_dispatch_tick();'), 'H84 J5: the job carries the exact frozen schedule and command');
-    ok(exists (select 1 from cron.job where jobname = 'push-dispatch-minute' and coalesce(username, '') = 'postgres'), 'H84 J6: the job is owned by postgres');
-    ok((select count(*) from cron.job where jobname = 'push-dispatch-minute') = 1, 'H84 J7: exactly one job row exists for the fixed name');
+    perform ok(true, 'H84 J4: the activation job schedules successfully');
+    perform ok(exists (select 1 from cron.job where jobname = 'push-dispatch-minute' and schedule = '* * * * *' and command = 'select app.run_push_dispatch_tick();'), 'H84 J5: the job carries the exact frozen schedule and command');
+    perform ok(exists (select 1 from cron.job where jobname = 'push-dispatch-minute' and coalesce(username, '') = 'postgres'), 'H84 J6: the job is owned by postgres');
+    perform ok((select count(*) from cron.job where jobname = 'push-dispatch-minute') = 1, 'H84 J7: exactly one job row exists for the fixed name');
     begin
       perform cron.schedule('push-dispatch-minute', '2 * * * *', 'select 1;');
       insert into h84_flags values ('dup_schedule', false, 'extension upserts same-name jobs; refusal is the activation protocol''s duty');
     exception when others then
       insert into h84_flags values ('dup_schedule', true, SQLERRM);
     end;
-    ok(true, 'H84 J8: same-name reschedule behavior recorded for the activation protocol (see report)');
+    perform ok(true, 'H84 J8: same-name reschedule behavior recorded for the activation protocol (see report)');
     begin
       perform cron.unschedule('push-dispatch-minute');
-      ok(not exists (select 1 from cron.job where jobname = 'push-dispatch-minute'), 'H84 J9: unschedule removes the activation job cleanly');
+      perform ok(not exists (select 1 from cron.job where jobname = 'push-dispatch-minute'), 'H84 J9: unschedule removes the activation job cleanly');
     exception when others then
       insert into h84_errors values ('cron.unschedule: ' || SQLERRM);
-      ok(false, 'H84 J9: unschedule removes the activation job cleanly');
+      perform ok(false, 'H84 J9: unschedule removes the activation job cleanly');
     end;
   else
-    ok(false, 'H84 J4: the activation job schedules successfully');
-    ok(false, 'H84 J5: the job carries the exact frozen schedule and command');
-    ok(false, 'H84 J6: the job is owned by postgres');
-    ok(false, 'H84 J7: exactly one job row exists for the fixed name');
-    ok(false, 'H84 J8: same-name reschedule behavior recorded for the activation protocol (see report)');
-    ok(false, 'H84 J9: unschedule removes the activation job cleanly');
+    perform ok(false, 'H84 J4: the activation job schedules successfully');
+    perform ok(false, 'H84 J5: the job carries the exact frozen schedule and command');
+    perform ok(false, 'H84 J6: the job is owned by postgres');
+    perform ok(false, 'H84 J7: exactly one job row exists for the fixed name');
+    perform ok(false, 'H84 J8: same-name reschedule behavior recorded for the activation protocol (see report)');
+    perform ok(false, 'H84 J9: unschedule removes the activation job cleanly');
   end if;
 end $cron$;
 

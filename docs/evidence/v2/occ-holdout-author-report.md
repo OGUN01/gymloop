@@ -292,3 +292,47 @@ disabled, no protected timestamp forced null, nothing committed.
   inactive identity refusals) are unrelated and unchanged. plan(183)
   preserved. Rollback guard green (159 files).
 - New sha256: `21db46de55f0e12d2cf3831d2a9cf0f45a30b38f8a700d52518d09dd1f0bd418`.
+
+## Runtime repair round 10 (2026-10-04)
+
+- Runtime fact (eighth Cloud diagnostic, OCC envelope now built): abort
+  `cannot extract elements from an object` — a jsonb array-extraction hit an
+  object.
+- Diagnosis: MY suite's slip, not the implementation's. The declaration
+  defines `categories = {label, newMember, renewal, addon, unallocated}` — an
+  OBJECT whose members are the four category objects (label is a carried
+  field) — but the `pg_temp.cat` helper and the Cash-reconciliation assertion
+  treated `categories` as an array (`jsonb_array_elements`).
+- Edit (object semantics per the frozen declaration, expectations unchanged):
+  1. `pg_temp.cat(cash_row, label)` now returns `cash_row->'categories'` only
+     when its carried `label` equals the declared string (null otherwise, so
+     a divergent label fails assertions loudly); all twelve call sites are
+     unchanged and still select `->'newMember'` / `->'renewal'` /
+     `->'unallocated'` / `->'addon'` members.
+  2. The INR reconciliation sum now expands the object with `jsonb_each`,
+     filtering the four category keys explicitly (the `label` string member
+     is excluded by the filter, not by coercion).
+- plan(183) preserved; no envelope finding against the implementation — the
+  built shape matches the declaration. Rollback guard green (159 files).
+- New sha256: `6cf67e2ac4625dc08b0f80331b287fcda820ddcc3266228eec0c8f54d160cfe2`.
+
+## Runtime repair round 11 (2026-10-04)
+
+- Runtime fact (tenth Cloud diagnostic): holdout ran its full plan (63/183
+  RED); staging-health assertion reported `first error: attendance: invalid
+  input syntax for type uuid`.
+- Diagnosis: four attendance fixture row ids carried 13-hex last UUID groups
+  (`…0000000000e10/e11/e12/e13` — the second 09:30 visit, the DST-gap visit
+  and the two DST-repeat visits) — invalid UUID literals, so the whole
+  attendance staging insert failed inside its guard and every downstream
+  value assertion (day rows, money, classes) read null/error snapshots.
+- Edit (fixture values only): the four ids renamed to lawful 12-hex last
+  groups (`…000000000e10/e11/e12/e13`); a full-suite scan confirms no other
+  UUID literal has a malformed last group. No assertion, expectation or
+  plan(183) change; the staged facts and their meanings are identical.
+- Post-fix expectation: staging lands, and the RED mass collapses to the
+  genuine envelope deviations; the coordinator's flagged candidates (#27
+  nine-key envelope order, #22/#23 branch refusal signal) are adjudication
+  candidates if they still fail on clean data. Rollback guard green
+  (159 files).
+- New sha256: `531fe063dc2b18531ef491523ec84e94f7c978f1acb7b3c2d546764031867eb5`.
