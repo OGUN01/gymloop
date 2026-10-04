@@ -182,6 +182,41 @@ describe('held NTF SQL authorization, bounded I/O and factual finish', () => {
 
 // Supplement derives only from provider-result-declaration.md, serial freeze 5a68e5ba.
 describe('held NTF exact provider-result mechanics', () => {
+  it.each(['2027-02-29T06:01:30Z', '2026-11-31T06:01:30Z', '2026-10-04T24:00:00Z'])('impossible claim calendar timestamp %s cannot be normalized into authorization', async impossible => {
+    const h = harness({}, { [`${rpc}reserve_push_attempts`]: { attempts: [{ ...reservation, expiresAt: impossible }], configuration: 'ready' } });
+    const response = await h.handler(wake()); expect(response.status).toBe(502);
+    const result = await response.json(); expect(result.error).toBe('upstream_failed'); expect(result.counts.authorized).toBe(0);
+    expect(h.calls).toHaveLength(2);
+  });
+  it.each(['2027-02-29T06:01:30Z', '2026-11-31T06:01:30Z', '2026-10-04T24:00:00Z'])('impossible authorization calendar timestamp %s cannot permit I/O', async impossible => {
+    const h = work({ ...authorization, expiresAt: impossible });
+    await envelope(await h.handler(wake()), 502, 'upstream_failed', { ...zero, reserved: 1 }, 'ready');
+    expect(h.calls.some(call => call.url.includes('messages:send'))).toBe(false);
+  });
+  it.each(['2027-02-29T08:00:00Z', '2026-11-31T08:00:00Z', '2026-10-04T24:00:00Z'])('impossible deferred calendar timestamp %s cannot count a validated refusal', async impossible => {
+    const h = work({ authorized: false, attemptId, reservationId, reason: 'quiet_hours', deferredUntil: impossible });
+    await envelope(await h.handler(wake()), 502, 'upstream_failed', { ...zero, reserved: 1 }, 'ready');
+    expect(h.calls.some(call => call.url.includes('messages:send'))).toBe(false);
+  });
+  it.each([
+    ['2028-02-28T23:59:00Z', '2028-02-29T00:00:30Z'],
+    ['2027-02-28T23:59:00Z', '2027-03-01T00:00:30Z'],
+    ['2026-11-30T23:59:00Z', '2026-12-01T00:00:30Z'],
+  ])('valid Gregorian rollover from %s to %s accepts its bounded lease', async (startedAt, expiry) => {
+    const pair = { attemptId, reservationId, expiresAt: expiry };
+    const h = harness({}, {
+      [`${rpc}reserve_push_attempts`]: { attempts: [pair], configuration: 'ready' },
+      [`${rpc}authorize_push_attempt`]: { ...authorization, ...pair },
+      '/v1/projects/samuraiapi-51996/messages:send': { name: 'projects/samuraiapi-51996/messages/held-calendar-control' },
+      [`${rpc}finish_push_attempt`]: { attemptId, replayed: false, notification },
+    }, () => Date.parse(startedAt));
+    await envelope(await h.handler(wake()), 200, null, { ...zero, reserved: 1, authorized: 1, accepted: 1 }, 'ready');
+  });
+  it('valid leap-day deferred timestamp counts refusal without sending', async () => {
+    const h = work({ authorized: false, attemptId, reservationId, reason: 'quiet_hours', deferredUntil: '2028-02-29T08:00:00Z' });
+    await envelope(await h.handler(wake()), 200, null, { ...zero, reserved: 1, deferred: 1 }, 'ready');
+    expect(h.calls.some(call => call.url.includes('messages:send'))).toBe(false);
+  });
   it('signed JWT has a strictly positive lifetime bounded by one hour', async () => {
     const h = harness(); await h.handler(wake());
     const form = new URLSearchParams(await h.calls[0]!.text());

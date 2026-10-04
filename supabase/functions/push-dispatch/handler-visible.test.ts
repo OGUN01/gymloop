@@ -304,3 +304,37 @@ test('NTF provider declaration: error debug text and untyped details cannot esta
   const finishes = f.calls.filter(call => call.url.endsWith('finish_push_attempt'));
   equal(finishes.length, 1); equal(finishes[0].body.p_failure_code, null); equal(finishes[0].body.p_uncertain, true);
 });
+
+test('NTF provider declaration: impossible Gregorian lease dates never normalize into authority', async () => {
+  const clock = Date.parse('2027-02-28T11:59:00Z');
+  for (const expiresAt of ['2027-02-30T12:00:00Z', '2027-02-29T12:00:00Z', '2027-04-31T12:00:00Z']) {
+    const invalidClaim = await fixture({ clock, claim: { attempts: [{ ...lease, expiresAt }], configuration: 'ready' } });
+    equal((await invalidClaim.handler(request())).status, 502);
+    check(!invalidClaim.calls.some(call => call.url.endsWith('authorize_push_attempt') || call.url.includes('messages:send') || call.url.endsWith('finish_push_attempt')), 'Invalid calendar claim cannot start individual work');
+  }
+});
+
+test('NTF provider declaration: impossible Gregorian authorization dates cannot enable sends', async () => {
+  const clock = Date.parse('2027-02-28T11:59:00Z');
+  for (const expiresAt of ['2027-02-30T12:00:00Z', '2027-02-29T12:00:00Z', '2027-04-31T12:00:00Z']) {
+    const invalidAuthorization = await fixture({
+      clock,
+      claim: { attempts: [{ ...lease, expiresAt: '2027-05-01T12:00:00Z' }], configuration: 'ready' },
+      authorize: { ...authorization, expiresAt },
+    });
+    await envelope(await invalidAuthorization.handler(request()), 502, 'upstream_failed', 'ready', { ...zero, reserved: 1 });
+    check(!invalidAuthorization.calls.some(call => call.url.includes('messages:send') || call.url.endsWith('finish_push_attempt')), 'Invalid calendar authorization cannot dispatch');
+  }
+});
+
+test('NTF provider declaration: real leap and month-end dates remain valid lease projections', async () => {
+  for (const expiresAt of ['2028-02-29T12:00:00Z', '2028-04-30T12:00:00Z']) {
+    const f = await fixture({
+      clock: Date.parse('2028-02-28T11:59:00Z'),
+      claim: { attempts: [{ ...lease, expiresAt }], configuration: 'ready' },
+      authorize: { ...authorization, expiresAt },
+    });
+    await envelope(await f.handler(request()), 200, null, 'ready', { ...zero, reserved: 1, authorized: 1, accepted: 1 });
+    equal(f.calls.filter(call => call.url.includes('messages:send')).length, 1);
+  }
+});
