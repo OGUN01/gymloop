@@ -36,9 +36,9 @@
 --     trusted ones included: a pause linked to a freeze request may not drift
 --     from the request's frozen scope, and may not be decided while its linked
 --     request is closed (cancelled/expired). An ordinary desk pause links to
---     nothing and is untouched. Lock order needs no extra rule for direct
---     source writers: they never acquire this feature's advisory lock, so no
---     cycle can form between them and the RPC path.
+--     nothing and retains its ordinary entitlement/approval rules. Every source
+--     writer takes the shared resource through a nonblocking BEFORE hook;
+--     immediate scope guards and deferred reciprocal checks cover linked rows.
 --   * `membership_pauses` gains `unique (tenant_id, id)` — the ADR-052 pattern —
 --     because the frozen composite FK to it needs a referenceable key.
 
@@ -199,6 +199,28 @@ create index member_freeze_commands_tenant_request_idx
 create index member_freeze_commands_tenant_actor_idx
   on public.member_freeze_commands (tenant_id, actor_user_id);
 
+-- Private capabilities are keyed by a server-derived full transaction identity.
+-- They are never readable or writable by a session role.
+create table app.slf_freeze_preparations (
+  transaction_id text not null,
+  tenant_id uuid not null references public.organizations (id),
+  actor_user_id uuid not null references auth.users (id),
+  command_key uuid not null,
+  request_id uuid not null,
+  action text not null check (action in ('adopt','approve','reject','expire')),
+  expected_revision bigint not null,
+  facts jsonb not null,
+  prepared_at timestamptz not null,
+  source_pause_id uuid,
+  primary key (transaction_id, tenant_id, actor_user_id, command_key),
+  foreign key (tenant_id, request_id)
+    references public.member_freeze_requests (tenant_id, id)
+);
+create index slf_freeze_preparations_tenant_request_transaction_idx
+  on app.slf_freeze_preparations (tenant_id, request_id, transaction_id);
+alter table app.slf_freeze_preparations enable row level security;
+revoke all on app.slf_freeze_preparations from public, anon, authenticated, service_role;
+
 -- ---------------------------------------------------------------------------
 -- 3. Row invariants — frozen fields, the status map, revision monotonicity,
 --    and no deletes. Every writer, trusted ones included.
@@ -229,6 +251,13 @@ begin
      or new.reason              is distinct from old.reason
      or new.created_at          is distinct from old.created_at then
     raise exception 'member freeze request refused: the request identity, scope and reason are frozen'
+      using errcode = '23514';
+  end if;
+
+  if old.status in ('approved','rejected','cancelled','expired')
+     and (pg_catalog.to_jsonb(new) - 'updated_at')
+         is distinct from (pg_catalog.to_jsonb(old) - 'updated_at') then
+    raise exception 'member freeze request refused: terminal facts are immutable'
       using errcode = '23514';
   end if;
 
@@ -341,7 +370,8 @@ execute function app.enforce_member_freeze_command_immutable();
 
 -- ---------------------------------------------------------------------------
 -- 4. The additive source invariant on `membership_pauses` (SLF-014). Definer so
---    it binds trusted writers too; it reads nothing else and touches nothing.
+--    it binds trusted writers too. Its BEFORE hook binds only private prepared
+--    command state; it never writes the source or request on a caller's behalf.
 -- ---------------------------------------------------------------------------
 
 create or replace function app.enforce_freeze_source_consistency()
@@ -353,38 +383,265 @@ set search_path = ''
 as $fn$
 declare
   v_request public.member_freeze_requests;
+  v_pause public.membership_pauses;
+  v_membership public.memberships;
+  v_preparation app.slf_freeze_preparations;
+  v_resource record;
+  v_candidates bigint;
+  v_previous_membership_id uuid;
+  v_previous_source_id uuid;
+  v_deferred boolean := tg_name in ('membership_pauses_freeze_source_deferred',
+                                   'member_freeze_requests_source_deferred');
 begin
-  select r.* into v_request
-    from public.member_freeze_requests r
-   where r.source_pause_id = new.id
-   limit 1;
+  if tg_table_name = 'membership_pauses' then
+    if tg_op = 'DELETE' then
+      v_pause := old;
+    else
+      v_pause := new;
+    end if;
 
-  if v_request.id is null then
-    return new;  -- an ordinary desk pause: none of this applies
+    if tg_op = 'UPDATE' then
+      v_previous_membership_id := old.membership_id;
+      v_previous_source_id := old.id;
+    end if;
+
+    if tg_name = 'membership_pauses_freeze_source_lock' then
+      -- UPDATE has already locked its source row. A try-lock, never a wait,
+      -- prevents a cycle with a wrapper holding the resource and awaiting it.
+      -- Moving an ordinary pending pause takes both old and new resources.
+      for v_resource in
+        select distinct m.tenant_id, m.member_id
+          from public.memberships m
+         where m.id = v_pause.membership_id
+            or m.id = v_previous_membership_id
+         order by m.tenant_id, m.member_id
+      loop
+        perform app.slf_freeze_lock(v_resource.tenant_id, v_resource.member_id);
+        perform 1 from public.members m
+         where m.tenant_id = v_resource.tenant_id and m.id = v_resource.member_id for share;
+        perform 1 from public.organization_settings settings
+         where settings.tenant_id = v_resource.tenant_id for share;
+      end loop;
+      perform 1 from public.memberships m
+       where m.id = v_pause.membership_id for share;
+
+      if tg_op = 'INSERT' then
+        select count(*) into v_candidates
+          from app.slf_freeze_preparations prepared
+          join public.member_freeze_requests r
+            on r.tenant_id = prepared.tenant_id and r.id = prepared.request_id
+         where prepared.transaction_id = pg_catalog.pg_current_xact_id()::text
+           and prepared.actor_user_id = auth.uid()
+           and prepared.tenant_id = v_pause.tenant_id
+           and prepared.action = 'adopt'
+           and r.status = 'requested'
+           and r.revision = prepared.expected_revision
+           and r.membership_id = v_pause.membership_id
+           and r.starts_on = v_pause.starts_on and r.ends_on = v_pause.ends_on
+           and r.reason = v_pause.reason;
+        if v_candidates > 1 then
+          raise exception 'Ambiguous member freeze adoption preparation' using errcode = 'GL066';
+        end if;
+        if v_candidates = 1 then
+          if v_pause.requested_by_staff_id is distinct from app.slf_front_office_staff()
+             or v_pause.approved_at is not null or v_pause.rejected_at is not null then
+            raise exception 'Member freeze adoption source mismatch' using errcode = '23514';
+          end if;
+          select prepared.* into v_preparation
+            from app.slf_freeze_preparations prepared
+            join public.member_freeze_requests r
+              on r.tenant_id = prepared.tenant_id and r.id = prepared.request_id
+           where prepared.transaction_id = pg_catalog.pg_current_xact_id()::text
+             and prepared.actor_user_id = auth.uid()
+             and prepared.tenant_id = v_pause.tenant_id
+             and prepared.action = 'adopt'
+             and r.status = 'requested' and r.revision = prepared.expected_revision
+             and r.membership_id = v_pause.membership_id
+             and r.starts_on = v_pause.starts_on and r.ends_on = v_pause.ends_on
+             and r.reason = v_pause.reason
+           for update of prepared;
+          if v_preparation.source_pause_id is not null then
+            raise exception 'Member freeze preparation already bound to its source' using errcode = 'GL066';
+          end if;
+          update app.slf_freeze_preparations prepared set source_pause_id = v_pause.id
+           where prepared.transaction_id = v_preparation.transaction_id
+             and prepared.tenant_id = v_preparation.tenant_id
+             and prepared.actor_user_id = v_preparation.actor_user_id
+             and prepared.command_key = v_preparation.command_key;
+        end if;
+      end if;
+      if tg_op = 'UPDATE'
+         and old.approved_at is null and old.rejected_at is null
+         and (new.approved_at is not null or new.rejected_at is not null) then
+        -- Approval names its actor; rejection has no actor column in the
+        -- ordinary source. Bind either decision to the matching current
+        -- prepared caller so finish cannot borrow somebody else's write.
+        select count(*) into v_candidates
+          from app.slf_freeze_preparations prepared
+          join public.member_freeze_requests r
+            on r.tenant_id = prepared.tenant_id and r.id = prepared.request_id
+         where prepared.transaction_id = pg_catalog.pg_current_xact_id()::text
+           and prepared.tenant_id = new.tenant_id
+           and prepared.actor_user_id = auth.uid()
+           and r.source_pause_id = old.id
+           and prepared.expected_revision = r.revision
+           and prepared.action = case when new.approved_at is not null then 'approve' else 'reject' end;
+        if v_candidates > 1 then
+          raise exception 'Ambiguous member freeze decision preparation' using errcode = 'GL066';
+        end if;
+        select prepared.* into v_preparation
+          from app.slf_freeze_preparations prepared
+          join public.member_freeze_requests r
+            on r.tenant_id = prepared.tenant_id and r.id = prepared.request_id
+         where prepared.transaction_id = pg_catalog.pg_current_xact_id()::text
+           and prepared.tenant_id = new.tenant_id
+           and prepared.actor_user_id = auth.uid()
+           and r.source_pause_id = old.id
+           and prepared.expected_revision = r.revision
+           and prepared.action = case when new.approved_at is not null then 'approve' else 'reject' end
+         order by prepared.command_key
+         limit 1 for update of prepared;
+        if v_preparation.command_key is not null then
+          perform app.slf_front_office_staff();
+          if new.approved_at is not null
+             and new.approved_by_staff_id is distinct from app.current_staff_id() then
+            raise exception 'Member freeze source decision actor mismatch' using errcode = '23514';
+          end if;
+          if v_preparation.source_pause_id is not null
+             and v_preparation.source_pause_id is distinct from new.id then
+            raise exception 'Member freeze preparation source mismatch' using errcode = '23514';
+          end if;
+          update app.slf_freeze_preparations prepared set source_pause_id = new.id
+           where prepared.transaction_id = v_preparation.transaction_id
+             and prepared.tenant_id = v_preparation.tenant_id
+             and prepared.actor_user_id = v_preparation.actor_user_id
+             and prepared.command_key = v_preparation.command_key;
+        end if;
+      end if;
+      if tg_op = 'DELETE' then return old; else return new; end if;
+    end if;
+
+    select r.* into v_request from public.member_freeze_requests r
+     where r.source_pause_id = v_pause.id
+        or r.source_pause_id = v_previous_source_id;
+    if v_request.id is null then
+      if tg_op = 'DELETE' then return old; else return new; end if;
+    end if;
+    if tg_op = 'DELETE' then
+      raise exception 'Linked member freeze source cannot be deleted' using errcode = '23514';
+    end if;
+    if v_deferred then
+      select p.* into v_pause from public.membership_pauses p
+       where p.id = v_request.source_pause_id;
+    elsif tg_op = 'UPDATE' then
+      if (old.approved_at is not null or old.rejected_at is not null)
+         and pg_catalog.to_jsonb(new) - 'updated_at'
+             is distinct from pg_catalog.to_jsonb(old) - 'updated_at' then
+        raise exception 'Linked member freeze source decision is immutable' using errcode = '23514';
+      end if;
+      if (new.approved_at is distinct from old.approved_at
+          or new.rejected_at is distinct from old.rejected_at)
+         and (new.approved_at is not null or new.rejected_at is not null)
+         and (v_request.status in ('cancelled','expired')
+              or (new.approved_at is not null
+                  and app.slf_freeze_ineffective(v_request, app.gym_today(v_request.tenant_id)))) then
+        raise exception 'Linked member freeze request is closed or ineffective' using errcode = '23514';
+      end if;
+    end if;
+  else
+    if v_deferred then
+      select r.* into v_request from public.member_freeze_requests r where r.id = new.id;
+    else
+      v_request := new;
+      perform app.slf_freeze_lock(v_request.tenant_id, v_request.member_id);
+    end if;
+    if v_request.source_pause_id is not null then
+      select p.* into v_pause from public.membership_pauses p
+       where p.id = v_request.source_pause_id;
+    end if;
   end if;
 
-  -- Exact link/scope agreement: the linked pause may never drift from the
-  -- request's frozen dates or membership.
-  if new.membership_id is distinct from v_request.membership_id
-     or new.starts_on is distinct from v_request.starts_on
-     or new.ends_on is distinct from v_request.ends_on then
-    raise exception 'membership pause refused: this pause is linked to a member freeze request and may not leave the requested scope'
-      using errcode = '23514';
+  -- Relationship/provenance checks apply to privileged writers too. Historical
+  -- identity remains frozen; rebinding the member does not rewrite history.
+  select m.* into v_membership from public.memberships m
+   where m.id = v_request.membership_id;
+  if v_membership.id is null
+     or v_membership.tenant_id is distinct from v_request.tenant_id
+     or v_membership.member_id is distinct from v_request.member_id then
+    raise exception 'Member freeze membership/member scope mismatch' using errcode = '23514';
   end if;
-
-  -- No deciding a linked closed/ineffective request.
-  if (new.approved_at is not null or new.rejected_at is not null)
-     and v_request.status in ('cancelled','expired') then
-    raise exception 'membership pause refused: its linked member freeze request is closed, so the pause decision is refused'
-      using errcode = '23514';
+  if not exists (select 1 from public.members m
+                  where m.tenant_id = v_request.tenant_id and m.id = v_request.member_id) then
+    raise exception 'Member freeze member scope mismatch' using errcode = '23514';
   end if;
-
+  if tg_table_name = 'member_freeze_requests' and tg_op = 'INSERT' and not v_deferred
+     and not exists (select 1 from public.members m
+                      where m.tenant_id = v_request.tenant_id and m.id = v_request.member_id
+                        and m.user_id = v_request.requested_by_user_id) then
+    raise exception 'Member freeze original subject provenance mismatch' using errcode = '23514';
+  end if;
+  if v_request.source_pause_id is not null then
+    if v_pause.id is null or v_pause.id is distinct from v_request.source_pause_id
+       or v_pause.tenant_id is distinct from v_request.tenant_id
+       or v_pause.membership_id is distinct from v_request.membership_id
+       or v_pause.starts_on is distinct from v_request.starts_on
+       or v_pause.ends_on is distinct from v_request.ends_on
+       or v_pause.reason is distinct from v_request.reason
+       or v_pause.requested_by_staff_id is distinct from v_request.adopted_by_staff_id
+       or not exists (select 1 from public.staff st
+                       where st.tenant_id = v_request.tenant_id
+                         and st.id = v_request.adopted_by_staff_id) then
+      raise exception 'Member freeze reciprocal source scope/provenance mismatch' using errcode = '23514';
+    end if;
+    if v_pause.approved_at is not null then
+      if v_pause.approved_by_staff_id is null
+         or v_pause.approved_by_staff_id = v_pause.requested_by_staff_id
+         or not exists (select 1 from public.staff st
+                         where st.tenant_id = v_request.tenant_id
+                           and st.id = v_pause.approved_by_staff_id) then
+        raise exception 'Member freeze source approver provenance mismatch' using errcode = '23514';
+      end if;
+    end if;
+    -- Source AFTER allows the wrapper's short source-first transition. Both
+    -- request BEFORE and deferred hooks require the complete reciprocal state.
+    if v_deferred or tg_table_name = 'member_freeze_requests' then
+      if (v_pause.approved_at is not null) is distinct from (v_request.status = 'approved')
+         or (v_pause.rejected_at is not null) is distinct from (v_request.status = 'rejected')
+         or (v_request.status = 'approved'
+             and (v_request.decided_by_staff_id is distinct from v_pause.approved_by_staff_id
+                  or v_request.decided_at is distinct from v_pause.approved_at))
+         or (v_request.status = 'rejected'
+             and v_request.decided_at is distinct from v_pause.rejected_at) then
+        raise exception 'Member freeze source/request decision truth mismatch' using errcode = '23514';
+      end if;
+    end if;
+  end if;
+  if v_request.decided_by_staff_id is not null
+     and not exists (select 1 from public.staff st
+                     where st.tenant_id = v_request.tenant_id
+                       and st.id = v_request.decided_by_staff_id) then
+    raise exception 'Member freeze decision staff provenance mismatch' using errcode = '23514';
+  end if;
   return new;
 end;
 $fn$;
 
+create trigger membership_pauses_freeze_source_lock
+  before insert or update or delete on public.membership_pauses
+  for each row execute function app.enforce_freeze_source_consistency();
 create trigger membership_pauses_freeze_source_consistency
   after insert or update on public.membership_pauses
+  for each row execute function app.enforce_freeze_source_consistency();
+create trigger member_freeze_requests_source_consistency
+  before insert or update on public.member_freeze_requests
+  for each row execute function app.enforce_freeze_source_consistency();
+create constraint trigger membership_pauses_freeze_source_deferred
+  after insert or update or delete on public.membership_pauses
+  deferrable initially deferred
+  for each row execute function app.enforce_freeze_source_consistency();
+create constraint trigger member_freeze_requests_source_deferred
+  after insert or update on public.member_freeze_requests
+  deferrable initially deferred
   for each row execute function app.enforce_freeze_source_consistency();
 
 -- ---------------------------------------------------------------------------
@@ -479,6 +736,7 @@ begin
      or app.current_tenant_id() is null
      or not coalesce(app.is_front_office(), false)
      or app.current_staff_id() is null
+     or app.current_member_id() is not null
      or app.current_impersonation_id() is not null then
     raise exception 'Freeze desk authority unavailable' using errcode = '42501';
   end if;
@@ -490,7 +748,13 @@ begin
 
   if v_staff.id is null
      or not v_staff.is_active
+     or v_staff.role::text is distinct from app.current_app_role()
      or v_staff.user_id is distinct from auth.uid() then
+    raise exception 'Freeze desk authority unavailable' using errcode = '42501';
+  end if;
+
+  if not exists (select 1 from public.organizations o
+                  where o.id = v_staff.tenant_id and o.status = 'active') then
     raise exception 'Freeze desk authority unavailable' using errcode = '42501';
   end if;
 
@@ -514,12 +778,12 @@ security invoker
 set search_path = ''
 as $fn$
   select p_request.starts_on < p_today
-     or exists (
+     or not exists (
        select 1
          from public.members m
         where m.tenant_id = p_request.tenant_id
           and m.id = p_request.member_id
-          and (m.erased_at is not null or m.status in ('blocked','cancelled'))
+          and m.erased_at is null and m.status not in ('blocked','cancelled')
      )
      or not exists (
        select 1
@@ -528,20 +792,27 @@ as $fn$
           and m2.id = p_request.membership_id
           and m2.member_id = p_request.member_id
           and m2.status in ('active','frozen')
-          and (m2.ends_on is null or m2.ends_on >= p_today)
+          and m2.starts_on is not null and m2.ends_on is not null
+          and m2.starts_on <= p_today and m2.ends_on >= p_today
+          and p_request.starts_on >= m2.starts_on
+          and p_request.ends_on <= m2.ends_on
      )
 $fn$;
 
 -- The SLF serialization lock: one resource per tenant+member.
 create or replace function app.slf_freeze_lock(p_tenant_id uuid, p_member_id uuid)
 returns void
-language sql
+language plpgsql
 volatile
 security invoker
 set search_path = ''
 as $fn$
-  select pg_catalog.pg_advisory_xact_lock(
-    ('x' || substr(pg_catalog.md5(p_tenant_id::text || ':' || p_member_id::text), 1, 16))::bit(64)::bigint)
+begin
+  if not pg_catalog.pg_try_advisory_xact_lock(
+    ('x' || substr(pg_catalog.md5(p_tenant_id::text || ':' || p_member_id::text), 1, 16))::bit(64)::bigint) then
+    raise exception 'Member freeze resource busy; retry the same command' using errcode = 'GL066';
+  end if;
+end;
 $fn$;
 
 -- Append one audit event. Called only from postgres-owned code.
@@ -576,7 +847,8 @@ $fn$;
 
 -- Prepares a desk command: actor revalidation, target load and tenancy,
 -- the serialization lock, the replay ledger check, then the state/revision
--- (and, for approval, overlap and allowance) validation. Performs no writes.
+-- (and, for approval, overlap and allowance) validation. Writes only its private
+-- current-transaction capability after all gates, never business history.
 create or replace function app.slf_freeze_prepare(
   p_action text, p_request_id uuid, p_expected_revision bigint,
   p_command_key uuid, p_facts jsonb
@@ -595,8 +867,10 @@ declare
   v_settings   public.organization_settings;
   v_used_days  integer;
   v_proposed   integer;
+  v_preparation app.slf_freeze_preparations;
+  v_expected_facts jsonb;
 begin
-  if p_action not in ('adopt','approve','reject','expire') then
+  if p_action is null or p_action not in ('adopt','approve','reject','expire') then
     raise exception 'Unsupported member freeze command' using errcode = '22023';
   end if;
 
@@ -604,6 +878,30 @@ begin
   -- grants nothing extra: it writes nothing and reads only what the staff
   -- queue read already exposes).
   v_staff_id := app.slf_front_office_staff();
+  perform 1 from public.staff st where st.id = v_staff_id
+    and st.tenant_id = app.current_tenant_id() for share;
+  perform 1 from public.organizations o where o.id = app.current_tenant_id() for share;
+  perform app.slf_front_office_staff();
+
+  if p_command_key is null then
+    raise exception 'Member freeze command key required' using errcode = '22023';
+  end if;
+  -- Expected revision is a normalized command argument (SLF-013): storing it
+  -- in the facts makes a changed-revision retry under the same key conflict
+  -- instead of replaying.
+  v_expected_facts := jsonb_build_object('request_id', p_request_id,
+    'expected_revision', p_expected_revision);
+  if p_action = 'reject' then
+    if p_facts ->> 'reason' is null
+       or char_length(btrim(p_facts ->> 'reason')) < 3
+       or char_length(btrim(p_facts ->> 'reason')) > 200 then
+      raise exception 'Member freeze rejection reason invalid' using errcode = '22023';
+    end if;
+    v_expected_facts := v_expected_facts || jsonb_build_object('reason', btrim(p_facts ->> 'reason'));
+  end if;
+  if p_facts is distinct from v_expected_facts then
+    raise exception 'Member freeze preparation facts mismatch' using errcode = '22023';
+  end if;
 
   select * into v_request
     from public.member_freeze_requests r
@@ -634,10 +932,36 @@ begin
     if v_command.action = p_action
        and v_command.actor_user_id = auth.uid()
        and v_command.facts = p_facts then
-      return jsonb_build_object('replayed', true, 'result', v_command.result);
+      return jsonb_build_object('replayed', true, 'result',
+        v_command.result || jsonb_build_object('replayed', true,
+          'effective_state', app.slf_freeze_detail(v_request, false)->'effective_state'));
     end if;
     raise exception 'Member freeze command key conflict' using errcode = 'GL068';
   end if;
+
+  select prepared.* into v_preparation from app.slf_freeze_preparations prepared
+   where prepared.transaction_id = pg_catalog.pg_current_xact_id()::text
+     and prepared.tenant_id = v_request.tenant_id
+     and prepared.actor_user_id = auth.uid() and prepared.command_key = p_command_key
+   for update;
+  if v_preparation.command_key is not null
+     and (v_preparation.request_id is distinct from p_request_id
+          or v_preparation.action is distinct from p_action
+          or v_preparation.expected_revision is distinct from p_expected_revision
+          or v_preparation.facts is distinct from v_expected_facts) then
+    raise exception 'Member freeze preparation command conflict' using errcode = 'GL068';
+  end if;
+
+  perform 1 from public.members m where m.tenant_id = v_request.tenant_id
+    and m.id = v_request.member_id for share;
+  perform 1 from public.memberships m where m.tenant_id = v_request.tenant_id
+    and m.member_id = v_request.member_id order by m.id for share;
+  perform 1 from public.organization_settings s
+    where s.tenant_id = v_request.tenant_id for share;
+  perform 1 from public.membership_pauses p
+    join public.memberships m on m.id = p.membership_id
+    where m.tenant_id = v_request.tenant_id and m.member_id = v_request.member_id
+    order by p.id for update of p;
 
   -- Stale revision refuses before any effect (SLF-013).
   if p_expected_revision is distinct from v_request.revision then
@@ -690,7 +1014,7 @@ begin
          and r2.member_id = v_request.member_id
          and r2.id <> v_request.id
          and r2.status in ('requested','desk_submitted')
-         and r2.ends_on >= v_today
+         and not app.slf_freeze_ineffective(r2, v_today)
          and r2.starts_on <= v_request.ends_on
          and v_request.starts_on <= r2.ends_on
     ) or exists (
@@ -700,7 +1024,12 @@ begin
        where m.tenant_id = v_request.tenant_id
          and m.member_id = v_request.member_id
          and p.rejected_at is null
-         and p.id is distinct from v_request.source_pause_id
+         and (p.approved_at is not null or not exists (
+           select 1 from public.member_freeze_requests linked
+            where linked.source_pause_id = p.id
+              and (linked.status in ('cancelled','expired','rejected')
+                   or app.slf_freeze_ineffective(linked, v_today))))
+         and p.id is distinct from coalesce(v_request.source_pause_id, v_preparation.source_pause_id)
          and p.starts_on <= v_request.ends_on
          and v_request.starts_on <= p.ends_on
     ) then
@@ -729,6 +1058,8 @@ begin
      where m.tenant_id = v_request.tenant_id
        and m.member_id = v_request.member_id
        and p.approved_at is not null
+       and p.rejected_at is null
+       and p.id is distinct from v_request.source_pause_id
        and date_part('year', p.starts_on) = date_part('year', v_request.starts_on);
 
     v_proposed := v_request.ends_on - v_request.starts_on + 1;
@@ -741,6 +1072,19 @@ begin
                              v_settings.max_freeze_days_per_year);
     end if;
   end if;
+
+  delete from app.slf_freeze_preparations prepared
+   where prepared.tenant_id = v_request.tenant_id
+     and prepared.actor_user_id = auth.uid()
+     and prepared.transaction_id <> pg_catalog.pg_current_xact_id()::text;
+  insert into app.slf_freeze_preparations
+    (transaction_id, tenant_id, actor_user_id, command_key, request_id,
+     action, expected_revision, facts, prepared_at)
+  values
+    (pg_catalog.pg_current_xact_id()::text, v_request.tenant_id, auth.uid(),
+     p_command_key, p_request_id, p_action, p_expected_revision,
+     v_expected_facts, pg_catalog.clock_timestamp())
+  on conflict (transaction_id, tenant_id, actor_user_id, command_key) do nothing;
 
   return jsonb_build_object(
     'replayed', false,
@@ -784,8 +1128,12 @@ declare
   v_result    jsonb;
   v_effective text;
   v_today     date;
+  v_preparation app.slf_freeze_preparations;
+  v_expected_facts jsonb;
+  v_settings public.organization_settings;
+  v_actor_role public.app_role;
 begin
-  if p_action not in ('adopt','approve','reject','expire') then
+  if p_action is null or p_action not in ('adopt','approve','reject','expire') then
     raise exception 'Unsupported member freeze command' using errcode = '22023';
   end if;
 
@@ -793,13 +1141,50 @@ begin
 
   select * into v_request
     from public.member_freeze_requests r
-   where r.id = p_request_id
-   for update;
+   where r.id = p_request_id;
 
   if v_request.id is null
      or v_request.tenant_id is distinct from app.current_tenant_id() then
     raise exception 'Member freeze request unavailable' using errcode = 'P0002';
   end if;
+
+  perform app.slf_freeze_lock(v_request.tenant_id, v_request.member_id);
+  select r.* into v_request from public.member_freeze_requests r
+   where r.id = p_request_id for update;
+  select prepared.* into v_preparation from app.slf_freeze_preparations prepared
+   where prepared.transaction_id = pg_catalog.pg_current_xact_id()::text
+     and prepared.tenant_id = v_request.tenant_id
+     and prepared.actor_user_id = auth.uid() and prepared.command_key = p_command_key
+   for update;
+  v_expected_facts := jsonb_build_object('request_id', p_request_id,
+    'expected_revision', v_preparation.expected_revision);
+  if p_action = 'reject' then
+    if p_decision_reason is null or p_decision_reason <> btrim(p_decision_reason)
+       or char_length(p_decision_reason) < 3 or char_length(p_decision_reason) > 200 then
+      raise exception 'Member freeze rejection reason invalid' using errcode = '22023';
+    end if;
+    v_expected_facts := v_expected_facts || jsonb_build_object('reason', p_decision_reason);
+  elsif p_decision_reason is not null then
+    raise exception 'Member freeze decision facts mismatch' using errcode = '22023';
+  end if;
+  if v_preparation.command_key is null
+     or v_preparation.request_id is distinct from p_request_id
+     or v_preparation.action is distinct from p_action
+     or v_preparation.expected_revision is distinct from v_request.revision
+     or v_preparation.facts is distinct from v_expected_facts
+     or (p_action = 'adopt' and (p_source_pause_id is null
+          or p_source_pause_id is distinct from v_preparation.source_pause_id))
+     or (p_action <> 'adopt' and p_source_pause_id is not null)
+     or (p_action in ('approve','reject') and v_request.source_pause_id is not null
+         and v_preparation.source_pause_id is distinct from v_request.source_pause_id) then
+    raise exception 'Member freeze finish requires exact current preparation' using errcode = 'GL066';
+  end if;
+
+  -- Preparation is no lease on eligibility. Its existing gates run again,
+  -- excluding only the exact newly bound source and holding current evidence.
+  perform app.slf_freeze_prepare(p_action, p_request_id,
+    v_preparation.expected_revision, p_command_key, v_expected_facts);
+  v_staff_id := app.slf_front_office_staff();
 
   v_member_id := v_request.member_id;
   v_before := pg_catalog.to_jsonb(v_request);
@@ -812,10 +1197,11 @@ begin
     -- helper only links the pause the caller just made.
     select * into v_pause
       from public.membership_pauses p
-     where p.id = p_source_pause_id;
+     where p.id = p_source_pause_id for update;
     if v_pause.id is null
        or v_pause.tenant_id is distinct from v_request.tenant_id
        or v_pause.membership_id is distinct from v_request.membership_id
+       or v_pause.reason is distinct from v_request.reason
        or v_pause.starts_on is distinct from v_request.starts_on
        or v_pause.ends_on is distinct from v_request.ends_on
        or v_pause.requested_by_staff_id is distinct from v_staff_id
@@ -843,7 +1229,7 @@ begin
     values
       (gen_random_uuid(), v_request.tenant_id, v_request.id, auth.uid(),
        p_command_key, 'adopt',
-       jsonb_build_object('request_id', v_request.id),
+       v_expected_facts,
        v_result);
 
     perform app.slf_freeze_audit(
@@ -857,7 +1243,7 @@ begin
     end if;
     select * into v_pause
       from public.membership_pauses p
-     where p.id = v_request.source_pause_id;
+     where p.id = v_request.source_pause_id for update;
     if v_pause.id is null
        or v_pause.approved_at is null
        or v_pause.approved_by_staff_id is distinct from v_staff_id
@@ -865,10 +1251,19 @@ begin
       raise exception 'Member freeze approval source mismatch' using errcode = '23514';
     end if;
 
+    select s.* into v_settings from public.organization_settings s
+     where s.tenant_id = v_request.tenant_id;
+    select st.role into v_actor_role from public.staff st where st.id = v_staff_id
+      and st.tenant_id = v_request.tenant_id;
+    if v_staff_id is not distinct from v_request.adopted_by_staff_id
+       or v_actor_role is distinct from v_settings.pause_approver_role then
+      raise exception 'Member freeze approval authority unavailable' using errcode = '42501';
+    end if;
+
     update public.member_freeze_requests r
        set status = 'approved',
            decided_by_staff_id = v_staff_id,
-           decided_at = pg_catalog.now(),
+           decided_at = v_pause.approved_at,
            closed_at = pg_catalog.now(),
            revision = r.revision + 1
      where r.id = v_request.id
@@ -891,7 +1286,7 @@ begin
     values
       (gen_random_uuid(), v_request.tenant_id, v_request.id, auth.uid(),
        p_command_key, 'approve',
-       jsonb_build_object('request_id', v_request.id),
+       v_expected_facts,
        v_result);
 
     perform app.slf_freeze_audit(
@@ -906,7 +1301,7 @@ begin
     if v_request.source_pause_id is not null then
       select * into v_pause
         from public.membership_pauses p
-       where p.id = v_request.source_pause_id;
+       where p.id = v_request.source_pause_id for update;
       if v_pause.id is null
          or v_pause.rejected_at is null
          or v_pause.approved_at is not null then
@@ -917,7 +1312,7 @@ begin
     update public.member_freeze_requests r
        set status = 'rejected',
            decided_by_staff_id = v_staff_id,
-           decided_at = pg_catalog.now(),
+           decided_at = coalesce(v_pause.rejected_at, pg_catalog.now()),
            decision_reason = p_decision_reason,
            closed_at = pg_catalog.now(),
            revision = r.revision + 1
@@ -933,7 +1328,7 @@ begin
     values
       (gen_random_uuid(), v_request.tenant_id, v_request.id, auth.uid(),
        p_command_key, 'reject',
-       jsonb_build_object('request_id', v_request.id, 'reason', p_decision_reason),
+       v_expected_facts,
        v_result);
 
     perform app.slf_freeze_audit(
@@ -943,6 +1338,9 @@ begin
       p_decision_reason);
 
   else  -- expire
+    if not app.slf_freeze_ineffective(v_request, app.gym_today(v_request.tenant_id)) then
+      raise exception 'Member freeze request is not yet ineffective' using errcode = 'GL066';
+    end if;
     if v_request.status not in ('requested','desk_submitted') then
       raise exception 'Member freeze request is not open' using errcode = 'GL066';
     end if;
@@ -963,7 +1361,7 @@ begin
     values
       (gen_random_uuid(), v_request.tenant_id, v_request.id, auth.uid(),
        p_command_key, 'expire',
-       jsonb_build_object('request_id', v_request.id),
+       v_expected_facts,
        v_result);
 
     perform app.slf_freeze_audit(
@@ -972,6 +1370,11 @@ begin
       v_before - 'updated_at', pg_catalog.to_jsonb(v_request) - 'updated_at', null);
   end if;
 
+  delete from app.slf_freeze_preparations prepared
+   where prepared.transaction_id = v_preparation.transaction_id
+     and prepared.tenant_id = v_preparation.tenant_id
+     and prepared.actor_user_id = v_preparation.actor_user_id
+     and prepared.command_key = v_preparation.command_key;
   return v_result;
 end
 $fn$;
@@ -994,6 +1397,7 @@ declare
   v_member_id  uuid;
   v_membership public.memberships;
   v_request    public.member_freeze_requests;
+  v_expired    public.member_freeze_requests;
   v_command    public.member_freeze_commands;
   v_today      date;
   v_before     jsonb;
@@ -1001,8 +1405,36 @@ declare
   v_facts      jsonb;
   v_reason     text;
 begin
-  -- Authorization first (SLF-003), then the replay ledger, then eligibility.
+  -- Authorization first (SLF-003); then the serialization lock and the replay
+  -- ledger; eligibility only afterwards (SLF-013: an exact authorized replay
+  -- precedes revision and target-eligibility checks, and a changed actor or
+  -- changed facts under a known key conflicts without disclosing membership
+  -- state).
   v_member_id := app.slf_member_actor();
+
+  perform app.slf_freeze_lock(app.current_tenant_id(), v_member_id);
+
+  v_reason := btrim(coalesce(p_reason, ''));
+  v_facts := jsonb_build_object(
+    'membership_id', p_membership_id,
+    'starts_on', p_starts_on, 'ends_on', p_ends_on, 'reason', v_reason);
+
+  select * into v_command
+    from public.member_freeze_commands c
+   where c.tenant_id = app.current_tenant_id()
+     and c.command_key = p_request_key;
+
+  if v_command.id is not null then
+    if v_command.action = 'create'
+       and v_command.actor_user_id = auth.uid()
+       and v_command.facts = v_facts then
+      select * into v_request from public.member_freeze_requests r
+       where r.id = v_command.request_id;
+      return v_command.result || jsonb_build_object('replayed', true,
+        'effective_state', app.slf_freeze_detail(v_request, false)->'effective_state');
+    end if;
+    raise exception 'Member freeze command key conflict' using errcode = 'GL068';
+  end if;
 
   select * into v_membership
     from public.memberships m
@@ -1014,26 +1446,11 @@ begin
     raise exception 'Membership unavailable for freeze requests' using errcode = '42501';
   end if;
 
-  perform app.slf_freeze_lock(v_membership.tenant_id, v_member_id);
-
-  v_reason := btrim(coalesce(p_reason, ''));
-  v_facts := jsonb_build_object(
-    'membership_id', p_membership_id,
-    'starts_on', p_starts_on, 'ends_on', p_ends_on, 'reason', v_reason);
-
-  select * into v_command
-    from public.member_freeze_commands c
-   where c.tenant_id = v_membership.tenant_id
-     and c.command_key = p_request_key;
-
-  if v_command.id is not null then
-    if v_command.action = 'create'
-       and v_command.actor_user_id = auth.uid()
-       and v_command.facts = v_facts then
-      return jsonb_set(v_command.result, '{replayed}', 'true'::jsonb, true);
-    end if;
-    raise exception 'Member freeze command key conflict' using errcode = 'GL068';
-  end if;
+  perform 1 from public.members m where m.tenant_id = v_membership.tenant_id
+    and m.id = v_member_id for share;
+  select * into v_membership from public.memberships m
+    where m.id = p_membership_id for share;
+  perform app.slf_member_actor();
 
   -- Value/shape validation (22023).
   if p_starts_on is null or p_ends_on is null or p_ends_on < p_starts_on then
@@ -1054,7 +1471,8 @@ begin
   if v_membership.status not in ('active','frozen') then
     raise exception 'Membership does not permit freeze requests' using errcode = '22023';
   end if;
-  if v_membership.starts_on > v_today
+  if v_membership.starts_on is null or v_membership.ends_on is null
+     or v_membership.starts_on > v_today
      or (v_membership.ends_on is not null and v_membership.ends_on < v_today) then
     raise exception 'Membership is not currently dated' using errcode = '22023';
   end if;
@@ -1069,7 +1487,7 @@ begin
   -- SLF-only closure materialization: an elapsed, unadopted open request of
   -- this member closes atomically here, with one expiry event, so a stale
   -- row cannot block a fresh eligible request (SLF-010).
-  with closed as (
+  for v_expired in
     update public.member_freeze_requests r
        set status = 'expired',
            closed_at = pg_catalog.now(),
@@ -1079,17 +1497,16 @@ begin
        and r.status = 'requested'
        and r.starts_on < v_today
      returning r.*
-  )
-  insert into public.audit_log
-    (tenant_id, actor_user_id, actor_role, action, record_type, record_id, before, after, reason)
-  select c.tenant_id, auth.uid(), app.current_app_role(),
-         'member_freeze.expired', 'member_freeze_request', c.id,
-         null, pg_catalog.to_jsonb(c) - 'updated_at', null
-  from closed c;
+  loop
+    perform app.slf_freeze_audit(
+      v_expired.tenant_id, auth.uid(), app.current_app_role(),
+      'member_freeze.expired', v_expired.id,
+      null, pg_catalog.to_jsonb(v_expired) - 'updated_at', null);
+  end loop;
 
   -- One EFFECTIVE open request per member (SLF_LIMITS): elapsed-start or
   -- member/target-unavailable rows reserve nothing even while still open --
-  -- exclusion only; the closure CTE above stays requested-only.
+  -- exclusion only; the closure loop above stays requested-only.
   if exists (
     select 1
       from public.member_freeze_requests r
@@ -1119,6 +1536,11 @@ begin
      where m.tenant_id = v_membership.tenant_id
        and m.member_id = v_member_id
        and p.rejected_at is null
+       and (p.approved_at is not null or not exists (
+         select 1 from public.member_freeze_requests linked
+          where linked.source_pause_id = p.id
+            and (linked.status in ('cancelled','expired','rejected')
+                 or app.slf_freeze_ineffective(linked, v_today))))
        and p.starts_on <= p_ends_on
        and p_starts_on <= p.ends_on
   ) then
@@ -1176,13 +1598,14 @@ begin
     from public.member_freeze_requests r
    where r.id = p_request_id;
 
-  if v_request.id is null then
-    raise exception 'Member freeze request unavailable' using errcode = 'P0002';
-  end if;
-  if v_request.tenant_id is distinct from app.current_tenant_id()
+  -- Target-invisible like the safe reads (SLF-009 scoping without an
+  -- existence oracle): a missing, foreign or non-owning request is one
+  -- unavailable outcome.
+  if v_request.id is null
+     or v_request.tenant_id is distinct from app.current_tenant_id()
      or v_request.member_id is distinct from v_member_id
      or v_request.requested_by_user_id is distinct from auth.uid() then
-    raise exception 'Member freeze authority unavailable' using errcode = '42501';
+    raise exception 'Member freeze request unavailable' using errcode = 'P0002';
   end if;
 
   perform app.slf_freeze_lock(v_request.tenant_id, v_request.member_id);
@@ -1203,13 +1626,26 @@ begin
     if v_command.action = 'cancel'
        and v_command.actor_user_id = auth.uid()
        and v_command.facts = v_facts then
-      return jsonb_set(v_command.result, '{replayed}', 'true'::jsonb, true);
+      select * into v_request from public.member_freeze_requests r
+       where r.id = v_command.request_id;
+      return v_command.result || jsonb_build_object('replayed', true,
+        'effective_state', app.slf_freeze_detail(v_request, false)->'effective_state');
     end if;
     raise exception 'Member freeze command key conflict' using errcode = 'GL068';
   end if;
 
   if v_request.status not in ('requested','desk_submitted') then
     raise exception 'Member freeze request is not open' using errcode = 'GL066';
+  end if;
+
+  if v_request.source_pause_id is not null then
+    perform 1 from public.membership_pauses p where p.id = v_request.source_pause_id
+      for update;
+    if exists (select 1 from public.membership_pauses p
+       where p.id = v_request.source_pause_id
+         and (p.approved_at is not null or p.rejected_at is not null)) then
+      raise exception 'Member freeze source is already decided' using errcode = 'GL066';
+    end if;
   end if;
 
   v_before := pg_catalog.to_jsonb(v_request);
@@ -1263,7 +1699,7 @@ begin
 
   v_prep := app.slf_freeze_prepare('adopt', p_request_id, p_expected_revision,
                                    p_command_key,
-                                   jsonb_build_object('request_id', p_request_id));
+                                   jsonb_build_object('request_id', p_request_id, 'expected_revision', p_expected_revision));
   if v_prep @> '{"replayed": true}'::jsonb then
     return v_prep -> 'result';
   end if;
@@ -1305,7 +1741,7 @@ begin
 
   v_prep := app.slf_freeze_prepare('approve', p_request_id, p_expected_revision,
                                    p_command_key,
-                                   jsonb_build_object('request_id', p_request_id));
+                                   jsonb_build_object('request_id', p_request_id, 'expected_revision', p_expected_revision));
   if v_prep @> '{"replayed": true}'::jsonb then
     return v_prep -> 'result';
   end if;
@@ -1381,7 +1817,8 @@ begin
   v_prep := app.slf_freeze_prepare('reject', p_request_id, p_expected_revision,
                                    p_command_key,
                                    jsonb_build_object('request_id', p_request_id,
-                                                      'reason', v_reason));
+                                                      'reason', v_reason,
+                                                      'expected_revision', p_expected_revision));
   if v_prep @> '{"replayed": true}'::jsonb then
     return v_prep -> 'result';
   end if;
@@ -1423,7 +1860,7 @@ begin
 
   v_prep := app.slf_freeze_prepare('expire', p_request_id, p_expected_revision,
                                    p_command_key,
-                                   jsonb_build_object('request_id', p_request_id));
+                                   jsonb_build_object('request_id', p_request_id, 'expected_revision', p_expected_revision));
   if v_prep @> '{"replayed": true}'::jsonb then
     return v_prep -> 'result';
   end if;
@@ -1446,7 +1883,11 @@ declare
   v_member_id uuid;
   v_request   public.member_freeze_requests;
 begin
-  v_member_id := app.slf_member_actor();
+  if app.current_app_role() = 'member' then
+    v_member_id := app.slf_member_actor();
+  else
+    perform app.slf_front_office_staff();
+  end if;
 
   select * into v_request
     from public.member_freeze_requests r
@@ -1454,11 +1895,11 @@ begin
 
   if v_request.id is null
      or v_request.tenant_id is distinct from app.current_tenant_id()
-     or v_request.member_id is distinct from v_member_id then
+     or (v_member_id is not null and v_request.member_id is distinct from v_member_id) then
     raise exception 'Member freeze request unavailable' using errcode = 'P0002';
   end if;
 
-  return app.slf_freeze_detail(v_request, false);
+  return app.slf_freeze_detail(v_request, v_member_id is null);
 end
 $fn$;
 
@@ -1478,6 +1919,12 @@ declare
 begin
   v_member_id := app.slf_member_actor();
   v_limit := least(greatest(coalesce(p_limit, 50), 1), 200);
+  -- Deterministic descending keyset requires the paired cursor (critic P3-4):
+  -- a lone boundary argument cannot place the tie break and would re-serve.
+  if (p_after_created_at is null) is distinct from (p_after_id is null) then
+    raise exception 'Member freeze keyset cursor requires both arguments'
+      using errcode = '22023';
+  end if;
 
   select coalesce(
            jsonb_agg(app.slf_freeze_detail(r, false) order by r.created_at desc, r.id desc),
@@ -1490,8 +1937,7 @@ begin
          and r.member_id = v_member_id
          and (p_after_created_at is null
               or r.created_at < p_after_created_at
-              or (r.created_at = p_after_created_at
-                  and (p_after_id is null or r.id < p_after_id)))
+              or (r.created_at = p_after_created_at and r.id < p_after_id))
        order by r.created_at desc, r.id desc
        limit v_limit
     ) r;
@@ -1516,6 +1962,12 @@ declare
 begin
   v_staff_id := app.slf_front_office_staff();
   v_limit := least(greatest(coalesce(p_limit, 50), 1), 200);
+  -- Deterministic descending keyset requires the paired cursor (critic P3-4):
+  -- a lone boundary argument cannot place the tie break and would re-serve.
+  if (p_after_created_at is null) is distinct from (p_after_id is null) then
+    raise exception 'Member freeze keyset cursor requires both arguments'
+      using errcode = '22023';
+  end if;
 
   select coalesce(
            jsonb_agg(app.slf_freeze_detail(r, true) order by r.created_at desc, r.id desc),
@@ -1527,8 +1979,7 @@ begin
        where r.tenant_id = app.current_tenant_id()
          and (p_after_created_at is null
               or r.created_at < p_after_created_at
-              or (r.created_at = p_after_created_at
-                  and (p_after_id is null or r.id < p_after_id)))
+              or (r.created_at = p_after_created_at and r.id < p_after_id))
        order by r.created_at desc, r.id desc
        limit v_limit
     ) r;
@@ -1597,7 +2048,10 @@ begin
     'decision_reason', p_request.decision_reason,
     'closed_at', p_request.closed_at,
     'source_pause_id', p_request.source_pause_id,
-    'can_cancel', p_request.status in ('requested','desk_submitted'),
+    'can_cancel', p_request.status in ('requested','desk_submitted')
+      and (p_request.source_pause_id is null
+           or (v_pause.id is not null and v_pause.approved_at is null
+               and v_pause.rejected_at is null)),
     'requested_by_staff_id',
       case when p_include_staff then p_request.adopted_by_staff_id end,
     'decided_by_staff_id',
@@ -1655,6 +2109,5 @@ revoke all on function app.slf_freeze_lock(uuid,uuid) from public,anon,authentic
 revoke all on function app.slf_freeze_detail(public.member_freeze_requests,boolean) from public,anon,authenticated,service_role;
 revoke all on function app.slf_freeze_ineffective(public.member_freeze_requests,date) from public,anon,authenticated,service_role;
 revoke all on function app.slf_member_actor() from public,anon,authenticated,service_role;
-revoke all on function app.slf_front_office_staff() from public,anon,authenticated,service_role;
 revoke all on function app.enforce_member_freeze_request_row() from public,anon,authenticated,service_role;
 revoke all on function app.enforce_freeze_source_consistency() from public,anon,authenticated,service_role;

@@ -19,6 +19,18 @@ adapter contracts remain unchanged. WSP acquires no scheduler or activation.
   extensions using their platform-supported schemas. Existing `pg_cron` is
   reused. The migration creates no cron job, configuration row or Vault secret,
   reads no decrypted secret and performs no network/provider operation.
+
+  Factual correction (2026-10-04, runtime evidence against the linked Cloud
+  project): the live platform has pg_cron in schema `pg_catalog` (precedent
+  migration 20260909170000 creates it with no schema clause), supabase_vault
+  in `vault`, and `pg_net` NOT installed. The migration therefore declares
+  `pg_net with schema extensions` (repo precedent), verifies the actual
+  extension locations with a named refusal guard that runs BEFORE any
+  create-extension statement, and scopes every custody ACL to the real
+  schemas (`pg_catalog` for cron objects, scoped to exactly the named cron
+  tables/functions). The earlier "both pre-exist in net/vault" expectation is
+  superseded by this note; no owner decision is required — this is measured
+  platform fact, not scope.
 - **PSD-002.** Declare `app.run_push_dispatch_tick() returns jsonb`, VOLATILE,
   SECURITY DEFINER, owner postgres, `search_path=''`. Revoke effective EXECUTE
   from PUBLIC, anon, authenticated and service_role. No public facade. The only

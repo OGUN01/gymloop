@@ -1,11 +1,12 @@
 -- NTF push scheduler — inert deployment migration (frozen mechanical
--- declaration PSD-001..PSD-008, 2026-10-04).
+-- declaration PSD-001..PSD-008, 2026-10-04; extension-placement facts
+-- corrected 2026-10-04 from first runtime evidence).
 -- Authority: openspec/changes/push-notifications/deployment-scheduler-declaration.md
 -- (authoritative) + proposal.md. This migration is INERT at apply time: it
--- creates no pg_cron job, no configuration row, no Vault secret, reads no
+-- creates no cron job, no configuration row, no Vault secret, reads no
 -- decrypted secret and performs no network/provider operation. It declares the
--- supported pg_net and supabase_vault extensions, applies the frozen extension
--- custody denials, and installs exactly three private trusted helpers:
+-- supported extensions and applies the frozen extension custody denials, and
+-- installs exactly three private trusted helpers:
 --   app.run_push_dispatch_tick()          — the cyclic minute driver
 --   app.read_push_dispatch_secret()       — exact one/nonblank Vault lookup
 --   app.enqueue_push_dispatch_wakeup(text)— the fixed HTTP wakeup request
@@ -13,93 +14,264 @@
 -- `select app.run_push_dispatch_tick();`) and pause stay reviewed protected
 -- operator statements (PSD-013/PSD-014); no additional public SQL facade
 -- exists here. The migration never rewrites 20261004090000_push_delivery.sql.
+-- Runtime-established extension reality on the approved project: pg_cron is
+-- installed in `pg_catalog` (precedent migration 20260909170000 declares it
+-- with no schema clause), supabase_vault in `vault`, and pg_net was absent —
+-- it is declared into `extensions` following the repo precedent
+-- (20260906115131_tenancy.sql / 20260906115153_catalogue.sql).
 
 -- ---------------------------------------------------------------------------
--- 1. Extension declaration (PSD-001). Platform-supported schemas; both are
---    expected to pre-exist on Cloud, so these statements are no-ops there.
+-- 1. Extension reality guard — BEFORE any create-extension statement, so a
+--    placement drift is refused by name instead of failing a later revoke
+--    with a generic error. pg_net absence is recorded, not refused.
 -- ---------------------------------------------------------------------------
-create extension if not exists pg_net with schema net;
-create extension if not exists supabase_vault with schema vault;
-
--- Named apply-time assumption guard: the custody revokes below target the
--- exact `net`/`vault`/`cron` schemas. If a platform relocates an extension to
--- a different schema, fail here with a refusal that names the problem and the
--- actual schema instead of a generic revoke error.
 do $extension_schema_guard$
 declare
   v_schema text;
+  v_installed boolean;
 begin
-  if to_regnamespace('net') is null then
-    raise exception 'push_scheduler: extension_schema_unexpected schema net is absent';
-  end if;
-  if to_regnamespace('vault') is null then
-    raise exception 'push_scheduler: extension_schema_unexpected schema vault is absent';
-  end if;
-  if to_regnamespace('cron') is null then
-    raise exception 'push_scheduler: extension_schema_unexpected schema cron is absent';
+  if to_regnamespace('pg_catalog') is null then
+    raise exception 'push_scheduler: extension_schema_unexpected pg_catalog is absent';
   end if;
   select n.nspname into v_schema
     from pg_extension e join pg_namespace n on n.oid = e.extnamespace
-   where e.extname = 'pg_net';
-  if v_schema is distinct from 'net' then
-    raise exception 'push_scheduler: extension_schema_unexpected pg_net lives in schema %, expected net', v_schema;
+   where e.extname = 'pg_cron';
+  if v_schema is distinct from 'pg_catalog' then
+    raise exception 'push_scheduler: extension_schema_unexpected pg_cron lives in schema %, expected pg_catalog', coalesce(v_schema, '(absent)');
+  end if;
+
+  if to_regnamespace('vault') is null then
+    raise exception 'push_scheduler: extension_schema_unexpected schema vault is absent';
   end if;
   select n.nspname into v_schema
     from pg_extension e join pg_namespace n on n.oid = e.extnamespace
    where e.extname = 'supabase_vault';
   if v_schema is distinct from 'vault' then
-    raise exception 'push_scheduler: extension_schema_unexpected supabase_vault lives in schema %, expected vault', v_schema;
+    raise exception 'push_scheduler: extension_schema_unexpected supabase_vault lives in schema %, expected vault', coalesce(v_schema, '(absent)');
   end if;
-  select n.nspname into v_schema
-    from pg_extension e join pg_namespace n on n.oid = e.extnamespace
-   where e.extname = 'pg_cron';
-  if v_schema is distinct from 'cron' then
-    raise exception 'push_scheduler: extension_schema_unexpected pg_cron lives in schema %, expected cron', v_schema;
+
+  if to_regnamespace('extensions') is null then
+    raise exception 'push_scheduler: extension_schema_unexpected schema extensions is absent';
   end if;
+  select exists (select 1 from pg_extension where extname = 'pg_net') into v_installed;
+  raise notice 'push_scheduler: pg_net installed before declaration: %', v_installed;
 end
 $extension_schema_guard$;
 
+-- pg_net is declared into the `extensions` schema per repo precedent;
+-- supabase_vault stays in `vault` (no-op where the platform pre-installed it).
+create extension if not exists pg_net with schema extensions;
+create extension if not exists supabase_vault with schema vault;
+
+-- Post-declaration placement check: if pg_net landed anywhere other than
+-- `extensions`, refuse by name before any custody statement runs.
+do $extension_placement_guard$
+declare
+  v_schema text;
+begin
+  select n.nspname into v_schema
+    from pg_extension e join pg_namespace n on n.oid = e.extnamespace
+   where e.extname = 'pg_net';
+  if v_schema is distinct from 'extensions' then
+    raise exception 'push_scheduler: extension_schema_unexpected pg_net lives in schema %, expected extensions', coalesce(v_schema, '(absent)');
+  end if;
+end
+$extension_placement_guard$;
+
 -- ---------------------------------------------------------------------------
--- 2. Extension custody (PSD-007/PSD-008). Effective denial for ordinary
---    callers on Vault plaintext/decryption and secret mutation, on net queue/
---    header/response inspection and HTTP enqueue, and on cron scheduling and
---    schedule-table reads. Explicit per-role revokes follow the PUBLIC revoke
---    because the platform pre-grants extension schemas to anon/authenticated/
---    service_role. Only the trusted postgres operator/worker path retains the
---    execution privileges it needs; extension-internal privileges (owned by
---    the extension owners) are untouched and no extension function is altered.
+-- 2. Extension custody (PSD-007/PSD-008), scoped to the real object homes.
+--    vault: per-object ACL statements — Vault internals (including the
+--    pgsodium crypto helpers behind `decrypted_secrets`) are not all owned or
+--    grantable by the apply role, so a blanket schema-wide
+--    grant/revoke can abort the apply with `permission denied for function
+--    _crypto_aead_det_encrypt`. Each object is attempted individually: a
+--    denial that cannot be applied by the apply role is recorded with a
+--    notice (the independent ACL suites pin effective custody and will flag
+--    any real gap), and a failure to grant the one object the driver's Vault
+--    read path needs (`vault.decrypted_secrets`) is a NAMED refusal.
+--    pg_net objects live inside the SHARED `extensions` schema, so a blanket
+--    revoke there would touch unrelated extensions — the revokes enumerate
+--    exactly the objects that belong to the pg_net extension via pg_depend.
+--    pg_cron objects live in `pg_catalog`, so a schema-scoped revoke there is
+--    forbidden; the revokes enumerate exactly the pg_cron member functions
+--    (scheduling surface) and tables via pg_depend. The trusted postgres
+--    operator/worker path retains only what it needs; extension-internal
+--    owner privileges are untouched and no extension function is altered.
 --    Existing unrelated cron schedules remain operational: their worker path
---    does not depend on caller EXECUTE of cron scheduling functions.
+--    does not depend on caller EXECUTE of the scheduling functions.
 -- ---------------------------------------------------------------------------
-revoke usage on schema vault from public, anon, authenticated, service_role;
-revoke all on all tables in schema vault from public, anon, authenticated, service_role;
-revoke execute on all functions in schema vault from public, anon, authenticated, service_role;
-
-revoke usage on schema net from public, anon, authenticated, service_role;
-revoke all on all tables in schema net from public, anon, authenticated, service_role;
-revoke execute on all functions in schema net from public, anon, authenticated, service_role;
-
-revoke usage on schema cron from public, anon, authenticated, service_role;
-revoke all on all tables in schema cron from public, anon, authenticated, service_role;
-revoke execute on all functions in schema cron from public, anon, authenticated, service_role;
-
--- Trusted custody retained for the postgres-owned driver and the protected
--- operator activation/pause statements only (PSD-013/PSD-014 run as postgres
--- through the linked CLI).
+do $vault_custody$
+declare
+  r record;
+begin
+  begin
+    revoke usage on schema vault from public, anon, authenticated, service_role;
+  exception when insufficient_privilege then
+    raise notice 'push_scheduler: vault schema-usage denial skipped (not grantable by the apply role)';
+  end;
+  for r in
+    select c.oid::regclass as obj, c.relname
+      from pg_class c join pg_namespace n on n.oid = c.relnamespace
+     where n.nspname = 'vault' and c.relkind in ('r', 'v', 'p', 'f')
+  loop
+    begin
+      execute 'revoke all on ' || r.obj::text ||
+              ' from public, anon, authenticated, service_role';
+      execute 'grant select on ' || r.obj::text || ' to postgres';
+    exception when insufficient_privilege then
+      if r.relname = 'decrypted_secrets' then
+        raise exception 'push_scheduler: custody_refused vault view decrypted_secrets is not grantable by the apply role; the driver Vault read path cannot be installed';
+      end if;
+      raise notice 'push_scheduler: vault custody skipped for % (not grantable by the apply role)', r.obj::text;
+    end;
+  end loop;
+  for r in
+    select p.oid::regprocedure as obj
+      from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+     where n.nspname = 'vault'
+  loop
+    begin
+      execute 'revoke execute on function ' || r.obj::text ||
+              ' from public, anon, authenticated, service_role';
+      execute 'grant execute on function ' || r.obj::text || ' to postgres';
+    exception when insufficient_privilege then
+      raise notice 'push_scheduler: vault custody skipped for % (not grantable by the apply role)', r.obj::text;
+    end;
+  end loop;
+end
+$vault_custody$;
 grant usage on schema vault to postgres;
-grant select on all tables in schema vault to postgres;
-grant execute on all functions in schema vault to postgres;
 
-grant usage on schema net to postgres;
-grant select on all tables in schema net to postgres;
-grant execute on all functions in schema net to postgres;
+-- pg_net member objects (wherever pg_depend says they live — `extensions`
+-- after section 1): effective denial for ordinary callers.
+do $net_custody$
+declare
+  r record;
+begin
+  for r in
+    select p.oid::regprocedure as obj
+      from pg_depend d
+      join pg_proc p on p.oid = d.objid
+      join pg_extension e on e.oid = d.refobjid
+     where e.extname = 'pg_net'
+       and d.classid = 'pg_proc'::regclass
+       and d.deptype = 'e'
+  loop
+    execute 'revoke execute on function ' || r.obj::text ||
+            ' from public, anon, authenticated, service_role';
+    execute 'grant execute on function ' || r.obj::text || ' to postgres';
+  end loop;
+  for r in
+    select c.oid::regclass as obj
+      from pg_depend d
+      join pg_class c on c.oid = d.objid
+      join pg_extension e on e.oid = d.refobjid
+     where e.extname = 'pg_net'
+       and d.classid = 'pg_class'::regclass
+       and d.deptype = 'e'
+       and c.relkind in ('r', 'v', 'p', 'f')
+  loop
+    execute 'revoke all on ' || r.obj::text ||
+            ' from public, anon, authenticated, service_role';
+    execute 'grant select on ' || r.obj::text || ' to postgres';
+  end loop;
+end
+$net_custody$;
 
-grant usage on schema cron to postgres;
-grant select on all tables in schema cron to postgres;
-grant execute on all functions in schema cron to postgres;
+-- pg_cron member objects (in `pg_catalog` on this project): deny the
+-- scheduling surface and schedule-table reads for ordinary callers, scoped to
+-- exactly the extension's member objects — never blanket pg_catalog revokes.
+do $cron_custody$
+declare
+  r record;
+begin
+  for r in
+    select p.oid::regprocedure as obj
+      from pg_depend d
+      join pg_proc p on p.oid = d.objid
+      join pg_extension e on e.oid = d.refobjid
+     where e.extname = 'pg_cron'
+       and d.classid = 'pg_proc'::regclass
+       and d.deptype = 'e'
+  loop
+    execute 'revoke execute on function ' || r.obj::text ||
+            ' from public, anon, authenticated, service_role';
+    execute 'grant execute on function ' || r.obj::text || ' to postgres';
+  end loop;
+  for r in
+    select c.oid::regclass as obj
+      from pg_depend d
+      join pg_class c on c.oid = d.objid
+      join pg_extension e on e.oid = d.refobjid
+     where e.extname = 'pg_cron'
+       and d.classid = 'pg_class'::regclass
+       and d.deptype = 'e'
+       and c.relkind in ('r', 'v', 'p', 'f')
+  loop
+    execute 'revoke all on ' || r.obj::text ||
+            ' from public, anon, authenticated, service_role';
+    execute 'grant select on ' || r.obj::text || ' to postgres';
+  end loop;
+end
+$cron_custody$;
 
 -- ---------------------------------------------------------------------------
--- 3. app.read_push_dispatch_secret (PSD-005). Exact one nonblank Vault entry
+-- 3. Trusted-only pgsodium execution grants. Vault's decrypted view and
+--    pgsodium's apply-time DDL event machinery call crypto internals
+--    (`_crypto_aead_det_encrypt` and siblings) that pgsodium keeps
+--    EXECUTE-denied from PUBLIC. The helper's definer chain runs as postgres,
+--    so the trusted postgres path needs explicit member grants for the Vault
+--    read path to work (and for the migration's own `create extension` to
+--    apply cleanly in environments where that machinery runs under the apply
+--    role). Nothing here grants to anon/authenticated/service_role/public —
+--    ordinary-role custody is unchanged.
+-- ---------------------------------------------------------------------------
+do $pgsodium_trust_grants$
+declare
+  r record;
+  v_present boolean;
+begin
+  select exists (select 1 from pg_extension where extname = 'pgsodium') into v_present;
+  if not v_present then
+    raise notice 'push_scheduler: pgsodium is not installed; the vault read path cannot be verified here';
+    return;
+  end if;
+  for r in
+    select p.oid::regprocedure as obj
+      from pg_depend d
+      join pg_proc p on p.oid = d.objid
+      join pg_extension e on e.oid = d.refobjid
+     where e.extname = 'pgsodium'
+       and d.classid = 'pg_proc'::regclass
+       and d.deptype = 'e'
+  loop
+    begin
+      execute 'grant execute on function ' || r.obj::text || ' to postgres';
+    exception when insufficient_privilege then
+      raise notice 'push_scheduler: pgsodium trust grant skipped for % (not grantable by the apply role)', r.obj::text;
+    end;
+  end loop;
+  for r in
+    select c.oid::regclass as obj
+      from pg_depend d
+      join pg_class c on c.oid = d.objid
+      join pg_extension e on e.oid = d.refobjid
+     where e.extname = 'pgsodium'
+       and d.classid = 'pg_class'::regclass
+       and d.deptype = 'e'
+       and c.relkind in ('r', 'v', 'p', 'f')
+  loop
+    begin
+      execute 'grant select on ' || r.obj::text || ' to postgres';
+    exception when insufficient_privilege then
+      raise notice 'push_scheduler: pgsodium trust grant skipped for % (not grantable by the apply role)', r.obj::text;
+    end;
+  end loop;
+end
+$pgsodium_trust_grants$;
+
+-- ---------------------------------------------------------------------------
+-- 4. app.read_push_dispatch_secret (PSD-005). Exact one nonblank Vault entry
 --    named `gymloop_push_dispatch_secret`; missing/duplicate/blank refuses
 --    with a fixed value-free operational error. One statement reads both the
 --    candidate and its filtered count so missing and duplicate share one
@@ -138,12 +310,14 @@ alter function app.read_push_dispatch_secret() owner to postgres;
 revoke all on function app.read_push_dispatch_secret() from public, anon, authenticated, service_role;
 
 -- ---------------------------------------------------------------------------
--- 4. app.enqueue_push_dispatch_wakeup (PSD-005). Exactly one net.http_post to
---    the approved Edge endpoint: empty JSON body, Content-Type plus the
+-- 5. app.enqueue_push_dispatch_wakeup (PSD-005). Exactly one pg_net HTTP POST
+--    to the approved Edge endpoint: empty JSON body, Content-Type plus the
 --    dedicated-secret header, 5000 ms timeout. No authorization JWT, no
 --    recipient, no tenant selector, no query string, no redirecting endpoint.
 --    The queued request is only a wakeup — never acceptance or receipt. The
 --    helper returns void so the pg_net request id never escapes the seam.
+--    pg_net lives in the `extensions` schema on this project, so the call is
+--    extension-qualified.
 -- ---------------------------------------------------------------------------
 create function app.enqueue_push_dispatch_wakeup(p_secret text)
 returns void
@@ -156,7 +330,7 @@ begin
   if p_secret is null or btrim(p_secret) = '' then
     raise exception 'push_dispatch_wakeup: secret configuration unusable';
   end if;
-  perform net.http_post(
+  perform extensions.http_post(
     url => 'https://pecxrpskmfeuyzngvewq.supabase.co/functions/v1/push-dispatch',
     body => '{}'::jsonb,
     headers => jsonb_build_object(
@@ -169,7 +343,7 @@ alter function app.enqueue_push_dispatch_wakeup(text) owner to postgres;
 revoke all on function app.enqueue_push_dispatch_wakeup(text) from public, anon, authenticated, service_role;
 
 -- ---------------------------------------------------------------------------
--- 5. app.run_push_dispatch_tick (PSD-002..PSD-006). The only scheduler
+-- 6. app.run_push_dispatch_tick (PSD-002..PSD-006). The only scheduler
 --    command; executed by the trusted postgres cron owner as
 --    `select app.run_push_dispatch_tick();`. Transaction advisory try-lock
 --    keyed by the fixed job name; contention is an inert skipped tick with
