@@ -14,7 +14,7 @@ const s = publicShared as unknown as Record<string, { safeParse?: (value: unknow
 const id = '79400000-0000-4000-8000-000000000001';
 const other = '79400000-0000-4000-8000-000000000002';
 const uuid = (n: number) => `79400000-0000-4000-8000-00000000000${n}`;
-const h = vi.hoisted(() => ({ identity: null as unknown, rpc: vi.fn(), reply: { data: null as unknown, error: null as unknown }, cookie: vi.fn(), bearer: vi.fn(), fetch: vi.fn() }));
+const h = vi.hoisted(() => ({ identity: null as unknown, rpc: vi.fn(), invoke: vi.fn(), reply: { data: null as unknown, error: null as unknown }, cookie: vi.fn(), bearer: vi.fn(), fetch: vi.fn() }));
 vi.mock('../../apps/web/lib/identity-session', () => ({ readIdentity: h.cookie, readRequestIdentity: h.bearer }));
 
 const memberBase = '../../apps/web/app/api/member/purchase-requests';
@@ -45,10 +45,11 @@ const routes: Route[] = [
 
 beforeEach(() => {
   h.identity = null; h.reply = { data: null, error: null };
-  h.rpc.mockReset(); h.cookie.mockReset(); h.bearer.mockReset(); h.fetch.mockReset();
-  const read = async () => h.identity === null ? null : ({ identity: h.identity, supabase: { rpc: h.rpc }, signedIn: true, authenticatedUser: true });
+  h.rpc.mockReset(); h.invoke.mockReset(); h.cookie.mockReset(); h.bearer.mockReset(); h.fetch.mockReset();
+  const read = async () => h.identity === null ? null : ({ identity: h.identity, supabase: { rpc: h.rpc, functions: { invoke: h.invoke } }, signedIn: true, authenticatedUser: true });
   h.cookie.mockImplementation(read); h.bearer.mockImplementation(read);
   h.rpc.mockImplementation(() => Object.assign(Promise.resolve(h.reply), { single: async () => h.reply, maybeSingle: async () => h.reply }));
+  h.invoke.mockImplementation(async () => ({ data: { ok: true, data: { assetId: other, confirmed: true } } }));
   h.fetch.mockImplementation(async () => new Response(JSON.stringify({ ok: true, data: { assetId: other } }), { status: 200, headers: { 'content-type': 'application/json' } }));
   vi.stubGlobal('fetch', h.fetch);
 });
@@ -141,7 +142,7 @@ describe('PAY canonical raw preview claims: complete identity versus contradicto
 describe('PAY routes: exact RPC pinning and replay pass-through', () => {
   it.each(routes.filter(r => r.rpc && r.body !== null))('$name calls exactly its frozen RPC once with snake_case p_ arguments', async route => {
     act(route.member ? 'member' : 'staff', route.role);
-    h.reply.data = { id, status: 'requested', replayed: false };
+    h.reply.data = route.name === 'member-proof-confirm' ? { id, status: 'payment_proof_uploaded', activeProofAssetId: other, replayed: false } : { id, status: 'requested', replayed: false };
     const response = await dispatch(route, request(route, route.body));
     expect(h.rpc).toHaveBeenCalledTimes(1); expect(h.rpc.mock.calls[0][0]).toBe(route.rpc);
     const args = h.rpc.mock.calls[0][1] as Record<string, unknown>;
@@ -216,13 +217,14 @@ describe('PAY routes: money honesty at the client boundary', () => {
 
 describe('PAY routes: proof privacy and upload truth', () => {
   it('proof-confirm publishes through the Edge boundary before any attach RPC, and storage failure attaches nothing', async () => {
-    const route = routes[5]; act('member'); h.reply.data = { id, status: 'payment_proof_uploaded', replayed: false };
+    const route = routes[5]; act('member');
+    h.reply.data = { id, status: 'payment_proof_uploaded', activeProofAssetId: other, replayed: false };
     const ok = await dispatch(route, request(route, route.body));
-    expect(h.fetch).toHaveBeenCalledTimes(1); expect(h.rpc).toHaveBeenCalledTimes(1);
+    expect(h.invoke).toHaveBeenCalledTimes(1); expect(h.rpc).toHaveBeenCalledTimes(1);
     expect(h.rpc.mock.calls[0][0]).toBe('attach_payment_proof');
-    expect(String(h.fetch.mock.calls[0][0])).toMatch(/proof/);
+    expect((h.invoke.mock.calls[0][1] as { body: { operation: string } }).body.operation).toMatch(/proof/);
     expect(ok.headers.get('cache-control')).toBe('no-store');
-    h.fetch.mockImplementation(async () => new Response(JSON.stringify({ ok: false, error: { code: 'upload_rejected', message: 'x' } }), { status: 422 }));
+    h.invoke.mockImplementation(async () => ({ data: { ok: false, error: { code: 'upload_rejected', message: 'x' } } }));
     h.rpc.mockClear();
     const refused = await dispatch(route, request(route, route.body));
     expect(refused.status).toBe(422); expect(h.rpc).not.toHaveBeenCalled();
