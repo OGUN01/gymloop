@@ -494,3 +494,56 @@ Plan(206) preserved (the insertion is a capture statement + comment, not an
 assertion). Static rollback guard green. C22 (have 5 want 3) remains open
 pending the coordinator's per-row payload dump.
 4150f664634c1eb6f0029337e69bb7b5db7490a254f4d176fa155c352ed5c9f7
+
+## Runtime adjudication round 13 (H16 class, per holdout-authoritative ordering)
+
+H16 (null export id): have 42501, was want 22023. Amended to 42501. Rationale
+recorded in the label: the authority-before-vocabulary ordering is now the
+holdout author's declaration-consistent adjudication — the release-writer
+clause "revalidates active owner/claims and finds exactly this actor/tenant's
+prepared UUID, rejects absent/foreign/already released attempts" treats a
+null id as an absent id, so the absent-attempt refusal class (the H10/175
+family) applies. I do NOT read shape-first as declaration-mandated; no
+escalation is needed. Label also records the amendment so the immutability
+trail is explicit. No weakening: the rejection itself is still pinned, at its
+declared class.
+
+C22: awaiting the coordinator's one-snapshot per-row dump; no change this
+round per instruction.
+88c0c0a6721689c26460c53fcd6f31b91a0125a2f7b5391462450275cbe04b86
+88c0c0a6721689c26460c53fcd6f31b91a0125a2f7b5391462450275cbe04b86
+
+## Runtime adjudication round 14 (C22 settled by the per-row dump — no public finding)
+
+The coordinator's per-row dump of the executed branch-A collection (five rows:
+401, 405, 403, 404, 407) plus the declaration text settles C22 definitively —
+and corrects my own fixture map, which had lost track of payment 404
+(USD 2500, member 101, 2026-01-13).
+
+The frozen declaration (sql-envelope-declaration.md, projection section):
+"Member code/current name are nullable for absent/erased RLS-visible profiles"
+and "Members exclude erased profiles entirely" — i.e. the erasure EXCLUSION is
+a members-dataset property only; the payments/attendance projections keep the
+erased profile's row present with nulled identity display. The dump's row 403
+shows exactly that shape (member_code null, current_member_name null). So:
+
+- 403's presence is CONTRACT-TRUE — the "erased member cannot satisfy a
+  branch filter" premise of my original label was wrong from the start; no
+  public envelope finding exists here. The built envelope matches the
+  declaration.
+- 404 is lawful: the export is dataset-scoped and the declaration declares no
+  currency filter.
+- 405 is lawful (inclusive at the range start boundary).
+- 406 stays excluded (passing C15/C16).
+
+Correct want: 5 — which also coheres perfectly with C2's six-row whole-January
+count (401–403, 405–407, minus 406; branch 13 filters out only 402, proven by
+C21). Author-owned want history corrected in the label: 4 → 3 → 5. No
+assertion weakened; the count pin now asserts the contract-true shape with
+full row-level reasoning.
+
+Plan(206) preserved. Static rollback guard green. All four prior residuals
+are now adjudicated: B20/G20/G2x-family author-owned corrections landed,
+H16 class amended, C22 settled. H11's 42501-vs-22023 ordering finding stays
+routed to the builder.
+93b12c40397ca21b6f32d367a745ac02bb50d781102056cc6393d4ac04214b80

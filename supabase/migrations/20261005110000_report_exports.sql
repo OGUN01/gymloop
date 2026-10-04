@@ -985,13 +985,43 @@ begin
       using message = 'report export audit events attribute the verified gym owner only';
   end if;
 
-  -- Public invocation accepts ONLY the released event.
+  -- The writer revalidates active owner/claims (above) and finds exactly this
+  -- actor/tenant's prepared UUID BEFORE any shape or allowlist rejection:
+  -- a foreign or absent attempt is the declared authority refusal (42501),
+  -- never a shape refusal that would hide the authority layer. An
+  -- already-released attempt is refused before any second audit row can
+  -- exist.
+  if p_export_id is null then
+    raise insufficient_privilege
+      using message = 'no prepared export attempt is available for this release';
+  end if;
+  select *
+    into v_prepared
+    from app.report_export_preparations r
+    where r.export_id = p_export_id
+      and r.tenant_id = v_tenant
+      and r.actor_user_id = v_actor;
+  if not found then
+    raise insufficient_privilege
+      using message = 'no prepared export attempt is available for this release';
+  end if;
+  if exists (
+    select 1
+    from public.audit_log a
+    where a.record_type = 'report_export'
+      and a.record_id = p_export_id
+      and a.action = 'report_export.released'
+  ) then
+    raise exception
+      using message = 'this export attempt has already been released',
+            errcode = '23514';
+  end if;
+
+  -- Only now the event vocabulary and payload shape: the actor/tenant
+  -- revalidation above has already established release authority.
   if p_event is distinct from 'report_export.released' then
     raise invalid_parameter_value
       using message = 'the public audit event must be report_export.released';
-  end if;
-  if p_export_id is null then
-    raise invalid_parameter_value using message = 'the export id is required';
   end if;
   if p_details is null then
     raise invalid_parameter_value using message = 'the audit details are required';
@@ -1032,32 +1062,6 @@ begin
   if v_digest is null or v_digest !~ '^[0-9a-f]{64}$' then
     raise invalid_parameter_value
       using message = 'the release artifact digest must be 64 lowercase hex characters';
-  end if;
-
-  -- The writer revalidates active owner/claims (above) and finds exactly this
-  -- actor/tenant's prepared UUID; absent and foreign attempts are the same
-  -- unavailable refusal, and an already-released attempt is refused before
-  -- any second audit row can exist.
-  select *
-    into v_prepared
-    from app.report_export_preparations r
-    where r.export_id = p_export_id
-      and r.tenant_id = v_tenant
-      and r.actor_user_id = v_actor;
-  if not found then
-    raise insufficient_privilege
-      using message = 'no prepared export attempt is available for this release';
-  end if;
-  if exists (
-    select 1
-    from public.audit_log a
-    where a.record_type = 'report_export'
-      and a.record_id = p_export_id
-      and a.action = 'report_export.released'
-  ) then
-    raise exception
-      using message = 'this export attempt has already been released',
-            errcode = '23514';
   end if;
 
   -- Copy all prepared after keys and add the two validated release fields.
