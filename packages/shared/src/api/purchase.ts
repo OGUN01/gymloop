@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { Constants } from '@gymloop/db';
+import { POSTGRES_BIGINT_MAX } from '../config/constants';
 
 /**
  * PAY — member purchase requests and private payment claims.
@@ -16,7 +17,7 @@ const instant = z.iso.datetime({ offset: true });
 /** Object-literal bounds rather than bare literals — see AGENTS.md rule 4. */
 const BUY_SCHEMA_BOUNDS = { maxQuantity: 10, reasonMinLength: 3, reasonMaxLength: 200 } as const;
 /** Positive integer paise — a payment of zero is not a payment. */
-const positivePaise = z.string().regex(/^[1-9][0-9]*$/);
+const positivePaise = z.string().regex(/^[1-9][0-9]*$/).refine(value => /^[1-9][0-9]*$/.test(value) && BigInt(value) <= POSTGRES_BIGINT_MAX, 'Amount exceeds the supported paise range.');
 const paise = z.string().regex(/^(?:0|[1-9][0-9]*)$/);
 
 export const PURCHASE_REQUEST_KINDS = ['shop', 'pt', 'renewal'] as const;
@@ -91,11 +92,31 @@ export type PurchaseRequestsPage = z.infer<typeof purchaseRequestsPageSchema>;
 
 export type PurchaseRequestDetail = z.infer<typeof purchaseRequestRowSchema>;
 
-export const purchaseProofUrlResultSchema = z.array(z.strictObject({
-  request_id: id,
-  url: z.string(),
-  expires_at: instant,
-})).length(1);
+export const purchaseProofUrlResultSchema = z.object({
+  requestId: id, proofId: id, assetId: id, url: z.string().min(1), expiresAt: instant,
+});
+
+const snapshotBase = { currency: z.literal('INR') };
+const productSnapshot = z.object({
+  ...snapshotBase, productId: id, productName: z.string(), kind: z.enum(Constants.public.Enums.addon_kind),
+  description: z.string().nullable().optional(), cancellationTerms: z.string().nullable().optional(),
+  validityDays: z.number().int().positive().nullable().optional(), gstRateBp: z.number().int().nonnegative(),
+  unitPricePaise: paise, pricePaise: paise, totalPaise: paise, quoteVersion: id,
+  trainerStaffId: id.optional(), sessionCount: z.number().int().positive().optional(),
+});
+const renewalSnapshot = z.object({
+  ...snapshotBase, membershipId: id, planId: id, planName: z.string(), netPricePaise: paise,
+  grossPricePaise: paise, discountPaise: paise, durationDays: z.number().int().positive(), endsOn: z.string(),
+});
+/** Safe canonical JSON wire projection; unrecognized storage metadata is stripped. */
+export const purchaseRequestDetailSchema = z.object({
+  requestId: id, requestKey: id, kind: z.enum(PURCHASE_REQUEST_KINDS), status: z.enum(PURCHASE_REQUEST_STATUSES),
+  targetId: id, quantity: z.number().int().positive(), snapshot: z.union([productSnapshot, renewalSnapshot]),
+  quoteRevision: id, createdAt: instant, expiresAt: instant, acceptedAt: instant.optional(),
+  acceptedRevision: id.optional(), rejectReason: z.string().optional(), activeProofAssetId: id.optional(),
+  recordedPaymentId: id.optional(), recordedOrderId: id.optional(), recordedMembershipId: id.optional(),
+  recordedAmountPaise: paise.optional(), recordedCurrency: z.literal('INR').optional(), replayed: z.boolean().optional(),
+});
 
 /** BUY-022 copy truths: upload is a claim pending verification; only the ledger records payment. */
 export const purchaseRequestCopy = {
@@ -132,7 +153,7 @@ const REFUSALS: Record<string, string> = {
 };
 /** One honest sentence per refusal code; unknown codes never echo upstream text. */
 export function purchaseRequestRefusalMessage(code: string): string {
-  return REFUSALS[code] ?? "That didn't work. Try again, or ask the desk.";
+  return Object.hasOwn(REFUSALS, code) ? REFUSALS[code]! : "That didn't work. Try again, or ask the desk.";
 }
 
 export function purchaseRequestStatusWord(status: string): string {

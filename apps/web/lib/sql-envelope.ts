@@ -23,7 +23,7 @@ export const WAVE_REFUSAL_MAP: Record<string, RefusalSpec> = {
 
 /** Map a Postgres error to its frozen envelope; unknown codes stay generic. */
 export function sqlRefusal(mapping: RefusalMapping, code: string, details: string | null, fallback: RefusalSpec): Response {
-  const entry = mapping[code];
+  const entry = Object.hasOwn(mapping, code) ? mapping[code] : undefined;
   if (!entry) return noStore(apiFail(fallback.status, fallback.code, fallback.message));
   if (typeof entry === 'function') return entry(details);
   return noStore(apiFail(entry.status, entry.code, entry.message));
@@ -78,7 +78,7 @@ export type WaveRouteHead = { supabase: MinimalSupabase; identity: AudienceIdent
 /** The shared runner preamble: verify the session, then gate the audience. */
 export async function waveRouteHead(request: Request, audience: WaveAudience, resolveIdentity: (request: Request) => Promise<{ supabase: unknown; identity: unknown } | null>): Promise<WaveRouteHead | Response> {
   const resolved = await resolveIdentity(request);
-  if (!resolved) return noStore(apiFail('unauthorized', 'not_permitted', 'Sign in to continue.'));
+  if (!resolved) return noStore(apiFail('unauthorized', 'not_signed_in', 'Sign in to continue.'));
   const identity = resolved.identity as AudienceIdentityShape;
   if (!waveAudienceAllowed(identity, audience)) return noStore(apiFail('forbidden', 'not_permitted', 'You cannot perform this action from this account.'));
   return { supabase: resolved.supabase as MinimalSupabase, identity };

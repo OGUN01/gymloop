@@ -1,6 +1,9 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Database } from '@gymloop/db';
-import { MEMBER_PAGE_SIZE_DEFAULT, purchaseRequestRowSchema, purchaseRequestsPageSchema, type PurchaseRequestDetail, type PurchaseRequestsPage } from '@gymloop/shared';
+import { MEMBER_PAGE_SIZE_DEFAULT, purchaseRequestDetailSchema, purchaseRequestRowSchema, purchaseRequestsPageSchema, type PurchaseRequestDetail, type PurchaseRequestsPage } from '@gymloop/shared';
+import { apiFail, apiOk, noStore } from './api';
+import { readRequestIdentity } from './identity-session';
+import { WAVE_REFUSAL_MAP, sqlRefusal, sqlUuidFrom, waveRouteHead } from './sql-envelope';
 
 /**
  * Loader state for both the member Buy tab and the front-office queue. Every
@@ -40,6 +43,43 @@ export function purchaseRowProjection(source: RowSource) {
 export type PurchaseRow = Record<string, unknown> & ReturnType<typeof purchaseRowProjection>;
 
 type Cursor = { after?: string | null; afterId?: string | null } | null;
+
+/** Canonical frozen read RPC JSON, with only declared request/snapshot fields. */
+export async function purchaseReadRoute(request: Request, audience: 'member' | 'frontOffice', context?: { params: Promise<Record<string, string>> }): Promise<Response> {
+  const head = await waveRouteHead(request, audience, readRequestIdentity);
+  if (head instanceof Response) return head;
+  const requestId = context ? sqlUuidFrom(await context.params, ['id', 'requestId']) : null;
+  if (context && !requestId) return noStore(apiFail('bad_request', 'invalid_request', 'Check the details and try again.'));
+  const search = new URL(request.url).searchParams;
+  const after = search.get('after');
+  const afterId = search.get('afterId');
+  const cursor = purchaseRequestsPageSchema.pick({ nextAfter: true, nextAfterId: true }).safeParse({ nextAfter: after, nextAfterId: afterId });
+  if (!cursor.success || (after === null) !== (afterId === null)) return noStore(apiFail('bad_request', 'invalid_request', 'Check the details and try again.'));
+  const fallback = { status: 'server_error', code: 'operation_failed', message: "That didn't work. Try again, or ask the desk." } as const;
+  try {
+    const result = await head.supabase.rpc(context ? RPC.request : audience === 'member' ? RPC.memberRequests : RPC.requests, context ? { p_request_id: requestId } : { p_limit: MEMBER_PAGE_SIZE_DEFAULT, p_after_created_at: after, p_after_id: afterId });
+    if (result.error) return sqlRefusal(WAVE_REFUSAL_MAP, result.error.code, result.error.details, fallback);
+    if (context) {
+      if (result.data === null) return sqlRefusal(WAVE_REFUSAL_MAP, 'P0002', null, fallback);
+      const parsed = purchaseRequestDetailSchema.safeParse(result.data);
+      if (!parsed.success || parsed.data.requestId !== requestId) return sqlRefusal(WAVE_REFUSAL_MAP, 'XX000', null, fallback);
+      return noStore(apiOk(parsed.data));
+    }
+    const page = safePurchasePage(result.data);
+    return noStore(apiOk(page));
+  } catch {
+    return sqlRefusal(WAVE_REFUSAL_MAP, 'XX000', null, fallback);
+  }
+}
+
+function safePurchasePage(data: unknown) {
+  if (!data || typeof data !== 'object' || Array.isArray(data)) throw new Error('Invalid purchase page.');
+  const page = data as Record<string, unknown>;
+  if (!Array.isArray(page.requests) || page.requests.length > MEMBER_PAGE_SIZE_DEFAULT) throw new Error('Invalid purchase page.');
+  const cursors = purchaseRequestsPageSchema.pick({ nextAfter: true, nextAfterId: true }).parse({ nextAfter: page.nextAfter, nextAfterId: page.nextAfterId });
+  if ((cursors.nextAfter === null) !== (cursors.nextAfterId === null)) throw new Error('Invalid purchase cursor.');
+  return { requests: page.requests.map(row => purchaseRequestDetailSchema.parse(row)), ...cursors };
+}
 
 async function fetchPurchasePage(supabase: SupabaseClient<Database>, name: RpcName, rowParse: (source: RowSource) => unknown): Promise<PurchaseRequestsPage> {
   const result = await supabase.rpc(name, {

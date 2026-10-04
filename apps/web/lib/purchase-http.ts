@@ -1,4 +1,4 @@
-import { purchaseAcceptRequestSchema, purchaseCancelRequestSchema, purchaseCreateRequestSchema, purchaseProofConfirmRequestSchema, purchaseProofRejectRequestSchema, purchaseProofUploadUrlRequestSchema, purchaseRecordRequestSchema, purchaseRejectRequestSchema } from '@gymloop/shared';
+import { BUY_LIMITS, MEDIA_RUNTIME_LIMITS, purchaseProofUrlResultSchema, purchaseAcceptRequestSchema, purchaseCancelRequestSchema, purchaseCreateRequestSchema, purchaseProofConfirmRequestSchema, purchaseProofRejectRequestSchema, purchaseProofUploadUrlRequestSchema, purchaseRecordRequestSchema, purchaseRejectRequestSchema } from '@gymloop/shared';
 import { apiOk, apiFail, noStore } from './api';
 import { WAVE_REFUSAL_MAP, sqlRefusal, sqlRpcResponse, sqlUuidFrom, waveRouteHead } from './sql-envelope';
 import { readRequestIdentity } from './identity-session';
@@ -73,9 +73,15 @@ export async function purchaseRoute(request: Request, operation: PurchaseOperati
     case 'proofUrl': {
       const result = await supabase.rpc('read_purchase_proof_url', { p_request_id: request_id });
       if (result.error) return purchaseFailure(result.error.code);
-      const first = Array.isArray(result.data) ? result.data[0] as Record<string, unknown> | undefined : null;
-      if (!first || typeof first.url !== 'string' || typeof first.expires_at !== 'string') return purchaseFailure('XX000');
-      return noStore(apiOk({ url: first.url, expiresAt: first.expires_at }));
+      const proof = purchaseProofUrlResultSchema.safeParse(result.data);
+      if (!proof.success || proof.data.requestId !== request_id) return purchaseFailure('XX000');
+      const expires = Date.parse(proof.data.expiresAt);
+      const now = Date.now();
+      if (expires <= now || expires > now + BUY_LIMITS.privateProofGetTtlSeconds * MEDIA_RUNTIME_LIMITS.millisecondsPerSecond) return purchaseFailure('XX000');
+      let target: URL;
+      try { target = new URL(proof.data.url, request.url); } catch { return purchaseFailure('XX000'); }
+      if (target.origin !== new URL(request.url).origin || target.pathname !== `/api/purchase-requests/${request_id}/proof-asset` || target.hash) return purchaseFailure('XX000');
+      return noStore(apiOk({ url: proof.data.url, expiresAt: proof.data.expiresAt }));
     }
     case 'proofUploadUrl': {
       // MEDIA proof-extension integration point: registration/finalization
