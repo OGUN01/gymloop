@@ -260,9 +260,12 @@ set local role authenticated;
 select lives_ok($q$select public.create_purchase_request(pg_temp.sid(516),'shop',pg_temp.sid(101),1,(select quote_version from public.addon_products where id=pg_temp.sid(101)))$q$,'BUY-018 open request five of five after the cancellations');
 select pg_temp.cap('K6',516);
 set local role postgres;
+select set_config('request.jwt.claims','{"role":"service_role"}',true);
+set local role service_role;
 insert into public.media_assets(id,tenant_id,kind,mime,bytes,staging_object_key,object_key,verified_source_etag,published_etag,confirmed_at,created_by_member_id,linked_request_id) values
 (pg_temp.sid(144),pg_temp.sid(1),'payment_proof','image/jpeg',1000,pg_temp.stage(144,'payment_proof'),pg_temp.pub(144,'payment_proof'),'source-144','published-144',now(),pg_temp.sid(31),(select id from public.purchase_requests where request_key = pg_temp.sid(516))),
 (pg_temp.sid(145),pg_temp.sid(1),'payment_proof','image/jpeg',1000,pg_temp.stage(145,'payment_proof'),pg_temp.pub(145,'payment_proof'),'source-145','published-145',now(),pg_temp.sid(31),(select id from public.purchase_requests where request_key = pg_temp.sid(516)));
+set local role postgres;
 select pg_temp.claim('front_desk',1,23,null,903);
 set local role authenticated;
 select lives_ok($q$select public.accept_purchase_request((select id from req where label='K6'),(select quote_version from public.addon_products where id=pg_temp.sid(101)),pg_temp.sid(614))$q$,'BUY-004 desk accepts the proof-flow request at the current quote');
@@ -314,8 +317,11 @@ set local role authenticated;
 select lives_ok($q$select public.create_purchase_request(pg_temp.sid(521),'shop',pg_temp.sid(101),1,(select quote_version from public.addon_products where id=pg_temp.sid(101)))$q$,'BUY-012 exact-price shop request created');
 select pg_temp.cap('KR1',521);
 set local role postgres;
+select set_config('request.jwt.claims','{"role":"service_role"}',true);
+set local role service_role;
 insert into public.media_assets(id,tenant_id,kind,mime,bytes,staging_object_key,object_key,verified_source_etag,published_etag,confirmed_at,created_by_member_id,linked_request_id) values
 (pg_temp.sid(146),pg_temp.sid(1),'payment_proof','image/jpeg',1000,pg_temp.stage(146,'payment_proof'),pg_temp.pub(146,'payment_proof'),'source-146','published-146',now(),pg_temp.sid(31),(select id from public.purchase_requests where request_key = pg_temp.sid(521)));
+set local role postgres;
 select pg_temp.claim('front_desk',1,23,null,903);
 set local role authenticated;
 select lives_ok($q$select public.accept_purchase_request((select id from req where label='KR1'),(select quote_version from public.addon_products where id=pg_temp.sid(101)),pg_temp.sid(628))$q$,'BUY-012 exact-price request accepted');
@@ -348,8 +354,11 @@ set local role authenticated;
 select lives_ok($q$select public.create_purchase_request(pg_temp.sid(522),'shop',pg_temp.sid(101),1,(select quote_version from public.addon_products where id=pg_temp.sid(101)))$q$,'BUY-014 mismatch scenario request created');
 select pg_temp.cap('KR2',522);
 set local role postgres;
+select set_config('request.jwt.claims','{"role":"service_role"}',true);
+set local role service_role;
 insert into public.media_assets(id,tenant_id,kind,mime,bytes,staging_object_key,object_key,verified_source_etag,published_etag,confirmed_at,created_by_member_id,linked_request_id) values
 (pg_temp.sid(141),pg_temp.sid(1),'payment_proof','image/jpeg',1000,pg_temp.stage(141,'payment_proof'),pg_temp.pub(141,'payment_proof'),'source-141','published-141',now(),pg_temp.sid(31),(select id from public.purchase_requests where request_key = pg_temp.sid(522)));
+set local role postgres;
 select pg_temp.claim('front_desk',1,23,null,903);
 set local role authenticated;
 select lives_ok($q$select public.accept_purchase_request((select id from req where label='KR2'),(select quote_version from public.addon_products where id=pg_temp.sid(101)),pg_temp.sid(631))$q$,'BUY-014 mismatch scenario accepted');
