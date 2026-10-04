@@ -36,3 +36,9 @@ playwright-report/
 
 # Local Vercel project identity (account-specific)
 .vercel/
+
+# Private coordinator scratch space and local tool state (never committed)
+scratchpad/
+artifacts/
+.freebuff/
+.vitest/

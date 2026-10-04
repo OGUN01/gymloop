@@ -1,10 +1,18 @@
 # SLF — member self-service freeze requests
 
-**DRAFT — NOT FROZEN, 2026-10-03.** Public contract draft only. No approval,
-tests, migration, implementation, Cloud application, device acceptance or GO is
-claimed. Wave C (NTF, PAY, WSP) remains before Wave D; drafting SLF early does
-not authorize changing that order. Closed-test feedback and the source-rule
-precision prerequisite below precede freeze and independent test authoring.
+**FROZEN 2026-10-03.** Owner approved this EARS/bar for Wave D execution and
+resolved the two freeze prerequisites exactly as the source behaves:
+**D-SLF-1** — the annual allowance is frozen as the existing `exceedsFreezeBudget`
+behavior (calendar year of the requested interval's start day, member-scoped
+across all of the member's memberships, each interval contributing its entire
+inclusive length in its start year, gym `max_freeze_days_per_year` only,
+`plans.max_freeze_days` not applied, only approved non-rejected pauses count,
+rejection consumes nothing). **D-SLF-2** — the OPEN-016 allowance-enforcement
+gap (no database-enforced budget; separate budget read and decision write;
+direct writes bypass) is recorded as a documented residual, not fixed in SLF;
+SLF's own serialization and additive invariant (SLF-005/013/014) prevent
+SLF-side double-approval. The contract below is fixed and must not be edited
+while authors work against it.
 
 ## Intent and reuse
 
@@ -136,13 +144,19 @@ configured role. A solo owner has no approvable two-staff path; show that truth.
   statuses. SLF SHALL neither set `frozen` nor shift paid membership dates,
   duration, price, discount, currency, plan, periods or renewal arithmetic.
 - **SLF-012 (limits and source freeze).** WHEN SLF evaluates a freeze THE
-  SYSTEM SHALL preserve the existing plan/gym allowance and annual day-count
-  semantics, date/timezone resolution and source pause invariants. Request
-  creation/adoption SHALL not consume approved entitlement. Final approval
-  SHALL recheck under serialization, including intervening desk pauses and
-  changed settings. Source rules SHALL not be re-emitted or weakened merely
-  to accommodate SLF. The exact annual accounting boundary below must be
-  public and frozen before independent test authors receive this requirement.
+  SYSTEM SHALL preserve the frozen annual allowance contract, verified against
+  source and owner-approved 2026-10-03: allowance is the gym's
+  `organization_settings.max_freeze_days_per_year` only (`plans.max_freeze_days`
+  is not applied); the accounting year is the calendar year of the requested
+  interval's start day; counting is member-scoped across all of the member's
+  memberships; each interval contributes its entire inclusive length in its
+  start year (days spilling into the next year count in the start year); only
+  approved, non-rejected pauses count; a rejection never consumes budget.
+  Request creation/adoption SHALL not consume approved entitlement. Final
+  approval SHALL recheck under serialization, including intervening desk pauses
+  and changed settings. Source rules SHALL not be re-emitted or weakened merely
+  to accommodate SLF. The OPEN-016 database-enforcement gap is a documented
+  residual (owner decision D-SLF-2), not an SLF fix.
 - **SLF-013 (replay and races).** WHEN the same original actor retries a UUID
   command with identical normalized facts THE SYSTEM SHALL replay its original
   immutable result read-only after current authorization, alongside current
@@ -231,10 +245,14 @@ Indexes: requests `(tenant_id,member_id,created_at desc,id desc)`,
 decider/subject indexes; commands tenant-leading request/actor indexes in
 addition to the command unique key. FK referenced pairs require same-tenant
 unique keys, not global cross-tenant slot arbitration. No blanket platform
-policy exception is proposed: standard platform SELECT and super-admin write
-RLS shape remains, while all public SLF RPCs reject platform/preview actors.
-Privileged platform writes still meet structural invariants and are not an
-application approval path.
+policy exception is proposed: standard platform SELECT only, matching the
+select-only platform shape of the sibling v2 tables (`media_assets`, `class_*`);
+no platform write policy exists. All public SLF RPCs reject
+platform/preview actors. Privileged platform writes still meet structural
+invariants and are not an application approval path. (Reconciliation
+2026-10-04: the earlier draft phrase "super-admin write RLS shape remains"
+did not match the shipped select-only shape; the sibling-consistent
+select-only shape is authoritative and this text now records it.)
 
 Both tables enable RLS at creation; revoke ALL from PUBLIC/anon/authenticated.
 Request policies retain own-member and same-tenant `is_front_office()`
@@ -310,24 +328,16 @@ guards, SLF_LIMITS, generated-type-backed request/read/decision schemas,
 safe-read adapters and the existing member screen's request Sheet/desk queue.
 Search/reuse comes first; this draft creates no exported source symbol.
 
-## Freeze prerequisites and actual owner semantics
+## Freeze prerequisites — RESOLVED 2026-10-03
 
-**Missing public source contract:** existing docs name max_freeze_days and
-max_freeze_days_per_year and the route's day-count helper but do not state the
-precise annual boundary, inclusive accounting across year end, whether the
-limit is member- or membership-scoped, which pending/approved rows count, how
-current plan allowance interacts with gym allowance, or the exact source
-approval checks. The orchestrator's source extraction is now recorded in
-`pause-source-boundary.md`: the current route counts whole approved intervals
-by their start calendar year across the member's memberships, while the
-database budget/plan enforcement gap in OPEN-016 remains. That extraction is
-planning evidence, not a selected commercial rule. A fresh source-freeze review
-must publish the approved behavior as stable PAUSE requirements and reconcile
-the actual allowance/direct-writer gaps with the owner.
-SLF SHALL reuse that frozen source contract; it must not silently choose a
-calendar/rolling/membership year or inflate limits from client calculations.
-Until that public boundary and the additive wrapper/source race guard are
-precise, SLF-004/012 are not independently testable and this draft cannot freeze.
+**Source contract (was the missing public boundary):** the orchestrator's
+extraction in `pause-source-boundary.md` is now the owner-approved frozen PAUSE
+contract, restated exactly in SLF-012. SLF reuses it verbatim; it does not
+silently choose a calendar/rolling/membership year or inflate limits from
+client calculations. The OPEN-016 allowance-enforcement gap (no
+database-enforced budget; separate budget read and decision write; direct
+writes bypass; failed budget read reads as zero) is accepted as a documented
+residual per D-SLF-2 and recorded in `docs/decisions.md` at freeze.
 
 Preserving the configured-role and two-staff desk-sponsored path is the default
 reuse, not a fresh mandatory owner choice. If the owner instead wants the
