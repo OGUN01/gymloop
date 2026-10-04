@@ -253,15 +253,15 @@ test.describe('HARD-010 member You hierarchy', () => {
     const main = page.getByRole('main');
     const profile = page.locator('.member-profile');
     await expect(main.getByText('Aarav Deshpande', { exact: true })).toBeVisible();
-    await expect(profile.getByText('Verified member', { exact: true })).toBeVisible();
+    await expect(profile.getByText('Verified student', { exact: true })).toBeVisible();
     await expect(profile).toContainText('Iron Box Fitness');
     await expect(profile).toContainText('IRNBX1');
 
     const email = profile.getByText('aarav.deshpande@example.com', { exact: true });
     await expect(email).toBeVisible();
     const profileText = await main.innerText();
-    expect(profileText.indexOf('Aarav Deshpande')).toBeLessThan(profileText.indexOf('Verified member'));
-    expect(profileText.indexOf('Verified member')).toBeLessThan(profileText.indexOf('Iron Box Fitness'));
+    expect(profileText.indexOf('Aarav Deshpande')).toBeLessThan(profileText.indexOf('Verified student'));
+    expect(profileText.indexOf('Verified student')).toBeLessThan(profileText.indexOf('Iron Box Fitness'));
     expect(profileText.indexOf('Iron Box Fitness')).toBeLessThan(profileText.indexOf('IRNBX1'));
     expect(profileText.indexOf('IRNBX1')).toBeLessThan(profileText.indexOf('aarav.deshpande@example.com'));
 
@@ -269,7 +269,7 @@ test.describe('HARD-010 member You hierarchy', () => {
     await expect(accountList).toHaveCount(1);
     const rows = accountList.getByRole('listitem');
     await expect(rows).toHaveCount(4);
-    for (const label of ['Personal details', 'Membership', 'Gym', 'Appearance'] as const) {
+    for (const label of ['Personal details', 'Membership', 'Academy', 'Appearance'] as const) {
       const row = rows.filter({ hasText: label });
       await expect(row, `${label} account destination`).toHaveCount(1);
       await expect(row).toHaveAccessibleName(new RegExp(label, 'i'));
