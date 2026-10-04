@@ -982,3 +982,19 @@ disabled, no protected timestamp forced null, nothing committed.
   303; block 2 opens 306, closes 352 — adjacent and independent. Audit
   green. plan(185) preserved. Rollback guard green (159 files).
 - New sha256: `bd6013d055a33a25a9018fc23f263a1cff3dab803cae52e8491ca5beff08210d`.
+
+## Runtime repair round 47 (2026-10-04) — chain-closing fix
+
+- The peer agent's root-cause report confirmed via the live guard text: the
+  exact-buy matrix couples `v_payment.notes is distinct from
+  new.sale_request->>'reason'` (pt_front line 1222, hardening line 1087) —
+  the staged payment carried notes NULL while the sale_request reason was
+  'H83 analytics staging', the last unmatched conjunct (PAYCHECK-POST had
+  already confirmed every other column matches).
+- Edit: the payment …ac INSERT now stages `notes = 'H83 analytics staging'`
+  (14 targets/1 tuple) — the exact sale_request reason string. Audit green.
+  plan(185) preserved. Rollback guard green (159 files).
+- Note: the round-45 actor alignment (sold_by/recorded_by = desk …a3) is
+  retained; the member …0b3 status was never touched (cancelled-booking
+  dedupe rounds touched bookings, not members).
+- New sha256: `976350c4660ffc492ededd9df20a147500ad5d4c1a5527142cabff3e42e296f5`.

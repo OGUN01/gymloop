@@ -291,8 +291,8 @@ begin
     -- completeness checks record_addon_sale applies to active offers).
     insert into public.addon_products(id, tenant_id, kind, name, description, price_paise, currency, gst_rate_bp, stock_quantity, validity_days, cancellation_terms, quote_version, is_active)
       values ('83900000-0000-4000-8000-0000000000ae','83900000-0000-4000-8000-000000000001','product','H83 Towel Pass','H83 towel service for the analytics cohort',25000,'INR',0,10,30,'Non-refundable; usable for 30 days from sale.','83900000-0000-4000-8000-0000000000af',true);
-    insert into public.payments(id, tenant_id, member_id, membership_id, amount_paise, currency, status, method, receipt_number, recorded_by_staff_id, idempotency_key, paid_at, created_at)
-      values ('83900000-0000-4000-8000-0000000000ac','83900000-0000-4000-8000-000000000001','83900000-0000-4000-8000-0000000000b3',null,25000,'INR','paid','cash','H83-RAC','83900000-0000-4000-8000-0000000000a3','addon-sale:83900000-0000-4000-8000-0000000000b0', now() - interval '40 minutes', now() - interval '40 minutes');
+    insert into public.payments(id, tenant_id, member_id, membership_id, amount_paise, currency, status, method, receipt_number, recorded_by_staff_id, idempotency_key, notes, paid_at, created_at)
+      values ('83900000-0000-4000-8000-0000000000ac','83900000-0000-4000-8000-000000000001','83900000-0000-4000-8000-0000000000b3',null,25000,'INR','paid','cash','H83-RAC','83900000-0000-4000-8000-0000000000a3','addon-sale:83900000-0000-4000-8000-0000000000b0','H83 analytics staging', now() - interval '40 minutes', now() - interval '40 minutes');
 
   exception when others then
     declare v_ctx text; v_detail text;
