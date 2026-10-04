@@ -401,9 +401,15 @@ select ok(pg_temp.snapjx('2026-01-01','2026-03-31',null,true)->'collection'->'cu
 -- survives within the invocation. The returned object carries the in-invocation
 -- claims tenant alongside the snapshot so a wrong tenant is named at the exact
 -- point of resolution.
-create function pg_temp.zone76() returns jsonb language plpgsql as $$begin
+create function pg_temp.zone76() returns jsonb language plpgsql as $$declare v_ctx text;
+begin
   perform set_config('request.jwt.claims',jsonb_build_object('sub',pg_temp.u(916),'role','authenticated','app_role','gym_owner','tenant_id',pg_temp.u(2),'staff_id',pg_temp.u(26))::text,true);
-  return jsonb_build_object('ctxTenant',current_setting('request.jwt.claims',true)::jsonb->>'tenant_id','snapshot',public.owner_occupancy_analytics('2026-01-01','2026-03-31',null::uuid,true));
+  -- The context read is forced BEFORE the analytics call (local variable first):
+  -- jsonb_build_object argument order is unspecified, and if the RPC rewrites
+  -- the claims GUC during its own execution, an inline read could observe the
+  -- post-call context instead of the pre-call one.
+  v_ctx := current_setting('request.jwt.claims',true)::jsonb->>'tenant_id';
+  return jsonb_build_object('ctxTenant',v_ctx,'snapshot',public.owner_occupancy_analytics('2026-01-01','2026-03-31',null::uuid,true));
 end$$;
 grant execute on function pg_temp.zone76() to authenticated,anon,service_role;
 -- ============ J. invalid gym zone envelope ============
@@ -421,7 +427,7 @@ select set_config('request.jwt.claims',jsonb_build_object('sub',pg_temp.u(916),'
 -- Per-call routing (capture adjudication round 13): the tenant-2 owner claims are
 -- set immediately before this call, at top level, outside any wrapper.
 select set_config('request.jwt.claims',jsonb_build_object('sub',pg_temp.u(916),'role','authenticated','app_role','gym_owner','tenant_id',pg_temp.u(2),'staff_id',pg_temp.u(26))::text,true);
-select is(current_setting('request.jwt.claims',true)::jsonb->>'tenant_id',pg_temp.u(2)::text,'#76 routing echo: the live claims tenant read in the same statement context as the snapshot call is the corrupt gym');
+select is(pg_temp.zone76()->>'ctxTenant',pg_temp.u(2)::text,'#76/78 routing echo (in-invocation): the claims context at the snapshot''s own point of resolution is the corrupt gym — the set and the read share one function invocation, so no statement-level isolation can separate them');
 select ok((pg_temp.zone76()->>'ctxTenant')=pg_temp.u(2)::text and ((pg_temp.zone76()->'snapshot'))->>'zone' is null and ((pg_temp.zone76()->'snapshot'))->'moneyRange'->>'scope'='Whole gym' and ((pg_temp.zone76()->'snapshot'))->'moneyRange'->>'zone' is null and ((pg_temp.zone76()->'snapshot'))->'moneyRange'->'error'=$j${"code":"invalid_gym_timezone"}$j$::jsonb and ((pg_temp.zone76()->'snapshot'))->'moneyRange'->>'startsAt' is null and ((pg_temp.zone76()->'snapshot'))->'months'=$j$[]$j$::jsonb and ((pg_temp.zone76()->'snapshot'))->'collection' is null,'#76 (in-invocation coupling): the helper invocation sets the claims set and the analytics call from ONE function invocation — ctxTenant is the in-call claims tenant read at the exact point of resolution (a mismatch here names the derivation defect directly), and the invalid gym zone yields explicit derived-field nulls, empty months and null collection');
 -- 77
 select ok(pg_temp.hb(pg_temp.snapj('2026-09-14','2026-09-27',null),pg_temp.u(14))->>'zone'='Mars/Phobos' and pg_temp.hb(pg_temp.snapj('2026-09-14','2026-09-27',null),pg_temp.u(14))->>'zoneSource'='gym' and pg_temp.hb(pg_temp.snapj('2026-09-14','2026-09-27',null),pg_temp.u(14))->'error'=$j${"code":"invalid_gym_timezone"}$j$::jsonb and pg_temp.hb(pg_temp.snapj('2026-09-14','2026-09-27',null),pg_temp.u(14))->'days'=$j$[]$j$::jsonb and pg_temp.hb(pg_temp.snapj('2026-09-14','2026-09-27',null),pg_temp.u(14))->'cells'=$j$[]$j$::jsonb and pg_temp.hb(pg_temp.snapj('2026-09-14','2026-09-27',null),pg_temp.u(14))->>'availability' is null,'OCC-003: a branch inheriting an invalid gym zone discloses the inherited zone text, its source and the gym-zone error');
