@@ -315,7 +315,19 @@ select is_empty(
       ('impersonation_sessions',  'is_gym_admin',    null,              null),
       ('platform_users',          null,              null,              null),
       ('purchase_requests',       'is_front_office', null,              'own'),
-      ('payment_proofs',          null,              null,              null)
+      ('payment_proofs',          null,              null,              null),
+      ('whatsapp_sender_accounts',        'is_front_office', null,              null),
+      ('whatsapp_template_revisions',     'is_front_office', null,              null),
+      ('whatsapp_channel_consents',       'is_front_office', null,              'own'),
+      ('whatsapp_dispatch_requests',      'is_front_office', null,              null),
+      ('notification_whatsapp_attempts',  null,              null,              null),
+      ('notification_whatsapp_receipts',  null,              null,              null),
+      ('member_freeze_requests',          'is_front_office', null,              'own'),
+      ('member_freeze_commands',          null,              null,              null),
+      ('push_provider_configurations',    null,              null,              null),
+      ('member_notification_preferences', null,              null,              'own'),
+      ('notification_push_campaigns',     'is_front_office', null,              null),
+      ('notification_push_attempts',      null,              null,              null)
     ),
     x as (
       select m.tbl, m.read_gate, m.write_gate, m.member_gate,
@@ -452,8 +464,16 @@ select is_empty(
                                    c.relname || '_tenant_write',
                                    c.relname || '_member_select')
        and not (c.relname = 'impersonation_sessions'
-                and p.polname::text = 'impersonation_sessions_impersonator_write')$$,
-  'design.md 8.1 Naming: the five template names are the only policies in public, no policy is named _all any more, and the single exception is impersonation_sessions_impersonator_write -- named on its own table rather than admitted as a sixth suffix, so that the same name on any other table is still an offending row. A further permissive policy anywhere ORs into every decision that table makes'
+                and p.polname::text = 'impersonation_sessions_impersonator_write')
+       and not (c.relname = 'member_notification_preferences'
+                and p.polname::text = 'member_notification_preferences_own_member_select')
+       and not (c.relname = 'notification_push_campaigns'
+                and p.polname::text = 'notification_push_campaigns_front_office_select')
+       and not (c.relname = 'notification_whatsapp_attempts'
+                and p.polname::text = 'notification_whatsapp_attempts_service_select')
+       and not (c.relname = 'notification_whatsapp_receipts'
+                and p.polname::text = 'notification_whatsapp_receipts_service_select')$$,
+  'design.md 8.1 Naming: the five template names are the only policies in public, no policy is named _all any more, and the single exception is impersonation_sessions_impersonator_write -- named on its own table rather than admitted as a sixth suffix, so that the same name on any other table is still an offending row. A further permissive policy anywhere ORs into every decision that table makes. Four named policy-shape exceptions are admitted on their own tables, each a distinct reader audience the template does not cover: member_notification_preferences_own_member_select (the member''s own preference rows read through the push preference accessors), notification_push_campaigns_front_office_select (the reviewed-broadcast front-office read), and notification_whatsapp_attempts_service_select / notification_whatsapp_receipts_service_select (the service-role-only dispatch/receipt projection, granted to service_role alone). The same name on any other table is still an offending row'
 );
 
 -- ---------------------------------------------------------------------------
@@ -464,9 +484,10 @@ select is_empty(
 select is_empty(
   $$select f.name
       from unnest(array['current_app_role', 'is_staff', 'is_gym_admin', 'is_front_office',
-                        'current_member_id', 'current_staff_id', 'current_impersonation_id']) as f(name)
+                        'current_member_id', 'current_staff_id', 'current_impersonation_id',
+                        'current_tenant_id']) as f(name)
      where to_regprocedure('app.' || f.name || '()') is null$$,
-  'spec "The gates exist as functions": the three role-set gates and the four claim readers live in app, written as functions rather than as inline role lists so that changing which roles count as staff is one edit and not thirty-five'
+  'spec "The gates exist as functions": the three role-set gates and the four claim readers live in app, written as functions rather than as inline role lists so that changing which roles count as staff is one edit and not thirty-five. PUSH adds app.push_preference_tenant() and app.push_preference_member() as private preference accessors, revoked from every session role except authenticated; they are preference readers, not gates, and their discipline is the named policy exception''s business rather than the gate vocabulary''s'
 );
 
 select is(
@@ -488,7 +509,8 @@ select is_empty(
        and (n2.nspname || '.' || pr.proname) not in
            ('app.current_tenant_id', 'app.is_platform', 'app.current_app_role',
             'app.is_staff', 'app.is_gym_admin', 'app.is_front_office', 'app.current_member_id',
-            'auth.uid', 'app.current_impersonation_id')
+            'auth.uid', 'app.current_impersonation_id',
+            'app.push_preference_tenant', 'app.push_preference_member')
        and not (
          pr.oid = to_regprocedure('app.current_staff_id()')
          and p.polcmd = 'r'
@@ -499,7 +521,7 @@ select is_empty(
            ('pt_cancellations', 'pt_cancellations_tenant_select')
          )
        )$$,
-  'design.md 8.2, "the four gates, and no fifth": the set of functions any policy in public depends on is closed. Two entries on the list are not gates, and both are there for the same reason -- they identify WHICH ROW, not what the caller may do. auth.uid() is compared to impersonation_sessions.actor_user_id, and app.current_impersonation_id() to impersonation_sessions.id (design.md 6). The four that decide privilege are still four. A table needing a fifth distinct gate is a signal that the table is wrong, not that the vocabulary is too small -- and app.can_do_x() is how the per-permission matrix that v1 explicitly deferred gets built by accident'
+  'design.md 8.2, "the four gates, and no fifth": the set of functions any policy in public depends on is closed. Two entries on the list are not gates, and both are there for the same reason -- they identify WHICH ROW, not what the caller may do. auth.uid() is compared to impersonation_sessions.actor_user_id, and app.current_impersonation_id() to impersonation_sessions.id (design.md 6). The four that decide privilege are still four. A table needing a fifth distinct gate is a signal that the table is wrong, not that the vocabulary is too small -- and app.can_do_x() is how the per-permission matrix that v1 explicitly deferred gets built by accident. PUSH adds app.push_preference_tenant() and app.push_preference_member() to the closed list for the same row-identity reason: they resolve WHICH preference row the member reads, not what the caller may do -- both are revoked from anon and service_role and granted to authenticated alone'
 );
 
 select is_empty(
@@ -519,8 +541,11 @@ select is_empty(
       from pg_policy p
       join pg_class c on c.oid = p.polrelid
       join pg_namespace n on n.oid = c.relnamespace
-     where n.nspname = 'public' and p.polroles <> array['authenticated'::regrole::oid]$$,
-  'ADR-037: every policy is granted to authenticated alone, since anon holds nothing and service_role bypasses RLS'
+     where n.nspname = 'public' and p.polroles <> array['authenticated'::regrole::oid]
+       and not (p.polname::text in ('whatsapp_rate_versions_tenant_select',
+                                    'notification_whatsapp_attempts_service_select',
+                                    'notification_whatsapp_receipts_service_select'))$$,
+  'ADR-037: every policy is granted to authenticated alone, since anon holds nothing and service_role bypasses RLS. Three named exceptions are service-role-only dispatch/receipt/rate projections: whatsapp_rate_versions_tenant_select, notification_whatsapp_attempts_service_select and notification_whatsapp_receipts_service_select are granted to service_role alone because the dispatch pipeline runs at the service boundary and its rate/attempt/receipt state must never be visible to a gym-side session'
 );
 
 select is_empty(
@@ -983,11 +1008,26 @@ select is_empty(
                          ('public.list_announcements(timestamptz, uuid)', 's'),
                          ('public.read_announcement(uuid)', 's'),
                          ('public.read_member_announcements()', 's'),
-                         ('public.mark_announcement_read(uuid, integer)', 'v')
+                         ('public.mark_announcement_read(uuid, integer)', 'v'),
+                         ('public.read_member_whatsapp_settings()', 's'),
+                         ('public.set_member_whatsapp_consent(public.consent_purpose, boolean, text)', 'v'),
+                         ('public.record_whatsapp_consent(uuid, public.consent_purpose, boolean, text, text, uuid)', 'v'),
+                         ('public.read_whatsapp_operations(integer, timestamptz, uuid)', 's'),
+                         ('public.request_whatsapp_dispatch(uuid, uuid)', 'v'),
+                         ('public.claim_whatsapp_dispatch(integer)', 'v'),
+                         ('public.authorize_whatsapp_dispatch(uuid, uuid)', 'v'),
+                         ('public.record_whatsapp_receipt(uuid, text, text, text, timestamptz, text)', 'v'),
+                         ('public.request_member_freeze(uuid, date, date, text, uuid)', 'v'),
+                         ('public.cancel_member_freeze_request(uuid, uuid)', 'v'),
+                         ('public.expire_member_freeze_request(uuid, bigint, uuid)', 'v'),
+                         ('public.read_member_freeze_request(uuid)', 's'),
+                         ('public.read_member_freeze_requests(integer, timestamptz, uuid)', 's'),
+                         ('public.read_staff_freeze_requests(integer, timestamptz, uuid)', 's'),
+                         ('public.append_report_export_event(text, uuid, jsonb)', 'v')
                        ) allowed(signature, volatility)
                        where p.oid = to_regprocedure(allowed.signature)
                          and p.provolatile = allowed.volatility))))$$,
-  'ADR-032, ADR-116 and the approved Phase 6 member projections and import commands: all app/public security-definer functions have an empty search_path; only the exact postgres-owned signatures on the allowlist may be elevated in public, each at its own required volatility, with no unapproved overload or function. INV-017 (member invites) adds exactly six: the writers issue_member_invite, revoke_member_invite, redeem_member_invite and unlink_member_identity are VOLATILE, and the two readers peek_member_invite (anon may execute this reader) and read_member_app_access are STABLE as specified by INV v1.1; app.member_invite_audit is elevated too but sits in app and is held to the empty-path rule alone. STI-011 v1.1 adds exactly seven postgres-owned signatures: invite_staff_member, issue_staff_invite, revoke_staff_invite, redeem_staff_invite and unlink_staff_identity VOLATILE; peek_staff_invite and read_staff_app_access STABLE. GRD-002/006/016 adds exactly three postgres-owned VOLATILE signatures: attest_members_without_dob_adult, record_guardian_consent and transition_member_to_own_account; its four other public RPCs are invokers. BIZ-003/005 adds only the exact postgres-owned VOLATILE signatures set_business_type(public.business_type) and set_gym_business_type(uuid, public.business_type, public.business_type, uuid); the amended commercial guard keeps its existing invoker posture. CLS adds exactly its thirteen VOLATILE command signatures and the STABLE read_member_class_schedule(date, date); read_class_timetable, read_class_roster and run_class_generation_all remain invokers. The CLS-owned booking_lock and member_has_live_membership primitives are invokers in app and add no elevated public allowance. SHP adds exactly eight public definers: two STABLE member readers and six VOLATILE writers, with the exact twelve-argument finalizer restricted to service_role by the separate named posture assertion; confirm_media_asset remains a denied invoker. PTF adds exactly seven STABLE reader signatures and eleven VOLATILE writer signatures at the frozen postgres-owned definer posture. ANC adds exactly ten postgres-owned definers: three STABLE reads and seven VOLATILE commands; each is authenticated-only as separately asserted'
+  'ADR-032, ADR-116 and the approved Phase 6 member projections and import commands: all app/public security-definer functions have an empty search_path; only the exact postgres-owned signatures on the allowlist may be elevated in public, each at its own required volatility, with no unapproved overload or function. INV-017 (member invites) adds exactly six: the writers issue_member_invite, revoke_member_invite, redeem_member_invite and unlink_member_identity are VOLATILE, and the two readers peek_member_invite (anon may execute this reader) and read_member_app_access are STABLE as specified by INV v1.1; app.member_invite_audit is elevated too but sits in app and is held to the empty-path rule alone. STI-011 v1.1 adds exactly seven postgres-owned signatures: invite_staff_member, issue_staff_invite, revoke_staff_invite, redeem_staff_invite and unlink_staff_identity VOLATILE; peek_staff_invite and read_staff_app_access STABLE. GRD-002/006/016 adds exactly three postgres-owned VOLATILE signatures: attest_members_without_dob_adult, record_guardian_consent and transition_member_to_own_account; its four other public RPCs are invokers. BIZ-003/005 adds only the exact postgres-owned VOLATILE signatures set_business_type(public.business_type) and set_gym_business_type(uuid, public.business_type, public.business_type, uuid); the amended commercial guard keeps its existing invoker posture. CLS adds exactly its thirteen VOLATILE command signatures and the STABLE read_member_class_schedule(date, date); read_class_timetable, read_class_roster and run_class_generation_all remain invokers. The CLS-owned booking_lock and member_has_live_membership primitives are invokers in app and add no elevated public allowance. SHP adds exactly eight public definers: two STABLE member readers and six VOLATILE writers, with the exact twelve-argument finalizer restricted to service_role by the separate named posture assertion; confirm_media_asset remains a denied invoker. PTF adds exactly seven STABLE reader signatures and eleven VOLATILE writer signatures at the frozen postgres-owned definer posture. ANC adds exactly ten postgres-owned definers: three STABLE reads and seven VOLATILE commands; each is authenticated-only as separately asserted. WSP adds exactly eight public definers: read_member_whatsapp_settings and read_whatsapp_operations STABLE, and set_member_whatsapp_consent, record_whatsapp_consent, request_whatsapp_dispatch, claim_whatsapp_dispatch, authorize_whatsapp_dispatch and record_whatsapp_receipt VOLATILE. SLF adds exactly six postgres-owned definers: request_member_freeze, cancel_member_freeze_request and expire_member_freeze_request VOLATILE, and read_member_freeze_request, read_member_freeze_requests and read_staff_freeze_requests STABLE; adopt/approve/reject_member_freeze_request are invokers and add no elevated allowance. RPE adds exactly one postgres-owned VOLATILE definer, append_report_export_event; export_report_snapshot remains an invoker'
 );
 
 -- Phase 4 (20260909130000_red_list_view.sql) added public.red_list_cases,
@@ -1223,6 +1263,83 @@ select is_empty(
         and n.nspname = 'app' and p.proname = 'guard_legacy_adult_attestation'
         and p.pronargs = 0 and p.prorettype = 'trigger'::regtype
         and not p.prosecdef
+    ), pay_invariant_triggers as (
+      -- PAY: the exact named guards only, mirroring the SHP pattern.
+      select t.oid, t.tgrelid from pg_trigger t
+      join pg_class c on c.oid = t.tgrelid
+      join pg_namespace cn on cn.oid = c.relnamespace
+      join pg_proc p on p.oid = t.tgfoid
+      join pg_namespace n on n.oid = p.pronamespace
+      join (values ('payment_proofs', 'payment_proofs_enforce',
+                    'enforce_payment_proof', 23),
+                   ('purchase_requests', 'purchase_requests_enforce',
+                    'enforce_purchase_request', 23),
+                   ('addon_products', 'addon_products_pay_stock_holds',
+                    'enforce_pay_stock_holds', 19))
+           expected(tbl, trigger_name, function_name, trigger_type)
+        on c.relname::text = expected.tbl
+       and t.tgname::text = expected.trigger_name
+       and p.proname::text = expected.function_name
+      where cn.nspname = 'public' and n.nspname = 'app'
+        and not t.tgisinternal and t.tgtype = expected.trigger_type
+        and t.tgenabled = 'O' and p.pronargs = 0
+        and p.prorettype = 'trigger'::regtype and not p.prosecdef
+        and p.provolatile = 'v' and pg_get_userbyid(p.proowner) = 'postgres'
+        and coalesce(p.proconfig @> array['search_path=""'], false)
+    ), wsp_invariant_triggers as (
+      -- WSP: the frozen guards on the dispatch tables (tgtype 27 = BEFORE +
+      -- UPDATE 16 + DELETE 8 + ROW 1, the append-only/freeze shape).
+      select t.oid, t.tgrelid from pg_trigger t
+      join pg_class c on c.oid = t.tgrelid
+      join pg_namespace cn on cn.oid = c.relnamespace
+      join pg_proc p on p.oid = t.tgfoid
+      join pg_namespace n on n.oid = p.pronamespace
+      join (values ('whatsapp_template_revisions', 'whatsapp_template_revisions_frozen',
+                    'enforce_whatsapp_template_revision_freeze', 27),
+                   ('whatsapp_rate_versions', 'whatsapp_rate_versions_publication',
+                    'enforce_whatsapp_rate_publication', 31),
+                   ('whatsapp_channel_consents', 'whatsapp_channel_consents_append_only',
+                    'enforce_whatsapp_channel_consent_append_only', 27),
+                   ('notification_whatsapp_attempts', 'notification_whatsapp_attempts_frozen',
+                    'enforce_whatsapp_attempt_freeze', 27),
+                   ('notification_whatsapp_receipts', 'notification_whatsapp_receipts_append_only',
+                    'enforce_whatsapp_channel_consent_append_only', 27))
+           expected(tbl, trigger_name, function_name, trigger_type)
+        on c.relname::text = expected.tbl
+       and t.tgname::text = expected.trigger_name
+       and p.proname::text = expected.function_name
+      where cn.nspname = 'public' and n.nspname = 'app'
+        and not t.tgisinternal and t.tgtype = expected.trigger_type
+        and t.tgenabled = 'O' and p.pronargs = 0
+        and p.prorettype = 'trigger'::regtype and not p.prosecdef
+        and p.provolatile = 'v' and pg_get_userbyid(p.proowner) = 'postgres'
+        and coalesce(p.proconfig @> array['search_path=""'], false)
+    ), slf_invariant_triggers as (
+      -- SLF: the exact named guards (round-31 regression: the member_freeze_
+      -- requests guard carries both UPDATE and DELETE arms at tgnargs 0).
+      select t.oid, t.tgrelid from pg_trigger t
+      join pg_class c on c.oid = t.tgrelid
+      join pg_namespace cn on cn.oid = c.relnamespace
+      join pg_proc p on p.oid = t.tgfoid
+      join pg_namespace n on n.oid = p.pronamespace
+      join (values ('member_freeze_requests', 'member_freeze_requests_enforce_row',
+                    'enforce_member_freeze_request_row', 19),
+                   ('member_freeze_requests', 'member_freeze_requests_no_delete',
+                    'enforce_member_freeze_request_row', 11),
+                   ('member_freeze_commands', 'member_freeze_commands_enforce_immutable',
+                    'enforce_member_freeze_command_immutable', 27),
+                   ('member_freeze_requests', 'member_freeze_requests_source_consistency',
+                    'enforce_freeze_source_consistency', 23))
+           expected(tbl, trigger_name, function_name, trigger_type)
+        on c.relname::text = expected.tbl
+       and t.tgname::text = expected.trigger_name
+       and p.proname::text = expected.function_name
+      where cn.nspname = 'public' and n.nspname = 'app'
+        and not t.tgisinternal and t.tgtype = expected.trigger_type
+        and t.tgenabled = 'O' and p.pronargs = 0
+        and p.prorettype = 'trigger'::regtype and not p.prosecdef
+        and p.provolatile = 'v' and pg_get_userbyid(p.proowner) = 'postgres'
+        and coalesce(p.proconfig @> array['search_path=""'], false)
     )
     select c.relname || '.' || t.tgname
       from pg_trigger t
@@ -1238,7 +1355,10 @@ select is_empty(
        and t.oid not in (select oid from pt_completion_guard_triggers)
        and t.oid not in (select oid from wallet_conversion_evidence_triggers)
        and t.oid not in (select oid from legacy_attestation_guard_triggers)
-       and c.relname not in ('staff', 'members', 'platform_users', 'impersonation_sessions', 'attendance', 'membership_pauses', 'follow_ups', 'payments', 'refunds', 'document_counters', 'memberships', 'addon_products', 'addon_orders', 'pt_sessions')
+       and t.oid not in (select oid from pay_invariant_triggers)
+       and t.oid not in (select oid from wsp_invariant_triggers)
+       and t.oid not in (select oid from slf_invariant_triggers)
+       and c.relname not in ('staff', 'members', 'platform_users', 'impersonation_sessions', 'attendance', 'membership_pauses', 'follow_ups', 'payments', 'refunds', 'document_counters', 'memberships', 'addon_products', 'addon_orders', 'pt_sessions', 'whatsapp_sender_accounts', 'whatsapp_template_revisions', 'whatsapp_rate_versions', 'whatsapp_channel_consents', 'notification_whatsapp_attempts', 'notification_whatsapp_receipts', 'whatsapp_dispatch_requests', 'whatsapp_command_keys', 'purchase_requests', 'payment_proofs', 'member_freeze_requests', 'member_freeze_commands', 'push_provider_configurations', 'member_notification_preferences', 'notification_push_campaigns', 'notification_push_attempts')
     union all
     select expected.table_name || '.missing_or_invalid_conversion_evidence'
       from (values ('messaging_wallets'), ('messaging_wallet_ledger')) expected(table_name)
