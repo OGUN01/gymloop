@@ -1,3 +1,5 @@
+-- Fixture repair 2026-10-04: privilege probes use OIDs (identity arguments
+-- include names); SLF creation signature and required sold price follow public contracts.
 -- 2026-10-04 independent reconciliation: frozen public contracts only; no
 -- implementation, migrations, visible suites or private diagnostics read.
 -- Independent holdout: frozen SLF-001..018 public contract only
@@ -96,7 +98,7 @@ select ok((holdout_slf.h81_lacks_priv('authenticated','public.member_freeze_comm
 select ok((holdout_slf.h81_lacks_priv('authenticated','public.member_freeze_commands','DELETE')),'commands expose no authenticated DELETE');
 select ok((holdout_slf.h81_lacks_priv('anon','public.member_freeze_requests','SELECT')),'anon reads nothing');
 select ok((holdout_slf.h81_lacks_priv('anon','public.member_freeze_commands','INSERT')),'anon writes nothing');
-select has_function('public','request_member_freeze',array['uuid','uuid','uuid','uuid','uuid'],'create signature frozen');
+select has_function('public','request_member_freeze',array['uuid','date','date','text','uuid'],'create signature frozen');
 select has_function('public','cancel_member_freeze_request',array['uuid','uuid'],'cancel signature frozen');
 select has_function('public','adopt_member_freeze_request',array['uuid','bigint','uuid'],'adopt signature frozen');
 select has_function('public','approve_member_freeze_request',array['uuid','bigint','uuid'],'approve signature frozen');
@@ -107,7 +109,7 @@ select has_function('public','read_member_freeze_requests',array['integer','time
 select has_function('public','read_staff_freeze_requests',array['integer','timestamptz','uuid'],'staff list signature frozen');
 select is((select count(*) from pg_proc p join pg_namespace n on n.oid=p.pronamespace
    where n.nspname='public' and p.proname in ('request_member_freeze','cancel_member_freeze_request','adopt_member_freeze_request','approve_member_freeze_request','reject_member_freeze_request','expire_member_freeze_request','read_member_freeze_request','read_member_freeze_requests','read_staff_freeze_requests')
-   and p.proconfig is not null and p.proconfig::text like '%search_path=%'),9::bigint,'SLF-014 every RPC runs an empty fixed search path');
+   and exists (select 1 from unnest(p.proconfig) setting where setting in ('search_path=', 'search_path=""'))),9::bigint,'SLF-014 every RPC runs an empty fixed search path');
 select is((select count(*) from pg_proc p join pg_namespace n on n.oid=p.pronamespace
    where n.nspname='public' and p.proname in ('request_member_freeze','cancel_member_freeze_request','read_member_freeze_request','read_member_freeze_requests','read_staff_freeze_requests')
    and p.prosecdef),5::bigint,'member and reader commands are narrow definers');
@@ -116,16 +118,16 @@ select is((select count(*) from pg_proc p join pg_namespace n on n.oid=p.proname
    and not p.prosecdef),4::bigint,'staff source commands are invokers through unchanged RLS/guards');
 select is((select count(*) from pg_proc p join pg_namespace n on n.oid=p.pronamespace
    where n.nspname='public' and p.proname in ('request_member_freeze','cancel_member_freeze_request','adopt_member_freeze_request','approve_member_freeze_request','reject_member_freeze_request','expire_member_freeze_request','read_member_freeze_request','read_member_freeze_requests','read_staff_freeze_requests')
-   and has_function_privilege('authenticated',n.nspname||'.'||p.proname||'('||pg_get_function_identity_arguments(p.oid)||')','EXECUTE')),9::bigint,'authenticated EXECUTE granted explicitly on all nine');
+   and has_function_privilege('authenticated',p.oid,'EXECUTE')),9::bigint,'authenticated EXECUTE granted explicitly on all nine');
 select is((select count(*) from pg_proc p join pg_namespace n on n.oid=p.pronamespace
    where n.nspname='public' and p.proname in ('request_member_freeze','cancel_member_freeze_request','adopt_member_freeze_request','approve_member_freeze_request','reject_member_freeze_request','expire_member_freeze_request','read_member_freeze_request','read_member_freeze_requests','read_staff_freeze_requests')
-   and has_function_privilege('public',n.nspname||'.'||p.proname||'('||pg_get_function_identity_arguments(p.oid)||')','EXECUTE')),0::bigint,'PUBLIC EXECUTE revoked');
+   and has_function_privilege('public',p.oid,'EXECUTE')),0::bigint,'PUBLIC EXECUTE revoked');
 select is((select count(*) from pg_proc p join pg_namespace n on n.oid=p.pronamespace
    where n.nspname='public' and p.proname in ('request_member_freeze','cancel_member_freeze_request','adopt_member_freeze_request','approve_member_freeze_request','reject_member_freeze_request','expire_member_freeze_request','read_member_freeze_request','read_member_freeze_requests','read_staff_freeze_requests')
-   and has_function_privilege('anon',n.nspname||'.'||p.proname||'('||pg_get_function_identity_arguments(p.oid)||')','EXECUTE')),0::bigint,'anon EXECUTE revoked');
+   and has_function_privilege('anon',p.oid,'EXECUTE')),0::bigint,'anon EXECUTE revoked');
 select is((select count(*) from pg_proc p join pg_namespace n on n.oid=p.pronamespace
    where n.nspname='public' and p.proname in ('request_member_freeze','cancel_member_freeze_request','adopt_member_freeze_request','approve_member_freeze_request','reject_member_freeze_request','expire_member_freeze_request','read_member_freeze_request','read_member_freeze_requests','read_staff_freeze_requests')
-   and has_function_privilege('service_role',n.nspname||'.'||p.proname||'('||pg_get_function_identity_arguments(p.oid)||')','EXECUTE')),0::bigint,'service-role EXECUTE revoked');
+   and has_function_privilege('service_role',p.oid,'EXECUTE')),0::bigint,'service-role EXECUTE revoked');
 
 -- §B0 Stand-in mirror of the frozen boundary (schema holdout_slf), guarded.
 create schema if not exists holdout_slf;
@@ -671,7 +673,7 @@ do $h81$ begin
 end $h81$;
 create or replace function holdout_slf.request_freeze(a uuid,b date,c date,d text,e uuid) returns jsonb language plpgsql as $f$
 begin
-  if to_regprocedure('public.request_member_freeze(uuid,uuid,uuid,uuid,uuid)') is not null then
+  if to_regprocedure('public.request_member_freeze(uuid,date,date,text,uuid)') is not null then
     return public.request_member_freeze(a,b,c,d,e);
   end if;
   return holdout_slf.standin_request_freeze(a,b,c,d,e);
@@ -865,29 +867,29 @@ insert into public.members(id,tenant_id,branch_id,user_id,full_name,phone,status
  ('81900000-0000-4000-8000-000000000114','81900000-0000-4000-8000-000000000001','81900000-0000-4000-8000-000000000010','81900000-0000-4000-8000-000000000341','H81 M15','+919000000014','active'),
  ('81900000-0000-4000-8000-000000000115','81900000-0000-4000-8000-000000000001','81900000-0000-4000-8000-000000000010','81900000-0000-4000-8000-000000000342','H81 M16','+919000000015','active');
 update public.members set erased_at = now() where id = '81900000-0000-4000-8000-000000000103';
-insert into public.memberships(id,tenant_id,member_id,plan_id,status,starts_on,ends_on) values
+insert into public.memberships(id,tenant_id,member_id,plan_id,status,starts_on,ends_on,price_paise) values
  -- M1: current active spanning two more years, plus an older expired one
- ('81900000-0000-4000-8000-000000000201','81900000-0000-4000-8000-000000000001','81900000-0000-4000-8000-000000000101','81900000-0000-4000-8000-000000000020','active',date_trunc('year',now() at time zone 'Asia/Kolkata')::date - interval '9 months',(date_trunc('year',now() at time zone 'Asia/Kolkata')::date + interval '2 years')::date),
- ('81900000-0000-4000-8000-000000000202','81900000-0000-4000-8000-000000000001','81900000-0000-4000-8000-000000000101','81900000-0000-4000-8000-000000000020','expired',date_trunc('year',now() at time zone 'Asia/Kolkata')::date - interval '2 years',date_trunc('year',now() at time zone 'Asia/Kolkata')::date - interval '1 year'),
+ ('81900000-0000-4000-8000-000000000201','81900000-0000-4000-8000-000000000001','81900000-0000-4000-8000-000000000101','81900000-0000-4000-8000-000000000020','active',date_trunc('year',now() at time zone 'Asia/Kolkata')::date - interval '9 months',(date_trunc('year',now() at time zone 'Asia/Kolkata')::date + interval '2 years')::date,100000),
+ ('81900000-0000-4000-8000-000000000202','81900000-0000-4000-8000-000000000001','81900000-0000-4000-8000-000000000101','81900000-0000-4000-8000-000000000020','expired',date_trunc('year',now() at time zone 'Asia/Kolkata')::date - interval '2 years',date_trunc('year',now() at time zone 'Asia/Kolkata')::date - interval '1 year',100000),
  -- M3
- ('81900000-0000-4000-8000-000000000203','81900000-0000-4000-8000-000000000001','81900000-0000-4000-8000-000000000102','81900000-0000-4000-8000-000000000020','active',date_trunc('year',now() at time zone 'Asia/Kolkata')::date - interval '9 months',(date_trunc('year',now() at time zone 'Asia/Kolkata')::date + interval '2 years')::date),
+ ('81900000-0000-4000-8000-000000000203','81900000-0000-4000-8000-000000000001','81900000-0000-4000-8000-000000000102','81900000-0000-4000-8000-000000000020','active',date_trunc('year',now() at time zone 'Asia/Kolkata')::date - interval '9 months',(date_trunc('year',now() at time zone 'Asia/Kolkata')::date + interval '2 years')::date,100000),
  -- M14 pending
- ('81900000-0000-4000-8000-000000000214','81900000-0000-4000-8000-000000000001','81900000-0000-4000-8000-000000000113','81900000-0000-4000-8000-000000000020','pending',null,null),
+ ('81900000-0000-4000-8000-000000000214','81900000-0000-4000-8000-000000000001','81900000-0000-4000-8000-000000000113','81900000-0000-4000-8000-000000000020','pending',null,null,100000),
  -- M5, M6, M7(long), M8, M9a/M9b, M10a/M10b, M11, M12, M13, M15, M16
- ('81900000-0000-4000-8000-000000000205','81900000-0000-4000-8000-000000000001','81900000-0000-4000-8000-000000000104','81900000-0000-4000-8000-000000000020','active',date_trunc('year',now() at time zone 'Asia/Kolkata')::date - interval '9 months',(date_trunc('year',now() at time zone 'Asia/Kolkata')::date + interval '2 years')::date),
- ('81900000-0000-4000-8000-000000000206','81900000-0000-4000-8000-000000000001','81900000-0000-4000-8000-000000000105','81900000-0000-4000-8000-000000000020','active',date_trunc('year',now() at time zone 'Asia/Kolkata')::date - interval '9 months',(date_trunc('year',now() at time zone 'Asia/Kolkata')::date + interval '2 years')::date),
- ('81900000-0000-4000-8000-000000000207','81900000-0000-4000-8000-000000000001','81900000-0000-4000-8000-000000000106','81900000-0000-4000-8000-000000000020','active',date_trunc('year',now() at time zone 'Asia/Kolkata')::date - interval '9 months',(date_trunc('year',now() at time zone 'Asia/Kolkata')::date + interval '3 years')::date),
- ('81900000-0000-4000-8000-000000000208','81900000-0000-4000-8000-000000000001','81900000-0000-4000-8000-000000000107','81900000-0000-4000-8000-000000000020','active',date_trunc('year',now() at time zone 'Asia/Kolkata')::date - interval '9 months',(date_trunc('year',now() at time zone 'Asia/Kolkata')::date + interval '2 years')::date),
- ('81900000-0000-4000-8000-000000000209','81900000-0000-4000-8000-000000000001','81900000-0000-4000-8000-000000000108','81900000-0000-4000-8000-000000000020','active',date_trunc('year',now() at time zone 'Asia/Kolkata')::date - interval '9 months',(date_trunc('year',now() at time zone 'Asia/Kolkata')::date + interval '3 years')::date),
- ('81900000-0000-4000-8000-000000000210','81900000-0000-4000-8000-000000000001','81900000-0000-4000-8000-000000000109','81900000-0000-4000-8000-000000000020','active',date_trunc('year',now() at time zone 'Asia/Kolkata')::date - interval '9 months',(date_trunc('year',now() at time zone 'Asia/Kolkata')::date + interval '3 years')::date),
- ('81900000-0000-4000-8000-000000000211','81900000-0000-4000-8000-000000000001','81900000-0000-4000-8000-000000000109','81900000-0000-4000-8000-000000000020','expired',date_trunc('year',now() at time zone 'Asia/Kolkata')::date - interval '2 years',date_trunc('year',now() at time zone 'Asia/Kolkata')::date - interval '1 year'),
- ('81900000-0000-4000-8000-000000000212','81900000-0000-4000-8000-000000000001','81900000-0000-4000-8000-000000000110','81900000-0000-4000-8000-000000000020','active',date_trunc('year',now() at time zone 'Asia/Kolkata')::date - interval '9 months',(date_trunc('year',now() at time zone 'Asia/Kolkata')::date + interval '2 years')::date),
- ('81900000-0000-4000-8000-000000000213','81900000-0000-4000-8000-000000000001','81900000-0000-4000-8000-000000000111','81900000-0000-4000-8000-000000000020','active',date_trunc('year',now() at time zone 'Asia/Kolkata')::date - interval '9 months',(date_trunc('year',now() at time zone 'Asia/Kolkata')::date + interval '2 years')::date),
- ('81900000-0000-4000-8000-000000000215','81900000-0000-4000-8000-000000000001','81900000-0000-4000-8000-000000000112','81900000-0000-4000-8000-000000000020','active',date_trunc('year',now() at time zone 'Asia/Kolkata')::date - interval '9 months',(date_trunc('year',now() at time zone 'Asia/Kolkata')::date + interval '2 years')::date),
- ('81900000-0000-4000-8000-000000000216','81900000-0000-4000-8000-000000000001','81900000-0000-4000-8000-000000000114','81900000-0000-4000-8000-000000000020','active',date_trunc('year',now() at time zone 'Asia/Kolkata')::date - interval '9 months',(date_trunc('year',now() at time zone 'Asia/Kolkata')::date + interval '2 years')::date),
- ('81900000-0000-4000-8000-000000000217','81900000-0000-4000-8000-000000000001','81900000-0000-4000-8000-000000000115','81900000-0000-4000-8000-000000000020','active',date_trunc('year',now() at time zone 'Asia/Kolkata')::date - interval '9 months',(date_trunc('year',now() at time zone 'Asia/Kolkata')::date + interval '2 years')::date),
+ ('81900000-0000-4000-8000-000000000205','81900000-0000-4000-8000-000000000001','81900000-0000-4000-8000-000000000104','81900000-0000-4000-8000-000000000020','active',date_trunc('year',now() at time zone 'Asia/Kolkata')::date - interval '9 months',(date_trunc('year',now() at time zone 'Asia/Kolkata')::date + interval '2 years')::date,100000),
+ ('81900000-0000-4000-8000-000000000206','81900000-0000-4000-8000-000000000001','81900000-0000-4000-8000-000000000105','81900000-0000-4000-8000-000000000020','active',date_trunc('year',now() at time zone 'Asia/Kolkata')::date - interval '9 months',(date_trunc('year',now() at time zone 'Asia/Kolkata')::date + interval '2 years')::date,100000),
+ ('81900000-0000-4000-8000-000000000207','81900000-0000-4000-8000-000000000001','81900000-0000-4000-8000-000000000106','81900000-0000-4000-8000-000000000020','active',date_trunc('year',now() at time zone 'Asia/Kolkata')::date - interval '9 months',(date_trunc('year',now() at time zone 'Asia/Kolkata')::date + interval '3 years')::date,100000),
+ ('81900000-0000-4000-8000-000000000208','81900000-0000-4000-8000-000000000001','81900000-0000-4000-8000-000000000107','81900000-0000-4000-8000-000000000020','active',date_trunc('year',now() at time zone 'Asia/Kolkata')::date - interval '9 months',(date_trunc('year',now() at time zone 'Asia/Kolkata')::date + interval '2 years')::date,100000),
+ ('81900000-0000-4000-8000-000000000209','81900000-0000-4000-8000-000000000001','81900000-0000-4000-8000-000000000108','81900000-0000-4000-8000-000000000020','active',date_trunc('year',now() at time zone 'Asia/Kolkata')::date - interval '9 months',(date_trunc('year',now() at time zone 'Asia/Kolkata')::date + interval '3 years')::date,100000),
+ ('81900000-0000-4000-8000-000000000210','81900000-0000-4000-8000-000000000001','81900000-0000-4000-8000-000000000109','81900000-0000-4000-8000-000000000020','active',date_trunc('year',now() at time zone 'Asia/Kolkata')::date - interval '9 months',(date_trunc('year',now() at time zone 'Asia/Kolkata')::date + interval '3 years')::date,100000),
+ ('81900000-0000-4000-8000-000000000211','81900000-0000-4000-8000-000000000001','81900000-0000-4000-8000-000000000109','81900000-0000-4000-8000-000000000020','expired',date_trunc('year',now() at time zone 'Asia/Kolkata')::date - interval '2 years',date_trunc('year',now() at time zone 'Asia/Kolkata')::date - interval '1 year',100000),
+ ('81900000-0000-4000-8000-000000000212','81900000-0000-4000-8000-000000000001','81900000-0000-4000-8000-000000000110','81900000-0000-4000-8000-000000000020','active',date_trunc('year',now() at time zone 'Asia/Kolkata')::date - interval '9 months',(date_trunc('year',now() at time zone 'Asia/Kolkata')::date + interval '2 years')::date,100000),
+ ('81900000-0000-4000-8000-000000000213','81900000-0000-4000-8000-000000000001','81900000-0000-4000-8000-000000000111','81900000-0000-4000-8000-000000000020','active',date_trunc('year',now() at time zone 'Asia/Kolkata')::date - interval '9 months',(date_trunc('year',now() at time zone 'Asia/Kolkata')::date + interval '2 years')::date,100000),
+ ('81900000-0000-4000-8000-000000000215','81900000-0000-4000-8000-000000000001','81900000-0000-4000-8000-000000000112','81900000-0000-4000-8000-000000000020','active',date_trunc('year',now() at time zone 'Asia/Kolkata')::date - interval '9 months',(date_trunc('year',now() at time zone 'Asia/Kolkata')::date + interval '2 years')::date,100000),
+ ('81900000-0000-4000-8000-000000000216','81900000-0000-4000-8000-000000000001','81900000-0000-4000-8000-000000000114','81900000-0000-4000-8000-000000000020','active',date_trunc('year',now() at time zone 'Asia/Kolkata')::date - interval '9 months',(date_trunc('year',now() at time zone 'Asia/Kolkata')::date + interval '2 years')::date,100000),
+ ('81900000-0000-4000-8000-000000000217','81900000-0000-4000-8000-000000000001','81900000-0000-4000-8000-000000000115','81900000-0000-4000-8000-000000000020','active',date_trunc('year',now() at time zone 'Asia/Kolkata')::date - interval '9 months',(date_trunc('year',now() at time zone 'Asia/Kolkata')::date + interval '2 years')::date,100000),
  -- M15 second, expired membership (different-membership-id bypass probe)
- ('81900000-0000-4000-8000-000000000218','81900000-0000-4000-8000-000000000001','81900000-0000-4000-8000-000000000114','81900000-0000-4000-8000-000000000020','expired',(date_trunc('day',now() at time zone 'Asia/Kolkata')::date),(date_trunc('day',now() at time zone 'Asia/Kolkata')::date + 20));
+ ('81900000-0000-4000-8000-000000000218','81900000-0000-4000-8000-000000000001','81900000-0000-4000-8000-000000000114','81900000-0000-4000-8000-000000000020','expired',(date_trunc('day',now() at time zone 'Asia/Kolkata')::date),(date_trunc('day',now() at time zone 'Asia/Kolkata')::date + 20),100000);
 insert into public.membership_pauses(tenant_id,membership_id,starts_on,ends_on,reason,requested_by_staff_id,approved_by_staff_id,approved_at) values
  -- M3: approved pause 4 days immediately after R3's window (adjacency case)
  ('81900000-0000-4000-8000-000000000001','81900000-0000-4000-8000-000000000203',(date_trunc('day',now() at time zone 'Asia/Kolkata')::date + 5),(date_trunc('day',now() at time zone 'Asia/Kolkata')::date + 8),'H81 fixture pause','81900000-0000-4000-8000-000000000402','81900000-0000-4000-8000-000000000403',now()),

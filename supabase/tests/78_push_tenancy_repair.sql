@@ -2,7 +2,7 @@
 BEGIN;
 SET LOCAL ROLE postgres;
 SET LOCAL search_path = public, extensions;
-SELECT plan(39);
+SELECT plan(50);
 SELECT has_column('public', 'push_provider_configurations', 'tenant_id', 'configuration has a tenant path');
 SELECT col_not_null('public', 'push_provider_configurations', 'tenant_id', 'tenant is mandatory');
 SELECT col_is_pk('public', 'push_provider_configurations', 'tenant_id', 'one indexed primary configuration per tenant');
@@ -67,6 +67,29 @@ SELECT set_config('request.jwt.claims','{"role":"authenticated","sub":"78000000-
 SELECT is(app.push_configuration_ready(),true,'complete staff guard sees its ready tenant');
 SELECT set_config('request.jwt.claims','{"role":"authenticated","sub":"78000000-0000-4000-8000-000000000074","app_role":"member","tenant_id":"78000000-0000-4000-8000-000000000072","member_id":"78000000-0000-4000-8000-000000000075"}',true);
 SELECT is(app.push_configuration_ready(),false,'claim guard never inherits another tenant readiness');
+-- Independent role-completeness supplement from frozen readiness declaration.
+SELECT set_config('request.jwt.claims','{"role":"authenticated","sub":"78000000-0000-4000-8000-000000000074","app_role":"gym_owner","tenant_id":"78000000-0000-4000-8000-000000000071","staff_id":"78000000-0000-4000-8000-000000000076"}',true);
+SELECT is(app.push_configuration_ready(),true,'gym_owner readiness follows only its own tenant activation');
+SELECT set_config('request.jwt.claims','{"role":"authenticated","sub":"78000000-0000-4000-8000-000000000074","app_role":"gym_owner","tenant_id":"78000000-0000-4000-8000-000000000072","staff_id":"78000000-0000-4000-8000-000000000076"}',true);
+SELECT is(app.push_configuration_ready(),false,'gym_owner readiness follows only its own tenant activation');
+SELECT set_config('request.jwt.claims','{"role":"authenticated","sub":"78000000-0000-4000-8000-000000000074","app_role":"gym_manager","tenant_id":"78000000-0000-4000-8000-000000000071","staff_id":"78000000-0000-4000-8000-000000000076"}',true);
+SELECT is(app.push_configuration_ready(),true,'gym_manager readiness follows only its own tenant activation');
+SELECT set_config('request.jwt.claims','{"role":"authenticated","sub":"78000000-0000-4000-8000-000000000074","app_role":"gym_manager","tenant_id":"78000000-0000-4000-8000-000000000072","staff_id":"78000000-0000-4000-8000-000000000076"}',true);
+SELECT is(app.push_configuration_ready(),false,'gym_manager readiness follows only its own tenant activation');
+SELECT set_config('request.jwt.claims','{"role":"authenticated","sub":"78000000-0000-4000-8000-000000000074","app_role":"front_desk","tenant_id":"78000000-0000-4000-8000-000000000071","staff_id":"78000000-0000-4000-8000-000000000076"}',true);
+SELECT is(app.push_configuration_ready(),true,'front_desk readiness follows only its own tenant activation');
+SELECT set_config('request.jwt.claims','{"role":"authenticated","sub":"78000000-0000-4000-8000-000000000074","app_role":"front_desk","tenant_id":"78000000-0000-4000-8000-000000000072","staff_id":"78000000-0000-4000-8000-000000000076"}',true);
+SELECT is(app.push_configuration_ready(),false,'front_desk readiness follows only its own tenant activation');
+SELECT set_config('request.jwt.claims','{"role":"authenticated","sub":"78000000-0000-4000-8000-000000000074","app_role":"trainer","tenant_id":"78000000-0000-4000-8000-000000000071","staff_id":"78000000-0000-4000-8000-000000000076"}',true);
+SELECT is(app.push_configuration_ready(),true,'trainer readiness follows only its own tenant activation');
+SELECT set_config('request.jwt.claims','{"role":"authenticated","sub":"78000000-0000-4000-8000-000000000074","app_role":"trainer","tenant_id":"78000000-0000-4000-8000-000000000072","staff_id":"78000000-0000-4000-8000-000000000076"}',true);
+SELECT is(app.push_configuration_ready(),false,'trainer readiness follows only its own tenant activation');
+SELECT set_config('request.jwt.claims','{"role":"authenticated","sub":"78000000-0000-4000-8000-000000000074","tenant_id":"78000000-0000-4000-8000-000000000071","app_role":"invented_staff_role","staff_id":"78000000-0000-4000-8000-000000000076"}',true);
+SELECT is(app.push_configuration_ready(),false,'unknown staff role cannot expose readiness');
+SELECT set_config('request.jwt.claims','{"role":"authenticated","sub":"78000000-0000-4000-8000-000000000074","tenant_id":"78000000-0000-4000-8000-000000000071","app_role":"trainer","staff_id":"78000000-0000-4000-8000-000000000076","member_id":"78000000-0000-4000-8000-000000000075"}',true);
+SELECT is(app.push_configuration_ready(),false,'staff mixed with member cannot expose readiness');
+SELECT set_config('request.jwt.claims','{"role":"authenticated","sub":"78000000-0000-4000-8000-000000000074","tenant_id":"78000000-0000-4000-8000-000000000071","app_role":"gym_manager"}',true);
+SELECT is(app.push_configuration_ready(),false,'staff missing staff identity cannot expose readiness');
 SET LOCAL ROLE postgres;
 SELECT * FROM finish();
 ROLLBACK;

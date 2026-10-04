@@ -81,7 +81,8 @@ test('NTF transport: exact empty object, query, media and actual UTF-8 byte boun
     const f = await fixture(); await envelope(await f.handler(request('{}', headers)), 400, 'bad_request'); equal(f.calls, []);
   }
   const query = await fixture(); await envelope(await query.handler(request('{}', {}, 'https://edge.invalid/?tenant_id=foreign')), 400, 'bad_request'); equal(query.calls, []);
-  for (const headers of [{}, { 'Content-Length': '2' }]) {
+  const lengthHeaders: Record<string, string>[] = [{}, { 'Content-Length': '2' }];
+  for (const headers of lengthHeaders) {
     const f = await fixture(); await envelope(await f.handler(request(' '.repeat(1023) + '{}', headers)), 413, 'payload_too_large'); equal(f.calls, []);
   }
   const edge = await fixture({ claim: { attempts: [], configuration: 'ready' } });

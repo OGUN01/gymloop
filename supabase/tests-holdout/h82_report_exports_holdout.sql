@@ -1,3 +1,5 @@
+-- Fixture repair 2026-10-04: pg_proc.proconfig is text[], so read its
+-- explicit search_path entry instead of applying a JSON operator.
 -- 2026-10-04 independent reconciliation: frozen public contracts only; no
 -- implementation, migrations, visible suites or private diagnostics read.
 -- Independent holdout: the RPE database surface, derived from the frozen
@@ -33,8 +35,8 @@ select is((select r.rolname from pg_proc p join pg_roles r on r.oid = p.proowner
 select is((select r.rolname from pg_proc p join pg_roles r on r.oid = p.proowner where p.oid = to_regprocedure('public.append_report_export_event(text,uuid,jsonb)')),'postgres','audit helper is postgres-owned');
 select is((select prosecdef from pg_proc where oid = to_regprocedure('public.export_report_snapshot(text,date,date,uuid,integer)')),false,'snapshot operation is security invoker so caller RLS decides every row');
 select is((select prosecdef from pg_proc where oid = to_regprocedure('public.append_report_export_event(text,uuid,jsonb)')),true,'audit helper is definer so it alone elevates');
-select is((select proconfig->>'search_path' from pg_proc where oid = to_regprocedure('public.export_report_snapshot(text,date,date,uuid,integer)')),'','snapshot operation runs an empty search path');
-select is((select proconfig->>'search_path' from pg_proc where oid = to_regprocedure('public.append_report_export_event(text,uuid,jsonb)')),'','audit helper runs an empty search path');
+select is((select (select case when setting in ('search_path=', 'search_path=""') then '' else substring(setting from length('search_path=')+1) end from unnest(proconfig) setting where setting like 'search_path=%') from pg_proc where oid = to_regprocedure('public.export_report_snapshot(text,date,date,uuid,integer)')),'','snapshot operation runs an empty search path');
+select is((select (select case when setting in ('search_path=', 'search_path=""') then '' else substring(setting from length('search_path=')+1) end from unnest(proconfig) setting where setting like 'search_path=%') from pg_proc where oid = to_regprocedure('public.append_report_export_event(text,uuid,jsonb)')),'','audit helper runs an empty search path');
 select ok(has_function_privilege('authenticated','public.export_report_snapshot(text,date,date,uuid,integer)','EXECUTE'),'authenticated holds EXECUTE on the snapshot operation');
 select ok(not has_function_privilege('anon','public.export_report_snapshot(text,date,date,uuid,integer)','EXECUTE'),'anon holds no EXECUTE on the snapshot operation');
 select ok(not has_function_privilege('PUBLIC','public.export_report_snapshot(text,date,date,uuid,integer)','EXECUTE'),'PUBLIC holds no EXECUTE on the snapshot operation');

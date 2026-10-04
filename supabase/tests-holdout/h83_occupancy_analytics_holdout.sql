@@ -1,3 +1,5 @@
+-- Fixture repair 2026-10-04: pg_proc.proconfig is text[], so read its
+-- explicit search_path entry instead of applying a JSON operator.
 -- 2026-10-04 independent reconciliation: frozen public contracts only; no
 -- implementation, migrations, visible suites or private diagnostics read.
 -- Independent holdout: frozen OCC-001..017 public contract only
@@ -318,15 +320,16 @@ insert into public.members(id, tenant_id, branch_id, full_name, phone) values
   ('83900000-0000-4000-8000-0000000000b3','83900000-0000-4000-8000-000000000001','83900000-0000-4000-8000-000000000011','H83 Member Three','+919830000003'),
   ('83900000-0000-4000-8000-0000000000b4','83900000-0000-4000-8000-000000000002','83900000-0000-4000-8000-000000000014','H83 Foreign Member','+919830000004');
 
-insert into public.plans(id, tenant_id, name, price_paise) values
-  ('83900000-0000-4000-8000-0000000000c1','83900000-0000-4000-8000-000000000001','H83 Plan',100000);
+insert into public.plans(id, tenant_id, name, duration_days, price_paise) values
+  ('83900000-0000-4000-8000-0000000000c1','83900000-0000-4000-8000-000000000001','H83 Plan',30,100000),
+  ('83900000-0000-4000-8000-0000000000c2','83900000-0000-4000-8000-000000000002','H83 Foreign Plan',30,100000);
 
-insert into public.memberships(id, tenant_id, member_id, plan_id, status, starts_on, ends_on, created_at) values
-  ('83900000-0000-4000-8000-0000000000d1','83900000-0000-4000-8000-000000000001','83900000-0000-4000-8000-0000000000b1','83900000-0000-4000-8000-0000000000c1','active', current_date - 400, current_date + 30, now() - interval '400 days'),
-  ('83900000-0000-4000-8000-0000000000d2','83900000-0000-4000-8000-000000000001','83900000-0000-4000-8000-0000000000b1','83900000-0000-4000-8000-0000000000c1','active', current_date - 10, current_date + 60, now() - interval '10 days'),
-  ('83900000-0000-4000-8000-0000000000d3','83900000-0000-4000-8000-000000000001','83900000-0000-4000-8000-0000000000b2','83900000-0000-4000-8000-0000000000c1','active', current_date - 20, current_date + 30, now() - interval '20 days'),
-  ('83900000-0000-4000-8000-0000000000d4','83900000-0000-4000-8000-000000000002','83900000-0000-4000-8000-0000000000b4','83900000-0000-4000-8000-0000000000c1','active', current_date - 20, current_date + 30, now() - interval '20 days');
--- ms d1 is member b1's first (created 400 days ago); d2 is the successor.
+insert into public.memberships(id, tenant_id, member_id, plan_id, status, starts_on, ends_on, created_at, price_paise) values
+  ('83900000-0000-4000-8000-0000000000d1','83900000-0000-4000-8000-000000000001','83900000-0000-4000-8000-0000000000b1','83900000-0000-4000-8000-0000000000c1','expired', current_date - 400, current_date - 370, now() - interval '400 days',100000),
+  ('83900000-0000-4000-8000-0000000000d2','83900000-0000-4000-8000-000000000001','83900000-0000-4000-8000-0000000000b1','83900000-0000-4000-8000-0000000000c1','active', current_date - 10, current_date + 60, now() - interval '10 days',100000),
+  ('83900000-0000-4000-8000-0000000000d3','83900000-0000-4000-8000-000000000001','83900000-0000-4000-8000-0000000000b2','83900000-0000-4000-8000-0000000000c1','active', current_date - 20, current_date + 30, now() - interval '20 days',100000),
+  ('83900000-0000-4000-8000-0000000000d4','83900000-0000-4000-8000-000000000002','83900000-0000-4000-8000-0000000000b4','83900000-0000-4000-8000-0000000000c2','active', current_date - 20, current_date + 30, now() - interval '20 days',100000);
+-- d1 is expired historical membership; d2 is the sole live successor (data-model live uniqueness).
 
 -- Arrivals (mirror; guarded real-table attempt already ran empty before these
 -- mirror inserts -- keep mirror inserts BEFORE the guarded block? No: the
@@ -356,35 +359,46 @@ insert into public.payments(id, tenant_id, member_id, membership_id, amount_pais
   ('83900000-0000-4000-8000-0000000000f8','83900000-0000-4000-8000-000000000001','83900000-0000-4000-8000-0000000000b2','83900000-0000-4000-8000-0000000000d3',8000,'INR','paid','cash','H83-R8','83900000-0000-4000-8000-0000000000a1', now() + interval '1 hour', now()),
   ('83900000-0000-4000-8000-0000000000f9','83900000-0000-4000-8000-000000000002','83900000-0000-4000-8000-0000000000b4','83900000-0000-4000-8000-0000000000d4',500000,'INR','paid','cash','H83-R9','83900000-0000-4000-8000-0000000000a6', now() - interval '30 minutes', now() - interval '30 minutes');
 
+-- Same-currency earlier-payment fixture for the later USD return. Retain
+-- the current USD add-on collection; this separately supplies the fourth
+-- currency-month group required by the existing collection assertion.
+insert into public.payments(id,tenant_id,member_id,amount_paise,currency,status,method,
+  receipt_number,recorded_by_staff_id,paid_at,created_at) values
+  ('83900000-0000-4000-8000-0000000000fa','83900000-0000-4000-8000-000000000001',
+   '83900000-0000-4000-8000-0000000000b3',10000,'USD','paid','cash','H83-R10',
+   '83900000-0000-4000-8000-0000000000a1',
+   (date_trunc('month',now() at time zone 'Asia/Kolkata')::timestamp at time zone 'Asia/Kolkata')-interval '2 months',
+   (date_trunc('month',now() at time zone 'Asia/Kolkata')::timestamp at time zone 'Asia/Kolkata')-interval '2 months');
+
 insert into holdout_occ.occ_addon_orders(payment_id) values
   ('83900000-0000-4000-8000-0000000000f4');
 
 insert into public.refunds(id, tenant_id, payment_id, kind, amount_paise, currency, status, reason, initiated_by_staff_id, processed_at, created_at) values
-  ('83900000-0000-4000-8000-0000000000101','83900000-0000-4000-8000-000000000001','83900000-0000-4000-8000-0000000000f2','refund',30000,'INR','completed','H83 test return','83900000-0000-4000-8000-0000000000a1', now() - interval '30 minutes', now() - interval '30 minutes'),
-  ('83900000-0000-4000-8000-0000000000102','83900000-0000-4000-8000-000000000001','83900000-0000-4000-8000-0000000000f2','refund',1000,'INR','requested','H83 in-flight','83900000-0000-4000-8000-0000000000a1', null, now()),
-  ('83900000-0000-4000-8000-0000000000103','83900000-0000-4000-8000-000000000001','83900000-0000-4000-8000-0000000000f1','reversal',2000,'INR','completed','H83 undated','83900000-0000-4000-8000-0000000000a1', null, now()),
-  ('83900000-0000-4000-8000-0000000000104','83900000-0000-4000-8000-000000000001','83900000-0000-4000-8000-0000000000f3','refund',7500,'USD','completed','H83 prior month','83900000-0000-4000-8000-0000000000a1', ((date_trunc('month', (now() at time zone 'Asia/Kolkata'))::timestamp) at time zone 'Asia/Kolkata') - interval '1 day', now() - interval '40 days');
+  ('83900000-0000-4000-8000-000000000101','83900000-0000-4000-8000-000000000001','83900000-0000-4000-8000-0000000000f2','refund',30000,'INR','completed','H83 test return','83900000-0000-4000-8000-0000000000a1', now() - interval '30 minutes', now() - interval '30 minutes'),
+  ('83900000-0000-4000-8000-000000000102','83900000-0000-4000-8000-000000000001','83900000-0000-4000-8000-0000000000f2','refund',1000,'INR','requested','H83 in-flight','83900000-0000-4000-8000-0000000000a1', null, now()),
+  ('83900000-0000-4000-8000-000000000103','83900000-0000-4000-8000-000000000001','83900000-0000-4000-8000-0000000000f1','reversal',2000,'INR','completed','H83 undated','83900000-0000-4000-8000-0000000000a1', null, now()),
+  ('83900000-0000-4000-8000-000000000104','83900000-0000-4000-8000-000000000001','83900000-0000-4000-8000-0000000000fa','refund',7500,'USD','completed','H83 prior month','83900000-0000-4000-8000-0000000000a1', ((date_trunc('month', (now() at time zone 'Asia/Kolkata'))::timestamp) at time zone 'Asia/Kolkata') - interval '1 day', now() - interval '40 days');
 
 -- Class cohort (mirrors; guarded real attempt re-runs through occ_call dispatch).
 insert into holdout_occ.occ_class_sessions(id, tenant_id, branch_id, session_date, capacity, status, ends_at) values
-  ('83900000-0000-4000-8000-0000000001101','83900000-0000-4000-8000-000000000001','83900000-0000-4000-8000-000000000011', current_date - 1, 7, 'scheduled', now() - interval '1 hour'),
-  ('83900000-0000-4000-8000-0000000001102','83900000-0000-4000-8000-000000000001','83900000-0000-4000-8000-000000000011', current_date - 1, 10, 'scheduled', now() + interval '2 hours'),   -- future
-  ('83900000-0000-4000-8000-0000000001103','83900000-0000-4000-8000-000000000001','83900000-0000-4000-8000-000000000011', current_date - 1, 10, 'cancelled', now() - interval '2 hours'),  -- cancelled elapsed
-  ('83900000-0000-4000-8000-0000000001104','83900000-0000-4000-8000-000000000001','83900000-0000-4000-8000-000000000011', current_date, 10, 'scheduled', now() - interval '30 minutes'),   -- holiday-standing elapsed
-  ('83900000-0000-4000-8000-0000000001105','83900000-0000-4000-8000-000000000001','83900000-0000-4000-8000-000000000012', current_date - 1, 5, 'scheduled', now() - interval '2 hours');    -- Auckland branch
+  ('83900000-0000-4000-8000-000000001101','83900000-0000-4000-8000-000000000001','83900000-0000-4000-8000-000000000011', current_date - 1, 7, 'scheduled', now() - interval '1 hour'),
+  ('83900000-0000-4000-8000-000000001102','83900000-0000-4000-8000-000000000001','83900000-0000-4000-8000-000000000011', current_date - 1, 10, 'scheduled', now() + interval '2 hours'),   -- future
+  ('83900000-0000-4000-8000-000000001103','83900000-0000-4000-8000-000000000001','83900000-0000-4000-8000-000000000011', current_date - 1, 10, 'cancelled', now() - interval '2 hours'),  -- cancelled elapsed
+  ('83900000-0000-4000-8000-000000001104','83900000-0000-4000-8000-000000000001','83900000-0000-4000-8000-000000000011', current_date, 10, 'scheduled', now() - interval '30 minutes'),   -- holiday-standing elapsed
+  ('83900000-0000-4000-8000-000000001105','83900000-0000-4000-8000-000000000001','83900000-0000-4000-8000-000000000012', current_date - 1, 5, 'scheduled', now() - interval '2 hours');    -- Auckland branch
 insert into holdout_occ.occ_class_bookings(id, session_id, member_id, status) values
-  ('83900000-0000-4000-8000-0000000001201','83900000-0000-4000-8000-0000000001101','83900000-0000-4000-8000-0000000000b1','booked'),
-  ('83900000-0000-4000-8000-0000000001202','83900000-0000-4000-8000-0000000001101','83900000-0000-4000-8000-0000000000b2','attended'),
-  ('83900000-0000-4000-8000-0000000001203','83900000-0000-4000-8000-0000000001101','83900000-0000-4000-8000-0000000000b3','no_show'),
-  ('83900000-0000-4000-8000-0000000001204','83900000-0000-4000-8000-0000000001101','83900000-0000-4000-8000-0000000000b1','cancelled'),
-  ('83900000-0000-4000-8000-0000000001205','83900000-0000-4000-8000-0000000001105','83900000-0000-4000-8000-0000000000b3','booked');
+  ('83900000-0000-4000-8000-000000001201','83900000-0000-4000-8000-000000001101','83900000-0000-4000-8000-0000000000b1','booked'),
+  ('83900000-0000-4000-8000-000000001202','83900000-0000-4000-8000-000000001101','83900000-0000-4000-8000-0000000000b2','attended'),
+  ('83900000-0000-4000-8000-000000001203','83900000-0000-4000-8000-000000001101','83900000-0000-4000-8000-0000000000b3','no_show'),
+  ('83900000-0000-4000-8000-000000001204','83900000-0000-4000-8000-000000001101','83900000-0000-4000-8000-0000000000b1','cancelled'),
+  ('83900000-0000-4000-8000-000000001205','83900000-0000-4000-8000-000000001105','83900000-0000-4000-8000-0000000000b3','booked');
 
 -- ---------------------------------------------------------------------------
 -- Section A: the real object's shape and security (RED until the migration).
 -- ---------------------------------------------------------------------------
 select is(to_regprocedure('public.owner_occupancy_analytics(date,date,uuid,boolean)'),to_regprocedure('public.owner_occupancy_analytics(date,date,uuid,boolean)'),'real analytics operation exists with the pinned signature');
 select is((select format_type(prorettype,0) from pg_proc where oid = to_regprocedure('public.owner_occupancy_analytics(date,date,uuid,boolean)')),'jsonb','real operation returns one jsonb snapshot');
-select is((select proconfig->>'search_path' from pg_proc where oid = to_regprocedure('public.owner_occupancy_analytics(date,date,uuid,boolean)')),'','real operation runs an empty search path');
+select is((select (select case when setting in ('search_path=', 'search_path=""') then '' else substring(setting from length('search_path=')+1) end from unnest(proconfig) setting where setting like 'search_path=%') from pg_proc where oid = to_regprocedure('public.owner_occupancy_analytics(date,date,uuid,boolean)')),'','real operation runs an empty search path');
 select is((select pg_get_userbyid(proowner) from pg_proc where oid = to_regprocedure('public.owner_occupancy_analytics(date,date,uuid,boolean)')),'postgres','real operation is postgres-owned');
 select is((select prosecdef::text from pg_proc where oid = to_regprocedure('public.owner_occupancy_analytics(date,date,uuid,boolean)')),'false','real operation is security invoker: reads stay under caller RLS');
 select ok(has_function_privilege('authenticated','public.owner_occupancy_analytics(date,date,uuid,boolean)','EXECUTE'),'authenticated may execute the real operation');
@@ -408,7 +422,7 @@ select set_config('request.jwt.claims','{"sub":"83900000-0000-4000-8000-00000000
 select throws_ok($q$select holdout_occ.occ_call(current_date - 1, current_date, null)$q$,'42501'::char(5),null,'member receives no analytics');
 select set_config('request.jwt.claims','{"sub":"83900000-0000-4000-8000-0000000000a8","role":"authenticated","app_role":"super_admin"}',true);
 select throws_ok($q$select holdout_occ.occ_call(current_date - 1, current_date, null)$q$,'42501'::char(5),null,'platform super admin receives no gym analytics');
-select set_config('request.jwt.claims','{"sub":"83900000-0000-4000-8000-0000000000a8","role":"authenticated","app_role":"super_admin","impersonation_session_id":"83900000-0000-4000-8000-0000000000190"}',true);
+select set_config('request.jwt.claims','{"sub":"83900000-0000-4000-8000-0000000000a8","role":"authenticated","app_role":"super_admin","impersonation_session_id":"83900000-0000-4000-8000-000000000190"}',true);
 select throws_ok($q$select holdout_occ.occ_call(current_date - 1, current_date, null)$q$,'42501'::char(5),null,'support preview receives no analytics');
 select set_config('request.jwt.claims','{"sub":"83900000-0000-4000-8000-0000000000a8","role":"authenticated","app_role":"super_admin","tenant_id":"83900000-0000-4000-8000-000000000001","staff_id":"83900000-0000-4000-8000-0000000000a1"}',true);
 select throws_ok($q$select holdout_occ.occ_call(current_date - 1, current_date, null)$q$,'42501'::char(5),null,'mixed platform and gym identity is refused before any read');
@@ -492,7 +506,7 @@ select ok((select v->>'memberFirstMembershipCreatedAt' from jsonb_array_elements
          < (select (v->>'paidAt')::timestamptz from jsonb_array_elements(holdout_occ.occ_call(current_date - 1, current_date, null)::jsonb -> 'payments') v
            where (v->>'paymentId') = '83900000-0000-4000-8000-0000000000f2')),'first-membership discriminator input is supplied from real membership creation facts');
 select ok((select (v->>'membershipId') from jsonb_array_elements(holdout_occ.occ_call(current_date - 1, current_date, null)::jsonb -> 'payments') v
-           where (v->>'paymentId') = '83900000-0000-4000-8000-0000000000f1') = to_jsonb('83900000-0000-4000-8000-0000000000d2'::uuid),'membership linkage is the payment''s own raw link, not a guess');
+           where (v->>'paymentId') = '83900000-0000-4000-8000-0000000000f1') = '83900000-0000-4000-8000-0000000000d2'::uuid::text,'membership linkage is the payment''s own raw link, not a guess');
 select ok((select (v->>'addonLinked') from jsonb_array_elements(holdout_occ.occ_call(current_date - 1, current_date, null)::jsonb -> 'payments') v
            where (v->>'paymentId') = '83900000-0000-4000-8000-0000000000f4') = 'true'
        and (select (v->>'membershipId') from jsonb_array_elements(holdout_occ.occ_call(current_date - 1, current_date, null)::jsonb -> 'payments') v
@@ -508,23 +522,23 @@ select ok(not exists (select 1 from jsonb_object_keys(holdout_occ.occ_call(curre
 -- Section F: class cohort, capacity and marking truth (OCC-014/015/016)
 -- ---------------------------------------------------------------------------
 select ok((select count(*) from jsonb_array_elements(holdout_occ.occ_call(current_date - 1, current_date, '83900000-0000-4000-8000-000000000011')::jsonb -> 'classes') v
-           where (v->>'sessionId') = '83900000-0000-4000-8000-0000000001101') = 1,'elapsed non-cancelled session is in the cohort');
+           where (v->>'sessionId') = '83900000-0000-4000-8000-000000001101') = 1,'elapsed non-cancelled session is in the cohort');
 select ok((select count(*) from jsonb_array_elements(holdout_occ.occ_call(current_date - 1, current_date, '83900000-0000-4000-8000-000000000011')::jsonb -> 'classes') v
-           where (v->>'sessionId') = '83900000-0000-4000-8000-0000000001102') = 0,'ongoing/future session is excluded');
+           where (v->>'sessionId') = '83900000-0000-4000-8000-000000001102') = 0,'ongoing/future session is excluded');
 select ok((select count(*) from jsonb_array_elements(holdout_occ.occ_call(current_date - 1, current_date, '83900000-0000-4000-8000-000000000011')::jsonb -> 'classes') v
-           where (v->>'sessionId') = '83900000-0000-4000-8000-0000000001103') = 0,'cancelled session contributes neither bookings nor capacity');
+           where (v->>'sessionId') = '83900000-0000-4000-8000-000000001103') = 0,'cancelled session contributes neither bookings nor capacity');
 select is((select v->>'capacity' from jsonb_array_elements(holdout_occ.occ_call(current_date - 1, current_date, '83900000-0000-4000-8000-000000000011')::jsonb -> 'classes') v
-           where (v->>'sessionId') = '83900000-0000-4000-8000-0000000001101'),'7','capacity is the stored per-session value');
+           where (v->>'sessionId') = '83900000-0000-4000-8000-000000001101'),'7','capacity is the stored per-session value');
 select is((select v->>'holding' from jsonb_array_elements(holdout_occ.occ_call(current_date - 1, current_date, '83900000-0000-4000-8000-000000000011')::jsonb -> 'classes') v
-           where (v->>'sessionId') = '83900000-0000-4000-8000-0000000001101'),'3','holding bookings = booked + attended + no_show; cancelled booking and no-show seat-holding both hold');
+           where (v->>'sessionId') = '83900000-0000-4000-8000-000000001101'),'3','holding bookings = booked + attended + no_show; cancelled booking and no-show seat-holding both hold');
 select is((select v->>'attended' from jsonb_array_elements(holdout_occ.occ_call(current_date - 1, current_date, '83900000-0000-4000-8000-000000000011')::jsonb -> 'classes') v
-           where (v->>'sessionId') = '83900000-0000-4000-8000-0000000001101'),'1','explicitly marked attended is reported separately');
+           where (v->>'sessionId') = '83900000-0000-4000-8000-000000001101'),'1','explicitly marked attended is reported separately');
 select is((select v->>'noShow' from jsonb_array_elements(holdout_occ.occ_call(current_date - 1, current_date, '83900000-0000-4000-8000-000000000011')::jsonb -> 'classes') v
-           where (v->>'sessionId') = '83900000-0000-4000-8000-0000000001101'),'1','explicitly marked no-show is reported separately');
+           where (v->>'sessionId') = '83900000-0000-4000-8000-000000001101'),'1','explicitly marked no-show is reported separately');
 select ok((select count(*) from jsonb_array_elements(holdout_occ.occ_call(current_date - 1, current_date, '83900000-0000-4000-8000-000000000012')::jsonb -> 'classes') v
-           where (v->>'sessionId') = '83900000-0000-4000-8000-0000000001105') = 1,'branch filter keeps exactly that branch''s elapsed cohort');
+           where (v->>'sessionId') = '83900000-0000-4000-8000-000000001105') = 1,'branch filter keeps exactly that branch''s elapsed cohort');
 select ok((select count(*) from jsonb_array_elements(holdout_occ.occ_call(current_date - 1, current_date, '83900000-0000-4000-8000-000000000012')::jsonb -> 'classes') v
-           where (v->>'sessionId') = '83900000-0000-4000-8000-0000000001101') = 0,'another branch''s session never enters a branch-scoped cohort');
+           where (v->>'sessionId') = '83900000-0000-4000-8000-000000001101') = 0,'another branch''s session never enters a branch-scoped cohort');
 select ok(jsonb_typeof(holdout_occ.occ_call(current_date - 1, current_date, null)->'classes') = 'array','class cohort is one reconciling population of the single snapshot');
 
 select * from finish();
