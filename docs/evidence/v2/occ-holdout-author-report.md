@@ -384,3 +384,207 @@ disabled, no protected timestamp forced null, nothing committed.
   order; branch refusal signal — already amended to the adjudicated P0002,
   re-checked against the amended pins) and cascade noise.
 - New sha256: `11178558e29d87a9da313f15b1fc5f7a8396b04e4e9773ed1787eacc882c43ee`.
+
+## Runtime repair round 14 (2026-10-04)
+
+- Runtime fact (staging round 4): `class_sessions: invalid input syntax for
+  type uuid` — the round-13 service_id value was typed with an 11-hex last
+  group (`…000000000c3`), the same width disease as the round-11 attendance
+  ids; the services row id itself (`…0000000000c3`, 12 hex) was valid.
+- Edit: ran a mechanical full-file sweep (regex over every uuid-shaped
+  token, validating exact 8-4-4-4-12) — exactly one malformed literal found,
+  the 11-hex `…c3`, appearing 5 times (services row + four session
+  service_id references); repaired consistently to the lawful 12-hex
+  `…000000000c30` everywhere. A post-sweep validation reports zero malformed
+  UUID literals in the whole file. plan(183) preserved. Rollback guard green
+  (159 files).
+- New sha256: `713c3016cac79219d519474838b84ff8a929584086371771162e97dc6b437c07`.
+
+## Runtime repair round 15 (2026-10-04)
+
+- Runtime facts (staging round 5 + #27 resolution): (1)
+  `class_sessions_cancel_state_chk` refused the cancelled fixture row — the
+  CHECK requires the triple `cancelled_at`/`cancel_reason`/
+  `cancelled_by_staff_id` exactly when status='cancelled'; (2) #27's have/
+  want differ only in object key ORDER — Postgres jsonb normalizes key order
+  internally (length-then-bytes), so the declaration's listing order is
+  author-facing, not storage order or contract behavior; the declaration
+  pins the key SET.
+- Edits:
+  1. The cancelled session (…1103) now stages the full lawful triple
+     (`cancelled_at` between its start and end, a concrete reason, and the
+     gym-owner staff row …0a1 as canceller); all other rows stage nulls
+     implicitly through the widened column list.
+  2. #27 amended to an order-insensitive key-set comparison: both sides
+     sorted, assertion text records that the declaration's listing order is
+     not contract behavior. Per-key value checks already exist throughout
+     the suite. #22/#23 remain the already-amended P0002 pins.
+- plan(183) preserved. Rollback guard green (159 files).
+- New sha256: `5142d6eb435b29f3e01512e3865f4fc173a21fe9f0d0cc40df2f55f96201f673`.
+
+## Runtime repair round 16 (2026-10-04)
+
+- Runtime fact (staging round 6): `INSERT has more target columns than
+  expressions` persisted on class_sessions — the round-15 cancel-triple edit
+  widened the INSERT target list to 12 columns but appended the triple only
+  to the cancelled row's tuple; the other four tuples carried 9 expressions
+  against 12 targets.
+- Edit: the four non-cancelled tuples now trail `null, null, null`
+  (cancel evidence columns stay null for non-cancelled rows, exactly the
+  CHECK's intent); a mechanical paren-depth column counter now verifies
+  target columns = 12 and every tuple = 12 expressions. All rounds since the
+  service-link round are present (this sha supersedes). plan(183) preserved.
+  Rollback guard green (159 files).
+- New sha256: `c1f9b110c794866881ee3cfc8549ce505825ec87879cfe303722b464bac936d2`.
+
+## Runtime repair round 17 (2026-10-04)
+
+- Runtime fact (staging round 7): `class_sessions_tenant_id_fkey` violation —
+  the five session tuples had tenant_id and service_id SWAPPED (tenant slot
+  carried the services row …c30, service slot carried tenant …0001), a
+  round-13 authoring slip; hence the FK refusal in both directions.
+- Edit: swapped the pairing back in all five tuples (tenant_id …0001,
+  service_id …c30 — both belonging to tenant …0001 whose organization row
+  exists since the fixture stage, and the …c30 services row is tenant …0001),
+  scoped strictly to the class_sessions block (the services INSERT's own
+  id/tenant order is correct and untouched). plan(183) preserved. Rollback
+  guard green (159 files).
+- New sha256: `41406d268a186829c9a3f00f8c05267c945d79073aed34358f35f50388b4683e`.
+
+## Runtime repair round 18 (2026-10-04)
+
+- Runtime fact (staging round 8): `class_sessions_service_id_fkey` violation —
+  the services row id and the sessions' service_id were two DIFFERENT valid
+  12-hex literals: the services row kept `…0000000000c3` (never malformed, so
+  the round-14 sweep correctly skipped it) while the round-14 repair of the
+  five 11-hex session references produced `…000000000c30`. The FK target row
+  therefore did not exist under the referenced id.
+- Edit: the services INSERT id unified to `…000000000c30` (one occurrence); a
+  c3-family scan confirms all 6 literals in the file are now the identical
+  bytes; services INSERT precedes the sessions in statement order inside the
+  same transaction. plan(183) preserved. Rollback guard green (159 files).
+- New sha256: `ac2691f012782d79d00c116440676e18c04cbac541b4449fbe609f05a3657a9f`.
+
+## Runtime repair round 19 (2026-10-04)
+
+- Runtime facts (staging round 9 + timestamp spelling): (1) booking_status
+  has no bare 'cancelled'; (2) timestamp emission is canonical RFC3339 UTC
+  (`…Z`) per the builder's round 9.
+- Edits:
+  1. Booking …1204 amended from the unlawful bare 'cancelled' to the lawful
+     per-actor label 'cancelled_by_member' (member-cancel path), with
+     `cancelled_at` staged to satisfy `class_bookings_cancel_evidence_chk`
+     (cancel_reason stays null — required only for cancelled_by_gym). The
+     class_sessions 'cancelled' status on …1103 is untouched — that is the
+     correct class_session_status label. The other four bookings (booked /
+     attended / no_show / booked) are lawful labels already.
+  2. Timestamp spelling: audited the suite for `+00:00` want literals —
+     none exist; no timestamp-value want strings pin a spelling in this
+     suite (startsAt/endsAt appear only as key-set pins), so no edit needed.
+- plan(183) preserved. Rollback guard green (159 files).
+- New sha256: `ea1489c9b86837578670c963fa422112f52c47c146f982d0ba1ed0f08d7f02ff`.
+
+## Runtime repair round 20 (2026-10-04)
+
+- Runtime fact (staging round 10): `class_bookings: INSERT has more target
+  columns than expressions` — the round-19 enum edit widened the target list
+  to 5 columns (adding `cancelled_at`) but appended the expression only to
+  the …1204 tuple; the other four tuples carried 4 expressions.
+- Edit: the four non-cancelled tuples now trail `null` for the unused
+  cancel-evidence column; a mechanical paren-depth counter verifies target
+  columns = 5 and every tuple = 5 expressions. This closes the same
+  mechanical class as the round-16 fix — the staging chain's INSERT shapes
+  are now all counter-verified. plan(183) preserved. Rollback guard green
+  (159 files).
+- New sha256: `1c8a7228ba666b1217b93ee6b963c991cd18daea405e1a08ed680efa1cbe260e`.
+
+## Mechanical staging audit (2026-10-04, closing the tuple-shape chain)
+
+- Process change implemented: a quote/comment/paren-aware mechanical audit
+  (`scratchpad/h83-staging-audit.py`) now validates every staging INSERT in
+  the suite once — target count == per-tuple expression count across all 16
+  staged relations (organizations, branches, organization_holidays, auth.users,
+  staff, members, plans, memberships, payments, refunds, attendance, services,
+  class_sessions, class_bookings, addon_orders, platform_users): all OK,
+  zero unterminated blocks, exit 0.
+- NOT NULL coverage (re-derived catalog knowledge): every staged row supplies
+  the NOT NULL columns of its relation — organizations (id/name/gym_code/
+  status/timezone/currency), branches (id/tenant_id/name), staff (id/tenant/
+  user/role/full_name/is_active), memberships (9 cols), payments (12 cols),
+  refunds (11 cols; statuses completed/requested with lawful processed_at
+  after the r103 removal), attendance (source='qr' NOT NULL), services
+  (id/tenant/name), class_sessions (id/tenant/service/branch/date/starts/
+  capacity/status/ends + cancel triple on the cancelled row only),
+  class_bookings (id/session/member/status + cancelled_at evidence on the
+  cancelled row).
+- Enum labels (known vocabularies): attendance_source 'qr'; class_session_status
+  'scheduled'/'cancelled'; booking_status 'booked'/'attended'/'no_show'/
+  'cancelled_by_member'; refund_status 'completed'/'requested'; refund_kind
+  'refund'/'reversal'; payment_status 'paid'/'created'; membership_status
+  'expired'/'active'; organization_status 'active'; staff roles lawful.
+  No violations.
+- Suite bytes unchanged by this audit (no violations found beyond the
+  already-applied fixes): sha256 remains
+  `1c8a7228ba666b1217b93ee6b963c991cd18daea405e1a08ed680efa1cbe260e`.
+
+## Runtime repair round 21 (2026-10-04)
+
+- Runtime fact (staging round 11): `class_bookings: null value in column
+  "tenant_id"` — the booking INSERT omitted tenant_id and no trigger fills it
+  under the fixture claims context at that point (trigger-derived column).
+- Edit (coordinator's route (a)): `tenant_id` added explicitly to the
+  class_bookings target list, value tenant …0001 on every booking row
+  (matching the sessions' tenant). The audit lesson is recorded: shape audits
+  need a claims/trigger-derived-column model — the bare NOT NULL column list
+  missed a trigger-filled column; the audit script's documented limits now
+  note this class (derived-at-runtime columns require explicit fixture
+  staging when claims context does not provide them). Audit re-run: all 16
+  relations OK with class_bookings now 6/6. plan(183) preserved. Rollback
+  guard green (159 files).
+- New sha256: `e1fa672abb9f17717469fa42626b66776675483e64dc09a0be5e9e1591f26546`.
+
+## Runtime repair round 22 (2026-10-04)
+
+- Runtime fact (staging round 12): `class_bookings_mark_evidence_chk` —
+  (attended/no_show) ⇔ marked_at non-null; booked/cancelled rows must carry
+  null marked_at.
+- Edit: `marked_at` added to the class_bookings target list (7 targets now);
+  the attended row …1202 and no_show row …1203 carry lawful timestamps inside
+  session …1101's elapsed span (now()-65m and now()-80m, within starts -3h /
+  ends -1h); rows …1201 (booked), …1204 (cancelled_by_member) and …1205
+  (booked) keep marked_at null. Constraint model recorded for the audit:
+  mark_evidence (marked⇒marked_at, unmarked⇒null), cancel evidence
+  (cancelled_by_member ⇒ cancelled_at + null cancel_reason;
+  cancelled_by_gym ⇒ cancel_reason), plus tenant_id NOT NULL. Audit re-run:
+  class_bookings 7/7 OK. plan(183) preserved. Rollback guard green
+  (159 files).
+- New sha256: `c6d4dbc6e9b0d122af49e7bab077e31e34db11c4af1350ce003b2dd13b96932a`.
+
+## Runtime repair round 23 (2026-10-04)
+
+- Runtime fact (staging round 13): `class_bookings duplicate key
+  (tenant_id, session_id, member_id)` — booking …1204 duplicated member …b1
+  on session …1101 (already booked by …1201).
+- Edit: the duplicate tuple removed (with an explanatory comment) after a
+  reference check confirmed no assertion pins …1204 — the cohort semantics
+  (holding count 1 ≤ capacity 7, unmarkedCount '1', attended/no_show
+  evidence) are preserved by the remaining four lawful rows, one per
+  (session, member) pair. The class_bookings constraint inventory is now:
+  unique(tenant,session,member), mark_evidence, cancel evidence, tenant
+  NOT NULL. Audit re-run: class_bookings 7/7 across 4 tuples OK.
+  plan(183) preserved. Rollback guard green (159 files).
+- New sha256: `281199f94bfba0513e5b31e58b06b2e0d9eb405684a9a090093447ce9ca2fe78`.
+
+## Runtime repair round 24 (2026-10-04)
+
+- Runtime fact (staging round 14): `addon_orders: invalid input syntax for
+  type uuid: "…0000000000g1"` — 'g' is not a hex digit; another hand-written
+  invalid literal.
+- Edit: the addon_orders id fixed to the lawful, unused hex tail
+  `…0000000000ad`. The mechanical audit (`scratchpad/h83-staging-audit.py`)
+  now validates EVERY uuid-shaped quoted literal strictly (8-4-4-4-12 hex,
+  catching non-hex tails, wrong widths and any 83900000-prefixed token that
+  fails the strict form) in addition to INSERT shape checks — a full-run
+  reports all 16 relations OK and every uuid literal parsing cleanly.
+- plan(183) preserved. Rollback guard green (159 files).
+- New sha256: `aa55ddd11000adb380c45a2f75d0097995313365635cde66445c1018a8d1cd7e`.

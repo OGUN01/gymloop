@@ -244,29 +244,35 @@ begin
     -- session rows stage against one real per-tenant services row. starts_at
     -- is staged explicitly before ends_at on every row.
     insert into public.services(id, tenant_id, name, description, default_duration_minutes, default_capacity, sort_order, is_active)
-      values ('83900000-0000-4000-8000-0000000000c3','83900000-0000-4000-8000-000000000001','H83 Strength','H83 holdout service',45,10,1,true);
-    insert into public.class_sessions(id, tenant_id, service_id, branch_id, session_date, starts_at, capacity, status, ends_at) values
-      ('83900000-0000-4000-8000-000000001101','83900000-0000-4000-8000-000000000c3','83900000-0000-4000-8000-000000000001','83900000-0000-4000-8000-000000000011', current_date - 1, now() - interval '3 hours', 7, 'scheduled', now() - interval '1 hour'),
-      ('83900000-0000-4000-8000-000000001102','83900000-0000-4000-8000-000000000c3','83900000-0000-4000-8000-000000000001','83900000-0000-4000-8000-000000000011', current_date - 1, now() - interval '30 minutes', 10, 'scheduled', now() + interval '2 hours'),   -- ongoing/future
-      ('83900000-0000-4000-8000-000000001103','83900000-0000-4000-8000-000000000c3','83900000-0000-4000-8000-000000000001','83900000-0000-4000-8000-000000000011', current_date - 1, now() - interval '4 hours', 10, 'cancelled', now() - interval '2 hours'),  -- cancelled elapsed
-      ('83900000-0000-4000-8000-000000001104','83900000-0000-4000-8000-000000000c3','83900000-0000-4000-8000-000000000001','83900000-0000-4000-8000-000000000011', current_date, now() - interval '2 hours', 10, 'scheduled', now() - interval '30 minutes'),   -- holiday-standing elapsed
-      ('83900000-0000-4000-8000-000000001105','83900000-0000-4000-8000-000000000c3','83900000-0000-4000-8000-000000000001','83900000-0000-4000-8000-000000000012', current_date - 1, now() - interval '3 hours', 5, 'scheduled', now() - interval '2 hours');    -- Auckland
+      values ('83900000-0000-4000-8000-000000000c30','83900000-0000-4000-8000-000000000001','H83 Strength','H83 holdout service',45,10,1,true);
+    insert into public.class_sessions(id, tenant_id, service_id, branch_id, session_date, starts_at, capacity, status, ends_at, cancelled_at, cancel_reason, cancelled_by_staff_id) values
+      ('83900000-0000-4000-8000-000000001101','83900000-0000-4000-8000-000000000001','83900000-0000-4000-8000-000000000c30','83900000-0000-4000-8000-000000000011', current_date - 1, now() - interval '3 hours', 7, 'scheduled', now() - interval '1 hour', null, null, null),
+      ('83900000-0000-4000-8000-000000001102','83900000-0000-4000-8000-000000000001','83900000-0000-4000-8000-000000000c30','83900000-0000-4000-8000-000000000011', current_date - 1, now() - interval '30 minutes', 10, 'scheduled', now() + interval '2 hours', null, null, null),   -- ongoing/future
+      ('83900000-0000-4000-8000-000000001103','83900000-0000-4000-8000-000000000001','83900000-0000-4000-8000-000000000c30','83900000-0000-4000-8000-000000000011', current_date - 1, now() - interval '4 hours', 10, 'cancelled', now() - interval '2 hours', now() - interval '2 hours 30 minutes', 'H83 cancelled for the holdout cohort', '83900000-0000-4000-8000-0000000000a1'),  -- cancelled elapsed; cancel_state_chk triple staged
+      ('83900000-0000-4000-8000-000000001104','83900000-0000-4000-8000-000000000001','83900000-0000-4000-8000-000000000c30','83900000-0000-4000-8000-000000000011', current_date, now() - interval '2 hours', 10, 'scheduled', now() - interval '30 minutes', null, null, null),   -- holiday-standing elapsed
+      ('83900000-0000-4000-8000-000000001105','83900000-0000-4000-8000-000000000001','83900000-0000-4000-8000-000000000c30','83900000-0000-4000-8000-000000000012', current_date - 1, now() - interval '3 hours', 5, 'scheduled', now() - interval '2 hours', null, null, null);    -- Auckland
   exception when others then
     insert into h83_seed_errors values ('class_sessions: ' || SQLERRM);
   end;
   begin
-    insert into public.class_bookings(id, session_id, member_id, status) values
-      ('83900000-0000-4000-8000-000000001201','83900000-0000-4000-8000-000000001101','83900000-0000-4000-8000-0000000000b1','booked'),
-      ('83900000-0000-4000-8000-000000001202','83900000-0000-4000-8000-000000001101','83900000-0000-4000-8000-0000000000b2','attended'),
-      ('83900000-0000-4000-8000-000000001203','83900000-0000-4000-8000-000000001101','83900000-0000-4000-8000-0000000000b3','no_show'),
-      ('83900000-0000-4000-8000-000000001204','83900000-0000-4000-8000-000000001101','83900000-0000-4000-8000-0000000000b1','cancelled'),
-      ('83900000-0000-4000-8000-000000001205','83900000-0000-4000-8000-000000001105','83900000-0000-4000-8000-0000000000b3','booked');
+    -- booking_status has no bare 'cancelled': the member-cancel path stages
+    -- 'cancelled_by_member', and cancel evidence requires cancelled_at.
+    -- Route (a): tenant_id is trigger-derived under real claims contexts, so
+    -- the fixture stages it explicitly for every booking row (tenant …0001).
+    insert into public.class_bookings(id, tenant_id, session_id, member_id, status, cancelled_at, marked_at) values
+      ('83900000-0000-4000-8000-000000001201','83900000-0000-4000-8000-000000000001','83900000-0000-4000-8000-000000001101','83900000-0000-4000-8000-0000000000b1','booked', null, null),
+      ('83900000-0000-4000-8000-000000001202','83900000-0000-4000-8000-000000000001','83900000-0000-4000-8000-000000001101','83900000-0000-4000-8000-0000000000b2','attended', null, now() - interval '65 minutes'),
+      ('83900000-0000-4000-8000-000000001203','83900000-0000-4000-8000-000000000001','83900000-0000-4000-8000-000000001101','83900000-0000-4000-8000-0000000000b3','no_show', null, now() - interval '80 minutes'),
+      -- (a second b1 row on …1101 was removed: unique(tenant,session,member)
+      -- admits one row per pair; the member-cancel scenario needs no second
+      -- booking for these cohort pins)
+      ('83900000-0000-4000-8000-000000001205','83900000-0000-4000-8000-000000000001','83900000-0000-4000-8000-000000001105','83900000-0000-4000-8000-0000000000b3','booked', null, null);
   exception when others then
     insert into h83_seed_errors values ('class_bookings: ' || SQLERRM);
   end;
   begin
     insert into public.addon_orders(id, tenant_id, member_id, payment_id, total_paise, currency, status)
-    values ('83900000-0000-4000-8000-0000000000g1','83900000-0000-4000-8000-000000000001','83900000-0000-4000-8000-0000000000b3','83900000-0000-4000-8000-0000000000f4',25000,'INR','paid');
+    values ('83900000-0000-4000-8000-0000000000ad','83900000-0000-4000-8000-000000000001','83900000-0000-4000-8000-0000000000b3','83900000-0000-4000-8000-0000000000f4',25000,'INR','paid');
   exception when others then
     insert into h83_seed_errors values ('addon_orders: ' || SQLERRM);
   end;
@@ -352,9 +358,14 @@ select ok((select count(*) from jsonb_array_elements(pg_temp.snap('main')->'coll
 -- ---------------------------------------------------------------------------
 -- Section D: exact envelope, selection echo, zones, month coverage.
 -- ---------------------------------------------------------------------------
-select is((select array_agg(k order by ord) from (select k, ord from jsonb_object_keys(pg_temp.snap('main')) with ordinality as t(k,ord)) s),
-          array['asOf','zone','range','moneyRange','months','collection','heatmap','classes','warnings'],
-          'top-level envelope is exactly the nine frozen keys in order');
+-- Order-insensitive key-set pin: Postgres jsonb normalizes object key order
+-- internally (length-then-bytes), so the declaration's listing order is
+-- author-facing, not storage order or contract behavior; the SET of keys is
+-- what the envelope pins. Two canonically-normalized jsonb comparisons would
+-- agree the same way; sorting both sides makes the same point explicitly.
+select is((select array_agg(k order by k) from (select k, ord from jsonb_object_keys(pg_temp.snap('main')) with ordinality as t(k,ord)) s),
+          array['asOf','classes','collection','heatmap','moneyRange','months','range','warnings','zone'],
+          'top-level envelope is exactly the nine frozen keys (set-wise; listing order is author-facing, not contract behavior)');
 select is(pg_temp.snap('main')->'range'->>'from',(current_date - 1)::text,'range echoes the actual resolved from date');
 select is(pg_temp.snap('main')->'range'->>'through',current_date::text,'range echoes the actual resolved through date');
 select is(pg_temp.snap('main')->'range'->>'branchId',null,'whole-gym selection echoes a null branchId');

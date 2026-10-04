@@ -11,7 +11,8 @@ SQL, no git mutation, nothing executed against any database.
 ## Deliverable
 
 - Repaired `supabase/tests-holdout/h82_report_exports_holdout.sql`,
-  sha256 `9e7064272bd9d99c20151ae944e4acf0c10b85baafdf4637d526ef9bbfe41827`.
+  sha256 `e06a212da452d17dcede904d43de0422072683bd03015a5ad213068b396da74a`
+  (plan 179 — two vocabulary pins merged into one).
 - `plan(180)` literal; lowercase `begin;`/`rollback;`; `select * from finish();`;
   SETOF-text TAP; fixture uuid prefix `82900000-`; zero commits.
 
@@ -143,6 +144,16 @@ SQL, no git mutation, nothing executed against any database.
       canonical release on the original unreleased `_h82_env` attempt (the
       number-acceptance no longer consumes it); the second-release 23514 pin
       follows it. Plan 180 preserved; sha updated.
+0e. **Round 8 — post-reorder cascade adjudication (#174/#175).** Both
+    vocabulary pins were staged against consumed/ineligible attempts, so the
+    builder's (declaration-consistent) authority-before-vocabulary ordering
+    observed first. Amendment: both pins now run on ONE fresh unreleased
+    attempt (`_h82_voc`) as an occurrence-level merged refusal pin — the
+    vocabulary promise stays testable exactly where it is reachable
+    (after actor/tenant/prepared checks), and no state is invented. The
+    duplicate unknown-export-id line introduced by the round-7 edit was
+    removed; plan 179, sha updated. No residual behavior divergence: the
+    23514/42501 observed states are the declaration's own mechanisms.
 
 1. **Attendance fixture columns are best-effort.** The suite inserts
    `attendance(id,tenant_id,member_id,branch_id,source,checked_in_at,

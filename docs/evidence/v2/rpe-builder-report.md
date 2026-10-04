@@ -125,6 +125,43 @@ Two held-suite findings fixed per the declaration:
    The digest type check was added for the same clause-level symmetry; no
    lawfully formed release payload is refused by it.
 
+## H11 foreign-release adjudication (2026-10-04, coordinator round 3)
+
+H11 ("a foreign owner cannot release another tenant's attempt") failed
+against the PRE-REWRITE event writer, which accepted any released event with
+the base-key allowlist and no preparation linkage — no cross-tenant branch
+existed there at all. The rewritten release writer in the current bytes
+closes it structurally:
+
+- The prepared-attempt lookup (`WHERE r.export_id = p_export_id
+  AND r.tenant_id = v_tenant AND r.actor_user_id = v_actor`, migration lines
+  ~1042–1046) binds the attempt to the caller's claim tenant AND own actor;
+  a foreign attempt does not match and the writer refuses 42501
+  ('no prepared export attempt is available for this release'), identical
+  for absent and foreign targets so no existence is disclosed.
+- `v_tenant` itself resolves only from the caller's verified `tenant_id`
+  JWT claim, and the owner revalidation immediately requires the active
+  real owner staff row with `s.tenant_id = v_tenant` AND
+  `s.user_id = v_actor` — so a caller whose claims/staff identity disagree
+  with any tenant refuses before the lookup.
+- Already-released is refused 23514 before insert, with the
+  `audit_log_report_export_event_unique` partial index as the concurrent
+  atomic backstop.
+
+No additional source delta was required for H11; the declared foreign branch
+is present in the audited build. Suite 82's other three runtime failures
+were adjudicated author-side by the coordinator and need no builder work.
+
+## Release-ordering correction (coordinator round 4, 2026-10-04)
+
+The release writer's check order now matches the declaration's authority
+chain: owner-claims revalidation → own actor/tenant's prepared-UUID lookup
+(42501 for null/absent/foreign, one unavailable refusal) → already-released
+23514 → only then the event vocabulary, details-shape (23514) and
+canonical-string (22023) rejections. A foreign owner now receives the
+authority refusal, never a shape refusal that would hide the authority
+layer.
+
 ## Static self-check results
 - `node scripts/check-pgtap-rollback.mjs`: 159 pgTAP files checked, all
   rollback-wrapped (green).

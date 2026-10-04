@@ -200,3 +200,297 @@ ff29bc10f29b003a5fe972d7c90c2c2d17723988590e3c49be063d95db6752f2
 
 Static checks: check-pgtap-rollback green (no findings for this file);
 plan count re-verified at 206.
+
+## Runtime repair round 2 (post envelope-build runtime)
+
+Coordinator runtime fact: the suite progressed past the pre-build 42P01
+(the preparations table now exists) but aborted with
+`42883: function is(information_schema.sql_identifier[], text[], unknown) does not exist`.
+
+Diagnosis: RPE A24 aggregates `information_schema.columns.column_name`, whose
+element type is the catalog domain `information_schema.sql_identifier` on this
+Postgres generation, and compared it directly to a `text[]` literal — pgTAP's
+`is()` could not resolve an equality across the two array types.
+
+Repair: left operand cast at the aggregate — `array_agg(c.column_name::text
+order by ...)` — so the comparison is text[] vs text[]. Expectation, ordering
+and label unchanged; the assertion stays an exact full-column-list pin.
+Sibling sweep: all other array comparisons in the file aggregate
+`jsonb_object_keys` (text) — no sibling sql_identifier[] sites exist.
+
+New file sha256:
+e1e9d23ccc326821695a9004c66e2781f7460ca3f1000abfdb6741e945d42827
+
+## Runtime repair round 3 (post envelope-build runtime, rerun)
+
+Coordinator runtime fact: abort at `42883: function
+has_any_column_privilege(unknown, unknown, unknown, unknown) does not exist`.
+
+Diagnosis: RPE A25/A26 called `has_any_column_privilege` with FOUR arguments
+(user, table, column, privilege) — no such signature. The intended per-column
+privilege check is the catalog's `has_column_privilege(user, table, column,
+privilege)`; `has_any_column_privilege` only answers "any column at all" and
+its real signatures are (table, privilege) / (user, table, privilege).
+
+Repair: A25/A26 now call `has_column_privilege('authenticated',
+'app.report_export_preparations', '<column>', 'insert')` — dataset (true,
+input column) and tenant_id (false, derived column), expectations and labels
+unchanged. A27/A29/A30 keep their valid three-argument
+`has_any_column_privilege`/`has_table_privilege` forms. Function-arity sweep:
+the remaining `has_*` calls (has_table_privilege, has_function_privilege)
+match real catalog signatures.
+
+New file sha256:
+8a4caf151b7a852efdab1799b58dd6ea03016531a801db007d865354cbf17180
+
+## Runtime repair round 4 (post envelope rebuild)
+
+Coordinator runtime fact: abort
+`42883: function "app.derive_report_export_preparation(trigger)" does not exist`.
+
+Diagnosis: RPE A35 spelled the derive function as a one-argument regprocedure
+`app.derive_report_export_preparation(trigger)` (pinfo-style) inside
+`has_function_privilege`. The frozen declaration
+(openspec/changes/report-exports/sql-envelope-declaration.md) pins the
+standard zero-argument trigger form:
+`app.derive_report_export_preparation() RETURNS trigger STABLE SECURITY
+INVOKER` — the argument list is empty; RETURNS trigger is the return type.
+
+Repair: A35 now resolves `'app.derive_report_export_preparation()'` (declared
+zero-arg signature) for both the authenticated and anon no-EXECUTE pins;
+expectation (false for both) unchanged. RPE A40 carried the identical
+one-argument spelling for the audit function and was corrected to the declared
+`'app.audit_report_export_preparation()'` in the same round. A31–A34/A36/A41/A42 pin by proname/
+trigger name, which the declaration matches as-is — no further shape changes
+were needed, and the declaration is not silent on any pinned shape.
+
+New file sha256:
+7f8273c2125654d25b85cdb9df8aa811e872532a6980e8b95e530a15703ea53f
+997fb542437911e395837877aae5ae519426893288ccdd2a012e2cd3cb766ac9
+
+## Runtime repair round 5 (post envelope rebuild, rerun)
+
+Coordinator runtime fact: abort `42883: function is(smallint, integer, unknown)
+does not exist`.
+
+Diagnosis: RPE A41/A42 compared `pg_trigger.tgtype` (smallint) against integer
+literals 7/5 — pgTAP's `is()` is strictly typed and cannot resolve an
+int2-vs-int4 equality overload with an unknown third argument.
+
+Repair: both operands cast at the aggregate — `tgtype::integer` vs the integer
+literal; expectations (BEFORE INSERT row trigger = 7, AFTER INSERT row trigger
+= 5), trigger names and labels unchanged. Sweep of every remaining `is()` with
+a pg_catalog/information_schema operand: the only other catalog operands are
+booleans (`relrowsecurity`, `indisunique`) and already-cast counts — no
+further int2/int4/int8 mismatches exist in the file.
+
+New file sha256:
+38b0cc2f17ecdbd60a1a8b561d1c94ae79a04ff0f4d8022c11345e28a49b822a
+
+## Runtime repair round 6 (42601 scalar-subquery family)
+
+Coordinator runtime fact (isolation-proven): abort
+`42601: subquery must return only one column`, at suite line ~258.
+
+Diagnosis: the C22-family sentinel pins wrote the scalar subselect as
+`(select coalesce(nullif(pg_temp.j(...) #>> '{}','')::int, -1), -1)` — the
+trailing `, -1` was a duplicated coalesce argument landing in the SELECT LIST,
+making the scalar subquery two-column. The sentinel's intended value
+(`-1` when the envelope is missing so the assertion fails cleanly instead of
+aborting on null) lives only inside the `coalesce`'s own argument list.
+
+Repair at all four sites (C22 want=4; D11, D12, E7 want=1): removed the stray
+`, -1` from the subquery's select list so the first `is()` argument is the
+single-column `(select coalesce(nullif(pg_temp.j(...) #>> '{}','')::int,-1))`;
+outer want-values and labels unchanged; sentinel semantics unchanged.
+Verified no `,-1),-1)` remnants remain.
+
+New file sha256:
+6e84c696cb2836ace96ef892c62967fc4a5b97396a6ea64f4c1f57e47d85193f
+
+## Runtime repair round 7 (42703 v1/v2 alias)
+
+Coordinator runtime fact: abort `42703: column "v1" does not exist`.
+
+Diagnosis: RPE F13's inner subquery aliased the two res rows `k1`/`k2`
+(`from res k1 join res k2 on k1.k='bd1' and k2.k='bd2'`) but its select list
+referenced nonexistent bare `v1`/`v2` names — a pre-existing authoring typo in
+the statement text (not introduced by a later edit); it only surfaced now that
+execution reaches past the earlier aborts.
+
+Repair: the select list now references the real aliased columns —
+`select k1.v->>'export_id' <> k2.v->>'export_id'` — expectation (true: the two
+exports carry different UUIDs) and join unchanged. No other v1/v2 references
+exist in the file.
+
+New file sha256:
+201729b1098e3656f8b1642114cbfb35105d4c578815d34c6ddd73dc316252da
+
+## Runtime repair round 8 (dash-family scalar subselects)
+
+Coordinator runtime fact: abort at suite line ~337, same two-column
+scalar-subselect family as round 6 — this time with the `'-')` sentinel:
+`(select coalesce(nullif(pg_temp.j(...) #>> '{range_basis}',''),'-'),'-')`,
+where the trailing `,'-'` landed as a second SELECT-list item.
+
+Repair at both members (F32 want='joined_on', F33 want='checked_in_at'):
+dropped the stray `,'-'` from the subquery's select list so the first `is()`
+argument is the single-column `(select coalesce(nullif(...#>>'{range_basis}',
+''),'-'))`; outer expectations and labels unchanged.
+
+Mechanical sweep completed with a dollar-quote/quote-aware scanner
+(the earlier round-6 scan missed these because the scanner required a `from`
+clause to delimit the select list — these subqueries have none): every
+`is((select ...))` first argument in the file now resolves to exactly one
+depth-0 select-list item; zero multi-item scalar subselects remain. The
+scanner's other flags (lines 123/124/141/142/179) are string-literal or
+coalesce-argument commas inside depth>0 — verified single-column by the same
+dollar-quote-aware item splitter.
+
+New file sha256:
+34acac16c696c8d3594f250f71183ae5b3d35b8ea62ed387fab2ef4e7be06b2e
+
+## Runtime repair round 9 (G24 multi-row scalar subselect)
+
+Coordinator runtime fact (bisection): RPE G24's scalar subselect
+`(select data_row_count::text from app.report_export_preparations where
+dataset='payments' and range_from=date '2026-02-02')` matches MULTIPLE
+preparation rows — the tableau has, by construction, two payments/02-02
+attempts: the F39 zero-match RPC export and G23's lawful direct INSERT.
+
+Repair (unique attempt id, never latest-of): G23's single INSERT statement is
+now executed exactly once through a new tiny capture helper
+`pg_temp.id(q) returns uuid` (`execute q into r; exception → null`, granted
+alongside the existing helpers), whose `returning export_id` lands in the res
+table as `zeroPrep`. G23's pin keeps label RPE G23 and equivalent strength: it
+now asserts the statement yielded a fresh export UUID (a refusal leaves null
+and the pin fails) — the original OK-probe classified the same single
+statement. RPE G24 and G25 now pin `data_row_count`/audit linkage through
+`export_id = (select (v#>>'{}')::uuid from res where k='zeroPrep')` — the
+unique direct attempt's own id; their expectations ('0' and one
+report_export.prepared audit event) and labels are unchanged except for the
+pinning note.
+
+Sibling sweep: every remaining scalar subselect over
+app.report_export_preparations pins a unique row — the members
+(dataset='members', range 2026-01-01, branch_scope='all', row_cap=2) family
+matches exactly G1's direct row (the RPC members export carries row_cap=1000,
+the DST export a different range), G12's branch_id=u(11) matches only row B,
+the F21/F26/F41/G25 pins use captured export ids, and G17/G20 are counts.
+No bare dataset+range_from scalar subselects remain.
+
+New file sha256:
+470caa80060fb9fb7c2326ce123ab8354d15176685d221c564d76a107774e7c8
+
+## Runtime adjudication round 10 (first full-plan run: 206 ran, 4 failures)
+
+#66 RPE B20 (FAIL) — author-owned probe defect. The probe passed the
+ill-typed literal `'2026-13-01'` for the p_from date parameter: that constant
+fails date coercion at PARSE/PLAN time for any caller, so the statement can
+never reach the function body and can never demonstrate refusal ordering.
+Repaired lawfully: the probe now keeps only the dataset invalid
+(`'nonsense'` with valid typed dates), so the only possible refusal before
+validation is authorization — expectation 42501 and intent unchanged. The
+"authorization precedes validation" property stays pinned in its real,
+testable form.
+
+#90 RPE C22 (FAIL) — author-owned want-value miscount. Deriving from the
+suite's own lawful fixtures: in-range branch-A payments are 401 and 407
+(paid), 405 (inclusive at-boundary start, in range), while 406 is excluded by
+the exclusive after-through boundary (proven by C15/C16) and 403 belongs to
+the erased member, whom the frozen erasure filter excludes — exactly three.
+The original `four` counted the erased member's row. Corrected want 4 → 3
+with the derivation recorded in the label. (Coordinator's got/wanted payload
+dump may be used to double-confirm; the derivation is independent of it.)
+
+#172 RPE G20 (FAIL) — author-owned expectation defect. The count under the
+tenant-2 owner expected 0, but the declaration itself grants the verified
+active real owner visibility of their OWN prepared rows ("RLS INSERT/SELECT
+requires tenant claim, own actor and verified active real owner"): B21's
+lawful tenant-2 export already created exactly one own-actor attempt. Zero
+was never contract-true. Corrected: expect exactly 1 (the foreign owner's own
+B21 row); any tenant-1 leak pushes the count above 1, so the
+no-cross-actor/tenant property remains fully tested. Label records the
+reasoning.
+
+#188 RPE H11 (FAIL) — PUBLIC ENVELOPE FINDING against the built release
+writer. Declaration (sql-envelope-declaration.md, release-writer paragraph):
+"Writer revalidates active owner/claims and finds exactly this actor/tenant's
+prepared UUID, rejects absent/foreign/already released attempts." A foreign
+owner (verified active real owner of tenant 2) releasing tenant 1's prepared
+attempt must refuse; the built writer does not (runtime: no refusal). This is
+a contract-true, never-weakened finding for the envelope builder; the
+assertion stands exactly as authored.
+
+Plan(206) preserved (assertion count unchanged for all three author-owned
+corrections; no assertion removed). Static rollback guard green.
+
+New file sha256:
+f2e8769906799e8622348f3ad77ec3c2599dcae041f0367fbcaffa1a2946db4a
+
+## Runtime adjudication round 11 (fresh-runtime residuals: new facts)
+
+#172 G20 (have 2, was want 1) — fixture-derivation miss, expectation now
+exact: tenant-2's owner lawfully holds TWO prepared attempts at G20 time —
+B21's payments export AND D12's attendance export (both run under the same
+verified owner claim 25/905/tenant-2 earlier in the suite; I had counted only
+B21). Want corrected 1 → 2. Both rows are own-actor/own-tenant — NO
+cross-tenant leak is present at this predicate; the no-cross-actor/tenant
+property still holds because any tenant-1 row pushes the count beyond 2.
+
+#188 H11 (have 22023, want 42501) — CONFIRMED PUBLIC FINDING with the new
+fact: the foreign release IS refused (my earlier "does not refuse" framing
+was against the pre-round-9 bytes), but the refusal CLASS is wrong. The
+declaration's release-writer paragraph requires the writer to "revalidate
+active owner/claims and finds exactly this actor/tenant's prepared UUID,
+rejects absent/foreign/already released attempts" — the foreign case belongs
+to the actor/claims revalidation (the 42501 class, consistent with H10's
+absent-attempt refusal); the observed 22023 means a shape/allowlist check
+catches the foreign row before the actor check. Builder routing: order the
+release writer's revalidation so the actor/tenant check precedes the shape
+rejections. Pin stays exactly as authored (42501) — no weakening.
+
+#90 C22 (have 5, want 3) — still open on my side: my derivation gives exactly
+3 lawful branch-A rows (401, 405, 407), with 403 excluded by the erasure
+filter and 406 by the exclusive after-through boundary (the latter proven
+in-suite by passing C15). Five means two extra rows beyond the three — my
+static derivation of the remaining candidates (402 lives at branch u(13,
+proven by passing C21's exactly-one-row pin; no other payments exist) cannot
+produce a lawful fifth and second extra row, so I need the coordinator's
+per-row payload dump for the C22 run to identify which rows the executed
+filter collected before I touch the want-value. NOT weakening blindly.
+
+Plan(206) preserved. Static rollback guard green.
+d86ce5dddd4faf5bb63805542d7ed4751d44ca53d3c357692182f4d414437162
+
+## Runtime repair round 12 (re-homing the H-block onto a live unreleased attempt)
+
+New runtime facts after the builder's reordering fix: H13–H24 caught
+42501 "no prepared attempt" (actor/claims revalidation precedes
+vocabulary/shape checks), so the shape promises were unobservable against the
+old nonexistent-id probe target; H20–H24's boolean ok() probes additionally
+mis-read the actor refusal as pass-through. The holdout author's adjudication
+(re-home vocabulary pins onto a fresh unreleased attempt) is mirrored.
+
+Repair (no weakening; every promise keeps its exact expectation class):
+- One non-assertion capture statement inserted after H12: a fresh, lawful,
+  same-actor (gym_owner 21/901/tenant-1) unreleased direct preparation
+  (`payments`, 2026-03-01..03-31 zero rows, cap 500) whose `returning
+  export_id` lands in res as `voc` — the payments range never collides with
+  zeroPrep (02-02) and the attempt is never released by any pin.
+- H13–H15 (event vocabulary), H17 (null details), H18–H19 (allowlist/no row
+  content), H20–H24 (zero/oversize/non-canonical/short/uppercase digest) now
+  pass the captured voc attempt id, so the actor check passes and each
+  targeted vocabulary/shape check is the one that fires — exactly where
+  reachable, expectations ('22023', '23514', in-lists) unchanged.
+- H16 (null export id) structurally cannot re-home — it stays authored
+  against the null id with its 22023 precedence-vocabulary pin.
+- H25 (member identity) and H26 (anon) keep u(872): member/anon refuse at the
+  actor gate regardless of attempt existence; H27 ("every refused release
+  wrote nothing") keeps u(871)/u(872) — semantics unaffected by the voc row,
+  whose record_id is distinct.
+
+Plan(206) preserved (the insertion is a capture statement + comment, not an
+assertion). Static rollback guard green. C22 (have 5 want 3) remains open
+pending the coordinator's per-row payload dump.
+4150f664634c1eb6f0029337e69bb7b5db7490a254f4d176fa155c352ed5c9f7

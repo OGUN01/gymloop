@@ -21,7 +21,7 @@
 begin;
 set local role postgres;
 set local search_path to public, extensions;
-select plan(180);
+select plan(179);
 
 -- §A — real-migration shape pins (catalog only).
 select ok(to_regprocedure('public.export_report_snapshot(text,date,date,uuid,integer)') is not null,'the real five-argument bounded snapshot operation exists');
@@ -423,8 +423,22 @@ select set_config('request.jwt.claims','{"sub":"82900000-0000-4000-8000-00000000
 set local role authenticated;
 select throws_ok($q$select public.append_report_export_event('report_export.released',(select (env->>'export_id')::uuid from _h82_env)::uuid,jsonb_build_object('byte_count','123','artifact_sha256',repeat('d',64)))$q$,'23514',null,'a second release of one prepared attempt is refused');
 select throws_ok($q$select public.append_report_export_event('report_export.released','82900000-0000-4000-8000-000000000602',jsonb_build_object('byte_count','123','artifact_sha256',repeat('a',64)))$q$,'42501',null,'a release of an unknown export id is refused');
-select throws_ok($q$select public.append_report_export_event('report_export.prepared',(select (env->>'export_id')::uuid from _h82_env)::uuid,jsonb_build_object())$q$,'22023',null,'the public helper never accepts the prepared event: only the trigger appends it');
-select throws_ok($q$select public.append_report_export_event('report_export.opened','82900000-0000-4000-8000-000000000603',jsonb_build_object())$q$,'22023',null,'an unknown audit event is refused by the fixed vocabulary');
+drop table if exists _h82_voc;
+create temp table _h82_voc as
+select public.export_report_snapshot('payments','2026-09-15','2026-09-15',null,100) as env;
+select lives_ok($q$do $voc$ declare v_refused boolean;
+begin
+  v_refused := false;
+  begin
+    perform public.append_report_export_event('report_export.prepared',(select (env->>'export_id')::uuid from _h82_voc),jsonb_build_object());
+  exception when others then v_refused := true; end;
+  if not v_refused then raise exception 'the public helper accepted the prepared event'; end if;
+  v_refused := false;
+  begin
+    perform public.append_report_export_event('report_export.opened',(select (env->>'export_id')::uuid from _h82_voc),jsonb_build_object());
+  exception when others then v_refused := true; end;
+  if not v_refused then raise exception 'the public helper accepted an event outside the fixed vocabulary'; end if;
+end $voc$;$q$,'the public helper accepts only the released event: prepared and unknown events are refused by the fixed vocabulary on a fresh unreleased attempt');
 drop table if exists _h82_rel;
 create temp table _h82_rel as
 select public.export_report_snapshot('payments','2026-09-15','2026-09-15',null,100) as env;

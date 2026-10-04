@@ -178,3 +178,154 @@ current source:
   plan(77) preserved (77 verified); rollback guard green (159 files). SQL NOT
   executed here.
 - New sha256: `1135c79633e204c38197135b3baec91fb8c9e21cfdd9f3b7cc82be3d681f3d6a`.
+
+## Runtime repair — round 6 (declaration conformance amendments, coordinator line refs)
+
+- #63/#64 amended (declaration line 143): drill-row wants extended to the full
+  declared key set — `startsAt`/`endsAt` inserted after `sessionDate` with the
+  stored session instants (`2026-09-14T01:00:00Z`/`02:00:00Z`,
+  `2026-09-16T01:00:00Z`/`02:00:00Z`); all counting/fraction keys unchanged.
+- #67 amended (declaration line 148): the per-service rollup want is now the
+  full declared `{serviceId, summary:Summary}` item — the sole cohort
+  service's aggregate (service 411 owns both cohort sessions) equals the
+  branch summary pinned in #62; exact-key equality subsumes the previous
+  "no trainer or member identifiers" projection pin.
+- #30 (OCC-012 exact February classification, the add-on order-link /
+  unallocated evidence pin): runtime capture returned no got/wanted detail —
+  noted here for the coordinator. The want pins, per month Feb of the wide
+  range: collectedPaise "98122" = 42345 (707 first-membership money) + 50000
+  (708's successor renewal) + 5000 (501's add-on via order linkage to 703) +
+  777 (704 unallocated manual), returnedPaise "0", netPaise "98122";
+  categories.label the derived-classification string, all four categories
+  with unknownReturnPaise "0" in unallocated. The discriminator evidence the
+  runtime would have revealed: whether 501's add-on linkage (addon_orders →
+  payments 703) classifies under `addon` and 707's membership evidence
+  (createdAt 2025-06-01 strictly earlier) classifies the Feb 2 payment as
+  first-membership money. If the runtime mismatch is in any of those
+  numbers, the likeliest causes are (a) the 707/708 IST-midnight boundary
+  arithmetic or (b) the order-linkage derivation path — both already pinned
+  independently in #30's own want and in #24/#25's evidence assertions.
+- plan(77) preserved (77 verified); rollback guard green (159 files). SQL NOT
+  executed here.
+- New sha256: `c10e74f6bacfd6b5dfe07bc796f65f6fe2f0e2328092ba37530b65c8193e29a7`.
+
+## Runtime repair — round 7 (claims-context cluster #5/#13/#14/#15)
+
+- Root cause (coordinator-proven via prefix probe): at section B the
+  top-level claims context still held the fixture section's gym-owner
+  object — subtransaction-local settings (any clear executed inside a probe's
+  begin/exception block or DO wrapper) roll back with the subtransaction, so
+  the gate cases judged against an empty context never saw one and the gate
+  lawfully admitted the stale identity.
+- Edit: the claims clear for section B is now an explicit TOP-LEVEL
+  statement (`select set_config('request.jwt.claims','',true);`) placed at
+  the section-B header before case #5, with a recorded reason comment.
+  Section transitions audited: line-190 claim (before A) is the stale
+  identity the clear supersedes; line-215's top-level gym_owner re-claim
+  covers C onward; the section-J tenant-2 switch and its post-J re-claim are
+  both top-level and intentional; no other wrapped-context clears exist.
+- plan(77) preserved (77 verified); rollback guard green (159 files). SQL NOT
+  executed here.
+- New sha256: `04a6e26cf9a36f43a304ea54e841dec9484144a637d2e55126684221c46d0bd2`.
+
+## Runtime repair — round 8 (call-form amendment: explicit holiday toggle everywhere)
+
+- Runtime fact (top-level clear + defaults-less bytes): 68 failures, the
+  dominant class 42883 — the builder shipped the two-arg delegate and the
+  full 4-arg form with NO boolean default, so every 3-arg call site (the
+  third null relying on the old default) matched no signature and the
+  guarded probes captured a signature error instead of the intended
+  envelope/refusal shape.
+- Amendment per the declaration's stated call forms: every 3-arg call site
+  gains the explicit fourth argument — default holiday-exclusion `true`
+  everywhere the scenario meant the default; toggle-off scenarios already
+  passed their own. Sites amended: the two unguarded-toggle snapshot helpers
+  (`pg_temp.snap`, `pg_temp.snapj` — both now call the 4-arg form with
+  `true`), the six B-section gate probes, and the five C-section state calls
+  (reversed range, non-Gregorian date, invalid branch zone, unknown branch,
+  foreign branch). `snapx`/`snapjx` and the null-toggle pin were already
+  4-arg. The previously-passing state under leaked gym-owner claims masked
+  real gate behavior; regressions are re-derivable now that call forms and
+  claims sequencing are both correct.
+- plan(77) preserved (77 verified); rollback guard green (159 files). SQL NOT
+  executed here.
+- New sha256: `639a42bc50478e6ab8945372de35466a612e5f450e724056b4dcbefecedf9e8b`.
+
+## Runtime repair — round 9 (suite-side projection type bug at #28)
+
+- Root cause (suite-side, not runtime): the #28 have-payload built
+  `jsonb_build_object('allocationUnknown', r->>'allocationUnknown', ...)` —
+  the `->>` TEXT extraction put the boolean's text into a jsonb STRING slot,
+  so the have side always rendered `"allocationUnknown":"false"/"true"` while
+  the want literal pins real JSON booleans. The runtime may already be
+  correct.
+- Edit: extraction switched to jsonb-preserving `r->'allocationUnknown'` —
+  expectation unchanged.
+- Sibling sweep (all `jsonb_build_object` fed by `->>` extractions): #21
+  month/from/through/coverage are want-strings (text correct); #44's
+  visit counters are want-strings per the declaration's string-typed counts
+  (text correct); #60/#61 mix month/from/through/coverage strings with an
+  already jsonb-preserved `m->'currencies'`. #30's evidence checks compare
+  text directly (`#>>'{membershipEvidence,hasEarlierMembership}'='true'`) and
+  cast timestamps — no typed slots; the add-on/unallocated evidence probe
+  already uses `r->'membershipEvidence' is null` (jsonb-preserving). No
+  further same-class sites exist.
+- plan(77) preserved (77 verified); rollback guard green (159 files). SQL NOT
+  executed here.
+- New sha256: `aa9185ff39cfb8481c45b298e3c7768b04f333095d75f0d2fccd71cbab7eb8f9`.
+
+## Runtime repair — round 10 (timestamp spelling canonicalization to RFC3339 Z)
+
+- Builder decision: the OCC envelope emits canonical RFC3339 UTC `Z` at all
+  17 emission sites; the suite's wants previously mixed `Z` and `+00:00`
+  spellings, which no deterministic emission could satisfy.
+- Sweep results: exactly ONE non-`Z` want literal existed — #28's
+  membershipEvidence createdAt embed (`2026-01-10T00:00:00+00:00`), now
+  `2026-01-10T00:00:00Z`; the real-boolean `allocationUnknown` literal stays.
+- Correct as-is (no amendment): the moneyRange/months/branch-range boundary
+  comparisons cast the runtime-emitted text to timestamptz and compare
+  instants — spelling-agnostic under either emission; drill-row
+  startsAt/endsAt wants were authored directly in `Z`; no disclosure-stamp
+  want literal carries a non-`Z` spelling.
+- plan(77) preserved (77 verified); rollback guard green (159 files). SQL NOT
+  executed here.
+- New sha256: `e7d3b84a2054150c0f49188a61eaa20eaf401d5efd7959366e701248949812ee`.
+
+## Runtime repair — round 11 (seven residual pins adjudicated suite-side, zero source deltas)
+
+Compared each pin against the coordinator's captured keys for this suite's
+exact snapshot calls (`scratchpad/83-keys.txt`):
+
+- #20 — root cause: type confusion on the PRESENT-null. KEYmr carries
+  `"error": null` as a jsonb null VALUE; my conjunct `->'error' is null`
+  tests SQL null and is false for a present jsonb null. Amended to
+  `->'error'='null'::jsonb`. All other conjuncts verified against KEYmr by
+  instant-cast (startsAt 2025-12-31T18:30Z = Jan-1 00:00 IST, cutoff ==
+  endsBefore, localToday 2026-10-04 = gym_today).
+- #30 — same class: KEYc703/KEYc704 carry category + `membershipEvidence`
+  jsonb null exactly as pinned; `r->'membershipEvidence' is null` was false
+  for the present null. Amended both conjuncts to `='null'::jsonb`.
+- #39 — KEYhb11 zone/zoneSource match; the failing conjunct was the same
+  present-null error test. Amended to `->'error'='null'::jsonb`.
+- #49 — KEYhb13 matches all nine fields; the failing conjunct was
+  `->'range' is null` on the present jsonb null. Amended to
+  `=`'null'::jsonb`.
+- #56 — re-planned per adjudication: the resolved selection must contain the
+  asOf-derived current day; the snapshot call is now a seven-day window
+  ending at the run day (`gym_today()-6 .. gym_today()`) instead of the
+  single-day range. Expectations unchanged (state=current, visits=1, exact
+  clock-hour arrival).
+- #66 — want amended to the captured five-key drill form (identity keys plus
+  startsAt/endsAt instants) with the recorded label note that capacity,
+  bookings and fractions stay absent.
+- #76 — the section already routes through the corrupt gym's owner claims at
+  the section-J header; a defensive explicit top-level claims restatement
+  (sub 905, gym_owner, tenant 2, staff 25) now sits immediately before the
+  snapshot calls so the captured-call fallthrough to the valid tenant cannot
+  recur.
+- #28's spelling canonicalization was completed in round 10.
+
+No test weakening anywhere; each amendment preserves (or strengthens) the
+declaration pin. plan(77) preserved (77 verified); rollback guard green (159
+files). SQL NOT executed here.
+- New sha256: `d55452609d73f95ef3a3023966aa51100031ad78818f59e743d6efea4cf3b973`.
