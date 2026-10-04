@@ -704,8 +704,8 @@ select lives_ok($q$select pg_temp.reg('W3','KF5')$q$,'BUY-001 the member-status 
 set local role postgres;
 select pg_temp.claim('member',1,null,35,910);
 set local role authenticated;
-select lives_ok($q$select public.create_purchase_request(pg_temp.sid(530),'shop',pg_temp.sid(101),1,(select quote_version from public.addon_products where id=pg_temp.sid(101)))$q$,'BUY-001 member-status control request created');
-select pg_temp.cap('KF6',530);
+select lives_ok($q$select public.create_purchase_request(pg_temp.sid(532),'shop',pg_temp.sid(101),1,(select quote_version from public.addon_products where id=pg_temp.sid(101)))$q$,'BUY-001 member-status control request created');
+select pg_temp.cap('KF6',532);
 set local role postgres;
 select pg_temp.claim('front_desk',1,23,null,903);
 set local role authenticated;
