@@ -4,7 +4,7 @@ import { commsOk, commsRpcFailure } from '../../../../../lib/comms';
 import { whatsappDispatchResult, whatsappStaffCaller } from '../../../../../lib/whatsapp';
 
 /**
- * `POST /api/notifications/[notificationId]/whatsapp-dispatch` — the front
+ * `POST /api/notifications/[id]/whatsapp-dispatch` — the front
  * office queues a notification's WhatsApp send (WSP-001). The body carries
  * exactly the replay key; recipient, cost, sender, template and channel are
  * all derived by trusted server code and never accepted from a request, so a
@@ -24,12 +24,12 @@ function parseDispatchBody(payload: unknown): string | null {
 
 export async function POST(
   request: Request,
-  context: { params: Promise<{ notificationId: string }> },
+  context: { params: Promise<{ id: string }> },
 ): Promise<Response> {
   const caller = await whatsappStaffCaller(request);
   if ('failure' in caller) return caller.failure;
 
-  const { notificationId } = await context.params;
+  const { id: notificationId } = await context.params;
   if (!staffWhatsappConsentRequestSchema.shape.memberId.safeParse(notificationId).success) {
     return apiFail('bad_request', 'invalid_request', 'That message reference is not a valid id.');
   }

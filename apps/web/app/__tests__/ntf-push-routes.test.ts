@@ -27,7 +27,7 @@ const routes = [
   { path: '../api/member/push-device/route', method: 'POST', audience: member, rpc: 'register_member_push_device', body: { installationId: id, pushToken: 'fcm-token-fixture', platform: 'android' } },
   { path: '../api/member/push-device/remove/route', method: 'POST', audience: member, rpc: 'unregister_member_push_device', body: { installationId: id } },
   { path: '../api/member/push-preference/route', method: 'POST', audience: member, rpc: 'set_member_push_preference', body: { category: 'renewal', enabled: true } },
-  { path: '../api/member/notifications/[notificationId]/push-event/route', method: 'POST', audience: member, rpc: 'acknowledge_member_push', body: { deviceId: id, tokenRevision: 1, event: 'received' } },
+  { path: '../api/member/notifications/[id]/push-event/route', method: 'POST', audience: member, rpc: 'acknowledge_member_push', body: { deviceId: id, tokenRevision: 1, event: 'received' } },
   { path: '../api/announcements/[announcementId]/push-review/route', method: 'POST', audience: owner, rpc: 'review_announcement_push', body: { versionNo: 2, requestKey: id } },
   { path: '../api/push-campaigns/[campaignId]/cancel/route', method: 'POST', audience: owner, rpc: 'cancel_announcement_push', body: {} },
 ] as const;
@@ -35,7 +35,7 @@ function request(payload: unknown, method: string, malformed = false) {
   const value = new Request('https://gym.example/api/ntf', { method, headers: { authorization: 'Bearer verified-caller-token', 'content-type': 'application/json' }, body: malformed ? '{' : JSON.stringify(payload) });
   const parse = value.json.bind(value); vi.spyOn(value, 'json').mockImplementation(async () => { state.events.push('body'); return parse(); }); return value;
 }
-const context = { params: Promise.resolve({ notificationId: id, announcementId: id, campaignId: id }) };
+const context = { params: Promise.resolve({ id, notificationId: id, announcementId: id, campaignId: id }) };
 async function invoke(route: typeof routes[number], req: Request) { const module = await import(route.path); return module[route.method](req, context) as Promise<Response>; }
 beforeEach(() => { state.claims = member; state.calls = []; state.results = []; state.events = []; });
 
