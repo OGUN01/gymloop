@@ -1,6 +1,14 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { MemberTraining, PtPack, PtSession } from '../../packages/shared/src/api/pt-front-data';
 
+// The naive-timestamp rows below (endsAt without an offset suffix) resolve
+// through Date.parse in the HOST timezone: the shared ptRecordedInterval
+// accepts or rejects them depending on the runner's TZ. The expectations
+// here were authored under Asia/Kolkata (a naive 09:00 lands 03:30Z, before
+// the 08:00Z start, so the interval is invalid and consumption is null);
+// pin the process TZ so both pinned rows behave identically on UTC runners.
+process.env.TZ = 'Asia/Kolkata';
+
 const command = {
   sessionId: '11000000-0000-4000-8000-000000000001',
   orderId: '22000000-0000-4000-8000-000000000002',
