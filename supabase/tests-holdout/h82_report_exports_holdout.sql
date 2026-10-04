@@ -128,7 +128,11 @@ begin
     join pg_type t on t.oid = a.atttypid
     join pg_enum e on e.enumtypid = t.oid
    where a.attrelid = 'public.attendance'::regclass and a.attname = 'source'
+     and e.enumlabel <> 'front_desk'
    limit 1;
+  if v_src is null then
+    raise exception 'holdout fixture: no non-front-desk attendance source label exists to model a member check-in lawfully';
+  end if;
   for r in select * from (values
     ('82900000-0000-4000-8000-000000000061','82900000-0000-4000-8000-000000000031','82900000-0000-4000-8000-000000000901','2026-09-15T03:00:00+00'::timestamptz,'2026-09-15T04:00:00+00'::timestamptz),
     ('82900000-0000-4000-8000-000000000062','82900000-0000-4000-8000-000000000031','82900000-0000-4000-8000-000000000901','2026-09-15T05:30:00+00'::timestamptz,null::timestamptz),
@@ -189,7 +193,7 @@ create temp table _h82_fx as
 select public.export_report_snapshot('payments','2026-09-15','2026-09-15',null,100) as env;
 set local role postgres;
 select is((select env->>'data_row_count' from _h82_fx),'0','a valid foreign-tenant owner reads their own empty scope');
-select ok(exists(select 1 from app.report_export_preparations where export_id=(select env->>'export_id' from _h82_fx) and tenant_id='82900000-0000-4000-8000-000000000009'),'a zero-row accepted export still inserts its one preparation');
+select ok(exists(select 1 from app.report_export_preparations where export_id=(select (env->>'export_id')::uuid from _h82_fx) and tenant_id='82900000-0000-4000-8000-000000000009'),'a zero-row accepted export still inserts its one preparation');
 
 -- §E — branch semantics through the real RPC (owner A).
 select set_config('request.jwt.claims','{"sub":"82900000-0000-4000-8000-000000000011","role":"authenticated","app_role":"gym_owner","staff_id":"82900000-0000-4000-8000-000000000021","tenant_id":"82900000-0000-4000-8000-000000000001"}',true);
@@ -298,7 +302,7 @@ select is((select array_agg(k order by k) from (select jsonb_object_keys(env->'r
   array['attendance_id','branch_id','checked_in_at_utc','checked_in_local','checked_out_at_utc','current_member_name','member_code','member_id','offline_recorded_at_utc','replayed_at_utc','source']::text[],
   'the attendance projection carries exactly its fixed keys');
 select is((select env->'rows'->0->>'source' from _h82_att),
-  (select e.enumlabel from pg_attribute a join pg_type t on t.oid=a.atttypid join pg_enum e on e.enumtypid=t.oid where a.attrelid='public.attendance'::regclass and a.attname='source' limit 1),
+  (select e.enumlabel::text from pg_attribute a join pg_type t on t.oid=a.atttypid join pg_enum e on e.enumtypid=t.oid where a.attrelid='public.attendance'::regclass and a.attname='source' and e.enumlabel <> 'front_desk' limit 1),
   'the attendance source crosses as its stored generated vocabulary word');
 select is((select env->'rows'->0->>'branch_id' from _h82_att),'82900000-0000-4000-8000-000000000901','attendance branch filtering uses the stored event branch uuid');
 
@@ -322,25 +326,25 @@ select is((select env->>'has_more' from _h82_cap3),'true','the over-cap envelope
 select is((select env->>'data_row_count' from _h82_cap3),'4','the over-cap envelope still carries the exact complete snapshot count');
 select is((select (env->>'row_cap')::int from _h82_cap3),3,'the over-cap envelope echoes the requested cap');
 select ok(not exists(select 1 from app.report_export_preparations p where p.row_cap=3 and p.tenant_id='82900000-0000-4000-8000-000000000001'),'an over-cap refusal inserts no preparation and appends no audit');
-select ok((select env->>'export_id' from _h82_env) <> (select env->>'export_id' from _h82_cap4),'every fresh attempt derives its own fresh export id');
+select ok((select (env->>'export_id')::uuid from _h82_env) <> (select (env->>'export_id')::uuid from _h82_cap4),'every fresh attempt derives its own fresh export id');
 
 -- §K — the preparation contract behind a real bounded attempt.
-select is((select count(*) from app.report_export_preparations where export_id=(select env->>'export_id' from _h82_env)),1::bigint,'one accepted export inserts exactly one preparation');
-select is((select dataset from app.report_export_preparations where export_id=(select env->>'export_id' from _h82_env)),'payments','the preparation records the validated dataset');
-select is((select range_from::text from app.report_export_preparations where export_id=(select env->>'export_id' from _h82_env)),'2026-09-15','the preparation records the validated range open');
-select is((select range_through::text from app.report_export_preparations where export_id=(select env->>'export_id' from _h82_env)),'2026-09-15','the preparation records the validated range close');
-select is((select branch_id from app.report_export_preparations where export_id=(select env->>'export_id' from _h82_env)),null::uuid,'the all-branches preparation stores a null branch');
-select is((select row_cap from app.report_export_preparations where export_id=(select env->>'export_id' from _h82_env)),100,'the preparation records the validated row cap');
-select is((select tenant_id from app.report_export_preparations where export_id=(select env->>'export_id' from _h82_env)),'82900000-0000-4000-8000-000000000001','the preparation derives its tenant from the verified claims');
-select is((select actor_user_id from app.report_export_preparations where export_id=(select env->>'export_id' from _h82_env)),'82900000-0000-4000-8000-000000000011','the preparation derives its actor from the verified claims');
-select is((select actor_role::text from app.report_export_preparations where export_id=(select env->>'export_id' from _h82_env)),'gym_owner','the preparation derives its role server-side');
-select is((select format from app.report_export_preparations where export_id=(select env->>'export_id' from _h82_env)),'csv','the preparation records the format');
-select is((select data_row_count::text from app.report_export_preparations where export_id=(select env->>'export_id' from _h82_env)),'4','the preparation count equals the envelope snapshot count');
-select is((select source_cutoff_at_utc from app.report_export_preparations where export_id=(select env->>'export_id' from _h82_env)),(select snapshot_at_utc from app.report_export_preparations where export_id=(select env->>'export_id' from _h82_env)),'the preparation cutoff equals its snapshot instant');
-select is((select timezone from app.report_export_preparations where export_id=(select env->>'export_id' from _h82_env)),'Asia/Kolkata','the preparation records the validated zone');
-select is((select range_basis from app.report_export_preparations where export_id=(select env->>'export_id' from _h82_env)),'created_at','the preparation records the range basis');
-select is((select branch_scope from app.report_export_preparations where export_id=(select env->>'export_id' from _h82_env)),'all','the preparation records the branch scope');
-select ok((select generated_at_utc is not null and snapshot_at_utc is not null and range_start_utc is not null and range_end_exclusive_utc is not null from app.report_export_preparations where export_id=(select env->>'export_id' from _h82_env)),'every preparation stamp is server-derived and present');
+select is((select count(*) from app.report_export_preparations where export_id=(select (env->>'export_id')::uuid from _h82_env)),1::bigint,'one accepted export inserts exactly one preparation');
+select is((select dataset from app.report_export_preparations where export_id=(select (env->>'export_id')::uuid from _h82_env)),'payments','the preparation records the validated dataset');
+select is((select range_from::text from app.report_export_preparations where export_id=(select (env->>'export_id')::uuid from _h82_env)),'2026-09-15','the preparation records the validated range open');
+select is((select range_through::text from app.report_export_preparations where export_id=(select (env->>'export_id')::uuid from _h82_env)),'2026-09-15','the preparation records the validated range close');
+select is((select branch_id from app.report_export_preparations where export_id=(select (env->>'export_id')::uuid from _h82_env)),null::uuid,'the all-branches preparation stores a null branch');
+select is((select row_cap from app.report_export_preparations where export_id=(select (env->>'export_id')::uuid from _h82_env)),100,'the preparation records the validated row cap');
+select is((select tenant_id from app.report_export_preparations where export_id=(select (env->>'export_id')::uuid from _h82_env)),'82900000-0000-4000-8000-000000000001','the preparation derives its tenant from the verified claims');
+select is((select actor_user_id from app.report_export_preparations where export_id=(select (env->>'export_id')::uuid from _h82_env)),'82900000-0000-4000-8000-000000000011','the preparation derives its actor from the verified claims');
+select is((select actor_role::text from app.report_export_preparations where export_id=(select (env->>'export_id')::uuid from _h82_env)),'gym_owner','the preparation derives its role server-side');
+select is((select format from app.report_export_preparations where export_id=(select (env->>'export_id')::uuid from _h82_env)),'csv','the preparation records the format');
+select is((select data_row_count::text from app.report_export_preparations where export_id=(select (env->>'export_id')::uuid from _h82_env)),'4','the preparation count equals the envelope snapshot count');
+select is((select source_cutoff_at_utc from app.report_export_preparations where export_id=(select (env->>'export_id')::uuid from _h82_env)),(select snapshot_at_utc from app.report_export_preparations where export_id=(select (env->>'export_id')::uuid from _h82_env)),'the preparation cutoff equals its snapshot instant');
+select is((select timezone from app.report_export_preparations where export_id=(select (env->>'export_id')::uuid from _h82_env)),'Asia/Kolkata','the preparation records the validated zone');
+select is((select range_basis from app.report_export_preparations where export_id=(select (env->>'export_id')::uuid from _h82_env)),'created_at','the preparation records the range basis');
+select is((select branch_scope from app.report_export_preparations where export_id=(select (env->>'export_id')::uuid from _h82_env)),'all','the preparation records the branch scope');
+select ok((select generated_at_utc is not null and snapshot_at_utc is not null and range_start_utc is not null and range_end_exclusive_utc is not null from app.report_export_preparations where export_id=(select (env->>'export_id')::uuid from _h82_env)),'every preparation stamp is server-derived and present');
 -- Direct table INSERT: only a lawful bounded same-actor attempt is possible.
 select set_config('request.jwt.claims','{"sub":"82900000-0000-4000-8000-000000000011","role":"authenticated","app_role":"gym_owner","staff_id":"82900000-0000-4000-8000-000000000021","tenant_id":"82900000-0000-4000-8000-000000000001"}',true);
 set local role authenticated;
@@ -350,13 +354,12 @@ set local role postgres;
 select ok(exists(select 1 from app.report_export_preparations where tenant_id='82900000-0000-4000-8000-000000000001' and row_cap=77 and export_id is not null),'a lawful direct insert derives its export id server-side');
 select is((select data_row_count::text from app.report_export_preparations where tenant_id='82900000-0000-4000-8000-000000000001' and row_cap=77),'4','a direct insert derives its count from the real RLS source scan, never from a caller');
 select ok(exists(select 1 from public.audit_log where record_type='report_export' and action='report_export.prepared' and record_id=(select export_id from app.report_export_preparations where tenant_id='82900000-0000-4000-8000-000000000001' and row_cap=77)),'a lawful direct insert appends its prepared audit atomically');
+set local role authenticated;
 select throws_ok($q$do $$ begin
   insert into app.report_export_preparations(dataset,range_from,range_through,branch_id,row_cap,export_id)
   values ('payments','2026-09-15','2026-09-15',null,100,'82900000-0000-4000-8000-0000000007e1');
 end $$;$q$,'42501',null,'a caller-supplied derived column is refused');
-set local role authenticated;
 select set_config('request.jwt.claims','{"sub":"82900000-0000-4000-8000-000000000012","role":"authenticated","app_role":"front_desk","staff_id":"82900000-0000-4000-8000-000000000022","tenant_id":"82900000-0000-4000-8000-000000000001"}',true);
-set local role authenticated;
 select throws_ok($q$do $$ begin
   insert into app.report_export_preparations(dataset,range_from,range_through,branch_id,row_cap)
   values ('payments','2026-09-15','2026-09-15',null,100);
@@ -385,33 +388,42 @@ set local role postgres;
 -- §L — the release helper: exact shape, lawful linkage, one release forever.
 select set_config('request.jwt.claims','{"sub":"82900000-0000-4000-8000-000000000011","role":"authenticated","app_role":"gym_owner","staff_id":"82900000-0000-4000-8000-000000000021","tenant_id":"82900000-0000-4000-8000-000000000001"}',true);
 set local role authenticated;
-select throws_ok($q$select public.append_report_export_event('report_export.released','82900000-0000-4000-8000-000000000601',jsonb_build_object('byte_count','123','artifact_sha256',repeat('a',64)))$q$,'22023',null,'a release without its prepared attempt is refused');
-select throws_ok($q$select public.append_report_export_event('report_export.released',(select env->>'export_id' from _h82_env)::uuid,jsonb_build_object('byte_count',123,'artifact_sha256',repeat('a',64)))$q$,'22023',null,'a byte count that is not canonical decimal text is refused');
-select throws_ok($q$select public.append_report_export_event('report_export.released',(select env->>'export_id' from _h82_env)::uuid,jsonb_build_object('byte_count','0409','artifact_sha256',repeat('a',64)))$q$,'22023',null,'a non-canonical byte count is refused');
-select throws_ok($q$select public.append_report_export_event('report_export.released',(select env->>'export_id' from _h82_env)::uuid,jsonb_build_object('byte_count','8388609','artifact_sha256',repeat('a',64)))$q$,'22023',null,'a byte count above the eight-mebibyte cap is refused');
-select throws_ok($q$select public.append_report_export_event('report_export.released',(select env->>'export_id' from _h82_env)::uuid,jsonb_build_object('byte_count','123','artifact_sha256',repeat('a',63)))$q$,'22023',null,'a digest that is not exactly 64 hex characters is refused');
-select throws_ok($q$select public.append_report_export_event('report_export.released',(select env->>'export_id' from _h82_env)::uuid,jsonb_build_object('byte_count','123','artifact_sha256',repeat('A',64)))$q$,'22023',null,'an uppercase digest is refused');
-select throws_ok($q$select public.append_report_export_event('report_export.released',(select env->>'export_id' from _h82_env)::uuid,jsonb_build_object('byte_count','123','artifact_sha256',repeat('a',64),'note','x'))$q$,'22023',null,'a caller-supplied extra release field is refused');
+select throws_ok($q$select public.append_report_export_event('report_export.released','82900000-0000-4000-8000-000000000601',jsonb_build_object('byte_count','123','artifact_sha256',repeat('a',64)))$q$,'42501',null,'a release without its prepared attempt is refused');
+drop table if exists _h82_nc;
+create temp table _h82_nc as
+select public.export_report_snapshot('payments','2026-09-15','2026-09-15',null,100) as env;
+select lives_ok($q$do $nb$ declare v_refused boolean := false; begin
+  begin
+    perform public.append_report_export_event('report_export.released',(select (env->>'export_id')::uuid from _h82_nc),jsonb_build_object('byte_count',123,'artifact_sha256',repeat('a',64)));
+  exception when others then v_refused := true; end;
+  if not v_refused then raise exception 'a byte count of JSON number type (never a canonical decimal string) was accepted';
+  end if;
+end $nb$;$q$,'a byte count that is not canonical decimal text is refused');
+select throws_ok($q$select public.append_report_export_event('report_export.released',(select (env->>'export_id')::uuid from _h82_env)::uuid,jsonb_build_object('byte_count','0409','artifact_sha256',repeat('a',64)))$q$,'22023',null,'a non-canonical byte count is refused');
+select throws_ok($q$select public.append_report_export_event('report_export.released',(select (env->>'export_id')::uuid from _h82_env)::uuid,jsonb_build_object('byte_count','8388609','artifact_sha256',repeat('a',64)))$q$,'22023',null,'a byte count above the eight-mebibyte cap is refused');
+select throws_ok($q$select public.append_report_export_event('report_export.released',(select (env->>'export_id')::uuid from _h82_env)::uuid,jsonb_build_object('byte_count','123','artifact_sha256',repeat('a',63)))$q$,'22023',null,'a digest that is not exactly 64 hex characters is refused');
+select throws_ok($q$select public.append_report_export_event('report_export.released',(select (env->>'export_id')::uuid from _h82_env)::uuid,jsonb_build_object('byte_count','123','artifact_sha256',repeat('A',64)))$q$,'22023',null,'an uppercase digest is refused');
+select throws_ok($q$select public.append_report_export_event('report_export.released',(select (env->>'export_id')::uuid from _h82_env)::uuid,jsonb_build_object('byte_count','123','artifact_sha256',repeat('a',64),'note','x'))$q$,'23514',null,'a caller-supplied extra release field is refused');
 select set_config('request.jwt.claims','{"sub":"82900000-0000-4000-8000-000000000016","role":"authenticated","app_role":"gym_owner","staff_id":"82900000-0000-4000-8000-000000000026","tenant_id":"82900000-0000-4000-8000-000000000009"}',true);
-select throws_ok($q$select public.append_report_export_event('report_export.released',(select env->>'export_id' from _h82_env)::uuid,jsonb_build_object('byte_count','123','artifact_sha256',repeat('b',64)))$q$,'42501',null,'a release by another actor is refused');
+select throws_ok($q$select public.append_report_export_event('report_export.released',(select (env->>'export_id')::uuid from _h82_env)::uuid,jsonb_build_object('byte_count','123','artifact_sha256',repeat('b',64)))$q$,'42501',null,'a release by another actor is refused');
 set local role postgres;
 select set_config('request.jwt.claims','{"sub":"82900000-0000-4000-8000-000000000015","role":"authenticated","app_role":"gym_owner","staff_id":"82900000-0000-4000-8000-000000000025","tenant_id":"82900000-0000-4000-8000-000000000001"}',true);
 set local role authenticated;
-select throws_ok($q$select public.append_report_export_event('report_export.released',(select env->>'export_id' from _h82_env)::uuid,jsonb_build_object('byte_count','123','artifact_sha256',repeat('c',64)))$q$,'42501',null,'a deactivated owner cannot release');
+select throws_ok($q$select public.append_report_export_event('report_export.released',(select (env->>'export_id')::uuid from _h82_env)::uuid,jsonb_build_object('byte_count','123','artifact_sha256',repeat('c',64)))$q$,'42501',null,'a deactivated owner cannot release');
 select set_config('request.jwt.claims','{"sub":"82900000-0000-4000-8000-000000000011","role":"authenticated","app_role":"gym_owner","staff_id":"82900000-0000-4000-8000-000000000021","tenant_id":"82900000-0000-4000-8000-000000000001"}',true);
-select lives_ok($q$select public.append_report_export_event('report_export.released',(select env->>'export_id' from _h82_env)::uuid,jsonb_build_object('byte_count','123','artifact_sha256',repeat('a',64)))$q$,'the linked release with canonical bytes and digest is recorded');
+select lives_ok($q$select public.append_report_export_event('report_export.released',(select (env->>'export_id')::uuid from _h82_env)::uuid,jsonb_build_object('byte_count','123','artifact_sha256',repeat('a',64)))$q$,'the linked release with canonical bytes and digest is recorded');
 set local role postgres;
-select is((select count(*) from public.audit_log where record_type='report_export' and action='report_export.released' and record_id=(select env->>'export_id' from _h82_env)),1::bigint,'the released event is recorded exactly once for its export id');
-select is((select array_agg(k order by k) from (select jsonb_object_keys("after") k from public.audit_log where record_type='report_export' and action='report_export.released' and record_id=(select env->>'export_id' from _h82_env)) s),
+select is((select count(*) from public.audit_log where record_type='report_export' and action='report_export.released' and record_id=(select (env->>'export_id')::uuid from _h82_env)),1::bigint,'the released event is recorded exactly once for its export id');
+select is((select array_agg(k order by k) from (select jsonb_object_keys("after") k from public.audit_log where record_type='report_export' and action='report_export.released' and record_id=(select (env->>'export_id')::uuid from _h82_env)) s),
   array['artifact_sha256','branch_id','branch_scope','byte_count','data_row_count','dataset','export_id','format','generated_at_utc','range_basis','range_end_exclusive_utc','range_from','range_start_utc','range_through','snapshot_at_utc','source_cutoff_at_utc','timezone']::text[],
   'the release event copies every prepared key and adds only the byte count and digest');
-select is((select "after"->>'byte_count' from public.audit_log where record_type='report_export' and action='report_export.released' and record_id=(select env->>'export_id' from _h82_env)),'123','the release records the canonical byte count string');
-select is((select "after"->>'artifact_sha256' from public.audit_log where record_type='report_export' and action='report_export.released' and record_id=(select env->>'export_id' from _h82_env)),repeat('a',64),'the release records the supplied digest verbatim');
+select is((select "after"->>'byte_count' from public.audit_log where record_type='report_export' and action='report_export.released' and record_id=(select (env->>'export_id')::uuid from _h82_env)),'123','the release records the canonical byte count string');
+select is((select "after"->>'artifact_sha256' from public.audit_log where record_type='report_export' and action='report_export.released' and record_id=(select (env->>'export_id')::uuid from _h82_env)),repeat('a',64),'the release records the supplied digest verbatim');
 select set_config('request.jwt.claims','{"sub":"82900000-0000-4000-8000-000000000011","role":"authenticated","app_role":"gym_owner","staff_id":"82900000-0000-4000-8000-000000000021","tenant_id":"82900000-0000-4000-8000-000000000001"}',true);
 set local role authenticated;
-select throws_ok($q$select public.append_report_export_event('report_export.released',(select env->>'export_id' from _h82_env)::uuid,jsonb_build_object('byte_count','123','artifact_sha256',repeat('d',64)))$q$,'22023',null,'a second release of one prepared attempt is refused');
-select throws_ok($q$select public.append_report_export_event('report_export.released','82900000-0000-4000-8000-000000000602',jsonb_build_object('byte_count','123','artifact_sha256',repeat('a',64)))$q$,'22023',null,'a release of an unknown export id is refused');
-select throws_ok($q$select public.append_report_export_event('report_export.prepared',(select env->>'export_id' from _h82_env)::uuid,jsonb_build_object())$q$,'22023',null,'the public helper never accepts the prepared event: only the trigger appends it');
+select throws_ok($q$select public.append_report_export_event('report_export.released',(select (env->>'export_id')::uuid from _h82_env)::uuid,jsonb_build_object('byte_count','123','artifact_sha256',repeat('d',64)))$q$,'23514',null,'a second release of one prepared attempt is refused');
+select throws_ok($q$select public.append_report_export_event('report_export.released','82900000-0000-4000-8000-000000000602',jsonb_build_object('byte_count','123','artifact_sha256',repeat('a',64)))$q$,'42501',null,'a release of an unknown export id is refused');
+select throws_ok($q$select public.append_report_export_event('report_export.prepared',(select (env->>'export_id')::uuid from _h82_env)::uuid,jsonb_build_object())$q$,'22023',null,'the public helper never accepts the prepared event: only the trigger appends it');
 select throws_ok($q$select public.append_report_export_event('report_export.opened','82900000-0000-4000-8000-000000000603',jsonb_build_object())$q$,'22023',null,'an unknown audit event is refused by the fixed vocabulary');
 drop table if exists _h82_rel;
 create temp table _h82_rel as
@@ -423,7 +435,7 @@ select throws_ok($q$do $$ begin
  set local role authenticated;
  insert into public.audit_log(tenant_id,action) values ('82900000-0000-4000-8000-000000000001','report_export.forged');
  end $$;$q$,'42501',null,'authenticated holds no direct audit INSERT — the helpers are the only paths');
-select is((select array_agg(k order by k) from (select jsonb_object_keys("after") k from public.audit_log where record_type='report_export' and action='report_export.prepared' and record_id=(select env->>'export_id' from _h82_env)) s),
+select is((select array_agg(k order by k) from (select jsonb_object_keys("after") k from public.audit_log where record_type='report_export' and action='report_export.prepared' and record_id=(select (env->>'export_id')::uuid from _h82_env)) s),
   array['branch_id','branch_scope','data_row_count','dataset','export_id','format','generated_at_utc','range_basis','range_end_exclusive_utc','range_from','range_start_utc','range_through','snapshot_at_utc','source_cutoff_at_utc','timezone']::text[],
   'the prepared event carries exactly its declared keys and no exported personal content');
 select is((select count(*) from app.report_export_preparations),(select count(*) from public.audit_log where record_type='report_export' and action='report_export.prepared'),'every prepared attempt carries exactly one prepared audit event');
