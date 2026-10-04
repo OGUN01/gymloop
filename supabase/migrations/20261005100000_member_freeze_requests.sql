@@ -18,8 +18,8 @@
 -- target.
 --
 -- Shape notes:
---   * Both tables enable RLS and carry ZERO privileges for anon and
---     authenticated (SLF-014): application access is only through the nine
+--   * Both tables enable RLS and carry ZERO privileges for anon, authenticated
+--     and service_role (SLF-014): application access is only through the nine
 --     public RPCs. The request policies below are defense in depth for the
 --     standard platform read branch and the two application predicates; with
 --     no SELECT grant they are unreachable directly, exactly as the contract
@@ -652,7 +652,7 @@ alter table public.member_freeze_requests enable row level security;
 alter table public.member_freeze_commands enable row level security;
 
 revoke all on public.member_freeze_requests, public.member_freeze_commands
-  from public, anon, authenticated;
+  from public, anon, authenticated, service_role;
 
 -- Defense in depth: unreachable while the revoke above stands, but the
 -- predicates state who WOULD see what, and the platform read branch is the
@@ -1073,9 +1073,17 @@ begin
     end if;
   end if;
 
+  -- Abandoned same-request preparations of this validated actor are cleaned
+  -- here. Scoped to the request: a same-request preparation implies the same
+  -- member advisory resource this transaction already holds, so the cleanup
+  -- can never revoke a concurrent in-flight transaction's capability
+  -- (prepared-command-declaration: cleanup never revokes another current
+  -- transaction). Same-actor rows for other requests linger until a
+  -- separately declared bounded sweeper.
   delete from app.slf_freeze_preparations prepared
    where prepared.tenant_id = v_request.tenant_id
      and prepared.actor_user_id = auth.uid()
+     and prepared.request_id = v_request.id
      and prepared.transaction_id <> pg_catalog.pg_current_xact_id()::text;
   insert into app.slf_freeze_preparations
     (transaction_id, tenant_id, actor_user_id, command_key, request_id,
@@ -1761,17 +1769,23 @@ begin
     from public.organization_settings s
    where s.tenant_id = app.current_tenant_id();
 
-  if v_required is not null then
-    select st.role into v_actor_role
-      from public.staff st
-     where st.id = v_staff_id
-       and st.tenant_id = app.current_tenant_id();
+  -- Missing/unreadable configured role refuses approval; it never widens the
+  -- boundary to every non-adopter front-office role (missing settings refuse,
+  -- never an invented default).
+  if v_required is null then
+    raise exception 'Freeze approval refused: this gym has no configured approver role'
+      using errcode = '42501';
+  end if;
 
-    if v_actor_role is distinct from v_required then
-      raise exception 'Freeze approval refused: this gym requires % to approve a freeze, and the acting staff member is %',
-        v_required, coalesce(v_actor_role::text, 'not a member of this gym')
-        using errcode = '42501';
-    end if;
+  select st.role into v_actor_role
+    from public.staff st
+   where st.id = v_staff_id
+     and st.tenant_id = app.current_tenant_id();
+
+  if v_actor_role is distinct from v_required then
+    raise exception 'Freeze approval refused: this gym requires % to approve a freeze, and the acting staff member is %',
+      v_required, coalesce(v_actor_role::text, 'not a member of this gym')
+      using errcode = '42501';
   end if;
 
   update public.membership_pauses p
