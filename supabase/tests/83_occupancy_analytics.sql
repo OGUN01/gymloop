@@ -1,16 +1,17 @@
 -- OCC-001..017 independent visible contract (Wave D occupancy, collection and
--- class fill analytics). Frozen authority:
--- openspec/changes/occupancy-analytics/proposal.md (FROZEN 2026-10-03) with the
--- owner-resolved choices recorded in OCC-007 (14/10/28 thresholds, no
--- estimator) and OCC-012 (derived membership-linkage classification,
--- whole-receipt return allocation, unallocated stays unknown). The loader
--- apps/web/lib/occupancy.ts pins the caller seam: exactly one rpc call
--- `owner_occupancy_analytics(p_from date, p_through date, p_branch_id uuid
--- default null)` whose single jsonb value carries asOf/months/heatmap/classes/
--- warnings (one containing snapshot, OCC-002); the deeper jsonb keys pinned
--- below are this suite's contract for
--- the implementing migration. No implementation, holdout or other OCC test
--- material was read.
+-- class fill analytics). Frozen authority, in precedence order:
+-- openspec/changes/occupancy-analytics/sql-envelope-declaration.md (FROZEN
+-- 2026-10-04, the complete mechanical envelope: exact four-argument RPC, exact
+-- nested keys, exact fractions, per-branch arrays, reconciliations) and
+-- openspec/changes/occupancy-analytics/proposal.md (FROZEN 2026-10-03, with the
+-- owner-resolved choices recorded in OCC-007 and OCC-012). The earlier
+-- loader-era key shapes this suite once pinned (top-level heatmap
+-- zone/zoneSource/eligibleDateCount/excludedDates/arrivalDays, a single
+-- classes summary object, month `classification` objects, string fraction
+-- placeholders like "0.2500…") were superseded by the frozen envelope; every
+-- business fact those assertions carried is re-expressed below against the
+-- envelope keys rather than removed. No implementation, holdout or other OCC
+-- test material was read.
 --
 -- RED pattern: no mirror DDL. Catalog assertions are NULL-safe
 -- (to_regprocedure) and every dynamic statement runs through a catching
@@ -20,20 +21,27 @@
 --
 -- Refusal-code assumptions pinned from the frozen contract plus the repo's
 -- shared precedence vocabulary: actor/privilege failures 42501; value/shape
--- validation (reversed/invalid dates, invalid configured zone) 22023; unknown
--- and foreign branch share one invisible-target refusal P0002 (no existence
--- oracle). If the implementer maps any of these differently, that is a
--- contract-defect round-trip to the test author, not a test edit by the
--- implementer.
+-- validation (reversed/invalid dates, invalid configured zone, null holiday
+-- toggle) 22023; unknown and foreign branch share one invisible-target refusal
+-- P0002 (no existence oracle). If the implementer maps any of these
+-- differently, that is a contract-defect round-trip to the test author, not a
+-- test edit by the implementer.
+--
+-- All money/count/basis-point values below are canonical decimal STRINGS and
+-- every fraction is the exact {numerator,denominator,basisPoints} triple with
+-- basisPoints = floor((2*n*10000+d)/(2*d)) half-up and null at a zero
+-- denominator. Timestamps are compared as instants (::timestamptz), never as
+-- spelling, because the envelope requires unambiguous RFC3339 instants but
+-- does not pin one spelling.
 begin;
 set local role postgres;
 set local search_path=extensions,public;
 select set_config('request.jwt.claims','',true);
-select plan(44);
+select plan(77);
 create function pg_temp.u(n integer) returns uuid language sql immutable as $$select ('83000000-0000-4000-8000-'||lpad(n::text,12,'0'))::uuid$$;
 create function pg_temp.claim(r text default 'gym_owner', s integer default null, m integer default null, a integer default 901, t integer default 1, p boolean default false) returns void language plpgsql as $$begin perform set_config('request.jwt.claims',jsonb_strip_nulls(jsonb_build_object('sub',pg_temp.u(a),'role','authenticated','app_role',r,'tenant_id',pg_temp.u(t),'staff_id',case when s is not null then pg_temp.u(s) end,'member_id',case when m is not null then pg_temp.u(m) end,'impersonation_session_id',case when p then pg_temp.u(999) end))::text,true); end$$;
 create function pg_temp.probe(q text) returns text language plpgsql as $$begin execute q; return 'OK'; exception when others then return sqlstate; end$$;
-create function pg_temp.state(q text) returns text language plpgsql as $$begin execute q; return 'OK'; exception when others then return split_part(sqlstate||':'||message,':',1); end$$;
+create function pg_temp.state(q text) returns text language plpgsql as $$begin execute q; return 'OK'; exception when others then return sqlstate; end$$;
 -- Section G derives its range from the CURRENT gym-local run day (the
 -- fixture organization's own zone), so the incomplete-today disclosures stay
 -- deterministic on any run date. Callers of gym_today() re-read it per
@@ -41,16 +49,36 @@ create function pg_temp.state(q text) returns text language plpgsql as $$begin e
 create function pg_temp.gym_today() returns date language sql volatile as $$select (now() at time zone (select timezone from public.organizations where id = pg_temp.u(1)))::date$$;
 create function pg_temp.snap(p_from date, p_through date, p_branch_id uuid default null) returns text language plpgsql as $$declare r text; begin execute 'select public.owner_occupancy_analytics($1::date,$2::date,$3::uuid)::text' using p_from,p_through,p_branch_id into r; return r; exception when others then return sqlstate; end$$;
 create function pg_temp.snapx(p_from date, p_through date, p_branch_id uuid, p_exclude_holidays boolean) returns text language plpgsql as $$declare r text; begin execute 'select public.owner_occupancy_analytics($1::date,$2::date,$3::uuid,$4::boolean)::text' using p_from,p_through,p_branch_id,p_exclude_holidays into r; return r; exception when others then return sqlstate; end$$;
-grant execute on function pg_temp.u(integer),pg_temp.claim(text,integer,integer,integer,integer,boolean),pg_temp.probe(text),pg_temp.state(text),pg_temp.snap(date,date,uuid),pg_temp.snapx(date,date,uuid,boolean),pg_temp.gym_today() to authenticated,anon,service_role;
+-- jsonb snapshot helpers: snapj keeps the three-argument call (pins the
+-- default omission = holiday exclusion on); snapjx passes the toggle.
+create function pg_temp.snapj(p_from date, p_through date, p_branch_id uuid default null) returns jsonb language plpgsql as $$declare r jsonb; begin execute 'select public.owner_occupancy_analytics($1::date,$2::date,$3::uuid)' using p_from,p_through,p_branch_id into r; return r; exception when others then return null::jsonb; end$$;
+create function pg_temp.snapjx(p_from date, p_through date, p_branch_id uuid, p_exclude_holidays boolean) returns jsonb language plpgsql as $$declare r jsonb; begin execute 'select public.owner_occupancy_analytics($1::date,$2::date,$3::uuid,$4::boolean)' using p_from,p_through,p_branch_id,p_exclude_holidays into r; return r; exception when others then return null::jsonb; end$$;
+-- Extraction helpers over the one returned snapshot.
+create function pg_temp.hb(js jsonb, p_id uuid) returns jsonb language sql immutable as $$select e from jsonb_array_elements(js->'heatmap'->'branches') e where e->>'branchId'=p_id::text$$;
+create function pg_temp.cb(js jsonb, p_id uuid) returns jsonb language sql immutable as $$select e from jsonb_array_elements(js->'classes'->'branches') e where e->>'branchId'=p_id::text$$;
+create function pg_temp.cell(js jsonb, p_id uuid, w integer, h integer) returns jsonb language sql immutable as $$select e from jsonb_array_elements(pg_temp.hb(js,p_id)->'cells') e where (e->>'weekday')=w::text and (e->>'hour')=h::text$$;
+create function pg_temp.day(js jsonb, p_id uuid, d date) returns jsonb language sql immutable as $$select e from jsonb_array_elements(pg_temp.hb(js,p_id)->'days') e where e->>'localDate'=d::text$$;
+create function pg_temp.fr(n text, d text, bp text) returns jsonb language sql immutable as $$select jsonb_build_object('numerator',n,'denominator',d,'basisPoints',bp)$$;
+grant execute on function pg_temp.u(integer),pg_temp.claim(text,integer,integer,integer,integer,boolean),pg_temp.probe(text),pg_temp.state(text),pg_temp.snap(date,date,uuid),pg_temp.snapx(date,date,uuid,boolean),pg_temp.snapj(date,date,uuid),pg_temp.snapjx(date,date,uuid,boolean),pg_temp.hb(jsonb,uuid),pg_temp.cb(jsonb,uuid),pg_temp.cell(jsonb,uuid,integer,integer),pg_temp.day(jsonb,uuid,date),pg_temp.fr(text,text,text),pg_temp.gym_today() to authenticated,anon,service_role;
 
 -- ============ fixtures (existing schema only) ============
 insert into auth.users(id) select pg_temp.u(n) from generate_series(901,916) n;
 -- SLF/OCC frozen actor contract: platform subjects also require auth.users provenance.
 insert into auth.users(id) values(pg_temp.u(928));
 insert into public.platform_users(user_id,role,full_name,email,is_active) values(pg_temp.u(928),'super_admin','OCC root','occ83-root@example.test',true);
-insert into public.organizations(id,name,gym_code,status,timezone) values(pg_temp.u(1),'OCC A','OCC83A','active','Asia/Kolkata'),(pg_temp.u(2),'OCC B','OCC83B','active','Asia/Kolkata');
+-- The foreign gym's INVALID zone is lawful corruption evidence only: the
+-- commercial invariant trigger refuses invalid zones on every public write
+-- path (platform trusted writers included), so the frozen invalid-gym-zone
+-- envelope is unreachable without registered corruption. The gym starts with
+-- a VALID zone so every trigger-evaluating tenant-2 fixture write below
+-- (membership, check-in, payment triggers resolve the gym zone at write
+-- time) succeeds through the normal business path; the zone is corrupted
+-- through the registered disable/restore seam immediately AFTER the last
+-- fixture write, with the trigger restored before any application check.
+insert into public.organizations(id,name,gym_code,status,timezone) values(pg_temp.u(1),'OCC A','OCC83A','active','Asia/Kolkata'),(pg_temp.u(2),'OCC B','OCC83B','active','UTC');
 -- Branch 11 inherits the gym zone (null override), 12 overrides to New York,
--- 13 carries an invalid configured zone, 14 belongs to the foreign gym.
+-- 13 carries an invalid configured zone, 14 belongs to the foreign gym whose
+-- GYM zone is invalid (section J exercises the invalid-gym-zone envelope).
 insert into public.branches(id,tenant_id,name,timezone,is_default) values
 (pg_temp.u(11),pg_temp.u(1),'A',null,true),
 (pg_temp.u(12),pg_temp.u(1),'B','America/New_York',false),
@@ -104,10 +132,9 @@ select set_config('request.jwt.claims','',true);
 -- the successor; 703 add-on money through its linked order; 704 unallocated
 -- manual money; 705 a non-arrived attempt (excluded); 706 an arrived payment
 -- with no paid_at (all-date warning); 707 sits exactly on the Feb 2 IST
--- midnight — excluded from assertion 18's Jan-1..Feb-1 gym-local range by the
--- upper bound, but INSIDE assertion 20's Jan-1..Mar-31 range (Feb money);
--- 708 is one second before it (included in both); 760 is foreign money that
--- must never surface.
+-- midnight — excluded from the Jan-1..Feb-1 gym-local range by the upper
+-- bound, but INSIDE the Jan-1..Mar-31 range (Feb money); 708 is one second
+-- before it (included in both); 760 is foreign money that must never surface.
 insert into public.payments(id,tenant_id,member_id,membership_id,amount_paise,currency,status,method,paid_at,created_at,recorded_by_staff_id) values
 (pg_temp.u(701),pg_temp.u(1),pg_temp.u(101),pg_temp.u(301),100000,'INR','paid','cash','2026-01-15T05:00:00Z','2026-01-15T05:00:00Z',pg_temp.u(21)),
 (pg_temp.u(702),pg_temp.u(1),pg_temp.u(101),pg_temp.u(302),50000,'INR','paid','cash','2026-02-10T05:00:00Z','2026-02-10T05:00:00Z',pg_temp.u(21)),
@@ -123,8 +150,10 @@ insert into public.addon_orders(id,tenant_id,member_id,addon_product_id,payment_
 (pg_temp.u(501),pg_temp.u(1),pg_temp.u(102),pg_temp.u(401),pg_temp.u(703),'paid',1,5000,5000,'INR');
 -- Returns: 801 completes in a later month against a renewal payment (later-
 -- month reduction, whole-receipt allocation); 802 requested (zero returned
--- cash); 803 completed with no processed_at (all-date warning); 804 returns
--- unallocated money (stays in the unknown-allocation disclosure).
+-- cash); 803 completed (its processed_at is stamped by the refund invariant
+-- on every write path — the completed-undated state is unreachable; see the
+-- round-5 amendment below); 804 returns unallocated money (stays in the
+-- unknown-allocation disclosure).
 insert into public.refunds(id,tenant_id,payment_id,kind,amount_paise,currency,status,reason,processed_at) values
 (pg_temp.u(801),pg_temp.u(1),pg_temp.u(702),'refund',5000,'INR','completed','OCC fixture','2026-03-05T05:00:00Z'),
 (pg_temp.u(802),pg_temp.u(1),pg_temp.u(701),'refund',2000,'INR','requested','OCC fixture',null),
@@ -148,7 +177,17 @@ insert into public.class_bookings(id,tenant_id,session_id,member_id,status,marke
 (pg_temp.u(535),pg_temp.u(1),pg_temp.u(422),pg_temp.u(102),'attended',statement_timestamp(),pg_temp.u(23)),
 (pg_temp.u(536),pg_temp.u(1),pg_temp.u(424),pg_temp.u(101),'booked',null,null);
 
+-- Registered corruption seam, applied AFTER every trigger-evaluating fixture
+-- write (see the header note at the organizations insert): the foreign gym's
+-- zone becomes 'Mars/Phobos' only here, with the commercial invariant trigger
+-- disabled for the single UPDATE and restored immediately — every application
+-- check below runs with the trigger enabled.
+alter table public.organizations disable trigger organizations_commercial_invariant;
+update public.organizations set timezone='Mars/Phobos' where id=pg_temp.u(2);
+alter table public.organizations enable trigger organizations_commercial_invariant;
+
 set local role authenticated;
+select pg_temp.claim('gym_owner',21,null,901,1);
 
 -- ============ A. signature and security shape ============
 -- 1
@@ -186,83 +225,153 @@ select is((select pg_temp.state('select * from public.owner_occupancy_analytics(
 select is((select pg_temp.state('select * from public.owner_occupancy_analytics(''2026-09-14'',''2026-09-27'',pg_temp.u(899))')),'P0002','OCC-001: an unknown branch is an invisible target');
 -- 15
 select is((select pg_temp.state('select * from public.owner_occupancy_analytics(''2026-09-14'',''2026-09-27'',pg_temp.u(14))')),'P0002','OCC-001: a foreign branch shares the unknown-branch refusal');
+-- 16
+select is((select pg_temp.state('select * from public.owner_occupancy_analytics(''2026-09-14'',''2026-09-27'',null::uuid,null::boolean)')),'22023','OCC-003: a null holiday toggle is invalid, never silently defaulted');
 
--- ============ D. one snapshot: months, classification, warnings ============
--- Range M spans Jan 1..Feb 1 gym-local: 701 (Jan, new) and 708 (Feb 1
+-- ============ D. one snapshot: range echo, moneyRange, months, collection, warnings ============
+-- Range R1 spans Jan 1..Feb 1 gym-local: 701 (Jan, new) and 708 (Feb 1
 -- 23:59:59 IST, new) are inside; 707 sits exactly on the Feb 2 IST midnight
 -- upper bound (excluded); 702/703/704 fall outside; 706 is undated (all-date
 -- warning); 760 is foreign money (never surfaces).
--- 16
-select ok((select pg_temp.snap('2026-01-01','2026-02-01',null))::text ~ '^\{' and (select pg_temp.snap('2026-01-01','2026-02-01',null))::jsonb->>'asOf' is not null and length((select pg_temp.snap('2026-01-01','2026-02-01',null))::jsonb->>'asOf')>0,'OCC-002: the snapshot discloses one server asOf');
 -- 17
-select is((select pg_temp.snap('2026-01-01','2026-02-01',null))::jsonb->>'zone','Asia/Kolkata','OCC-003: money months use the valid gym zone and disclose it');
+select ok(pg_temp.snapj('2026-01-01','2026-02-01',null) is not null and length(pg_temp.snapj('2026-01-01','2026-02-01',null)->>'asOf')>0,'OCC-002: the snapshot discloses one server asOf');
 -- 18
-select is((select jsonb_agg(m order by m->>'month') from jsonb_array_elements((select pg_temp.snap('2026-01-01','2026-02-01',null))::jsonb->'months') m where m->>'month' in ('2026-01','2026-02')),$j$[{"month":"2026-01","currency":"INR","collectedPaise":"100000","returnedPaise":"0","netPaise":"100000","classification":{"newMemberPaise":"100000","renewalPaise":"0","addonPaise":"0","unallocatedPaise":"0","unknownReturnPaise":"0","label":"Membership linkage (derived classification)"}},{"month":"2026-02","currency":"INR","collectedPaise":"30000","returnedPaise":"0","netPaise":"30000","classification":{"newMemberPaise":"30000","renewalPaise":"0","addonPaise":"0","unallocatedPaise":"0","unknownReturnPaise":"0","label":"Membership linkage (derived classification)"}}]$j$::jsonb,'OCC-009/012: exact January/February months — 708 included one second before the bound, 707 excluded at the bound, first-membership money classified new');
+select is(pg_temp.snapj('2026-01-01','2026-02-01',null)->>'zone','Asia/Kolkata','OCC-003: the top-level zone is the valid gym zone, never fabricated');
 -- 19
-select ok(((select pg_temp.snap('2026-01-01','2026-02-01',null))::jsonb->'months')::text not like '%4242%' and ((select pg_temp.snap('2026-01-01','2026-02-01',null))::jsonb->'months')::text not like '%12345%','OCC-001: foreign money and bound-excluded money contribute nothing');
+select is(pg_temp.snapj('2026-01-01','2026-02-01',null)->'range',$j${"from":"2026-01-01","through":"2026-02-01","branchId":null,"excludeHolidays":true}$j$::jsonb,'OCC-002/003: the range echoes the actual resolved selection including the default exclusion toggle');
 -- 20
-select is((select jsonb_agg(m order by m->>'month') from jsonb_array_elements((select pg_temp.snap('2026-01-01','2026-03-31',null))::jsonb->'months') m where m->>'month'='2026-02'),$j$[{"month":"2026-02","currency":"INR","collectedPaise":"98122","returnedPaise":"0","netPaise":"98122","classification":{"newMemberPaise":"42345","renewalPaise":"50000","addonPaise":"5000","unallocatedPaise":"777","unknownReturnPaise":"0","label":"Membership linkage (derived classification)"}}]$j$::jsonb,'OCC-012: exact February classification — 707 (Feb 2 IST) inside the wide range joins 708 as first-membership money, successor renewal, add-on via order linkage, unallocated manual, no double counting');
+select ok(pg_temp.snapj('2026-01-01','2026-02-01',null)->'moneyRange'->>'scope'='Whole gym' and pg_temp.snapj('2026-01-01','2026-02-01',null)->'moneyRange'->>'zone'='Asia/Kolkata' and pg_temp.snapj('2026-01-01','2026-02-01',null)->'moneyRange'->'error' is null and (pg_temp.snapj('2026-01-01','2026-02-01',null)#>>'{moneyRange,startsAt}')::timestamptz='2026-01-01T00:00:00+05:30'::timestamptz and (pg_temp.snapj('2026-01-01','2026-02-01',null)#>>'{moneyRange,endsBefore}')::timestamptz='2026-02-02T00:00:00+05:30'::timestamptz and (pg_temp.snapj('2026-01-01','2026-02-01',null)#>>'{moneyRange,cutoffAt}')::timestamptz=(pg_temp.snapj('2026-01-01','2026-02-01',null)#>>'{moneyRange,endsBefore}')::timestamptz and pg_temp.snapj('2026-01-01','2026-02-01',null)#>>'{moneyRange,localToday}'=pg_temp.gym_today()::text,'OCC-003: moneyRange is whole-gym gym-zone with selected-local-midnight boundaries, cutoff min(endsBefore,asOf) and disclosed localToday');
 -- 21
-select is((select jsonb_agg(m order by m->>'month') from jsonb_array_elements((select pg_temp.snap('2026-01-01','2026-03-31',null))::jsonb->'months') m where m->>'month'='2026-03'),$j$[{"month":"2026-03","currency":"INR","collectedPaise":"0","returnedPaise":"5100","netPaise":"-5100","classification":{"newMemberPaise":"0","renewalPaise":"-5000","addonPaise":"0","unallocatedPaise":"0","unknownReturnPaise":"-100","label":"Membership linkage (derived classification)"}}]$j$::jsonb,'OCC-010/012: a later-month completed return reduces that month (negative net visible), allocated whole to the original receipt''s category; an unallocated original stays unknown');
+select is((select jsonb_agg(jsonb_build_object('month',m->>'month','from',m->>'from','through',m->>'through','coverage',m->>'coverage') order by m->>'month') from jsonb_array_elements(pg_temp.snapj('2026-01-01','2026-02-01',null)->'months') m),$j$[{"month":"2026-01","from":"2026-01-01","through":"2026-01-31","coverage":"full"},{"month":"2026-02","from":"2026-02-01","through":"2026-02-01","coverage":"partial"}]$j$::jsonb,'OCC-009/013: months contain every intersecting gym-local month ascending with clipped dates and truthful coverage — full January, partial single-day February endpoint');
 -- 22
-select is((select pg_temp.snap('2026-01-01','2026-03-31',null))::jsonb->'warnings'->'undatedPayments',jsonb_build_array(jsonb_build_object('paymentId',pg_temp.u(706),'amountPaise','999','currency','INR')),'OCC-009: an arrived payment without paid_at stays in a visible all-date warning');
+select ok(pg_temp.snapj('2026-01-01','2026-02-01',null)->'months'->0->'currencies'=$j$[{"currency":"INR","collectedPaise":"100000","returnedPaise":"0","netPaise":"100000","categories":{"label":"Membership linkage (derived classification)","newMember":{"collectedPaise":"100000","returnedPaise":"0","netPaise":"100000"},"renewal":{"collectedPaise":"0","returnedPaise":"0","netPaise":"0"},"addon":{"collectedPaise":"0","returnedPaise":"0","netPaise":"0"},"unallocated":{"collectedPaise":"0","returnedPaise":"0","netPaise":"0","unknownReturnPaise":"0"}}}]$j$::jsonb and (pg_temp.snapj('2026-01-01','2026-02-01',null)#>>'{months,0,startsAt}')::timestamptz='2026-01-01T00:00:00+05:30'::timestamptz and (pg_temp.snapj('2026-01-01','2026-02-01',null)#>>'{months,0,endsBefore}')::timestamptz='2026-02-01T00:00:00+05:30'::timestamptz and (pg_temp.snapj('2026-01-01','2026-02-01',null)#>>'{months,0,cutoffAt}')::timestamptz=(pg_temp.snapj('2026-01-01','2026-02-01',null)#>>'{months,0,endsBefore}')::timestamptz,'OCC-009/012: January is exactly the new-member money 701 with month boundaries at clipped local midnights and cutoff = endsBefore');
 -- 23
-select is((select pg_temp.snap('2026-01-01','2026-03-31',null))::jsonb->'warnings'->'undatedReturns',jsonb_build_array(jsonb_build_object('returnId',pg_temp.u(803),'amountPaise','1500','currency','INR')),'OCC-010: a completed undated return stays in a visible all-date warning');
+select ok(pg_temp.snapj('2026-01-01','2026-02-01',null)->'months'->1->'currencies'=$j$[{"currency":"INR","collectedPaise":"30000","returnedPaise":"0","netPaise":"30000","categories":{"label":"Membership linkage (derived classification)","newMember":{"collectedPaise":"30000","returnedPaise":"0","netPaise":"30000"},"renewal":{"collectedPaise":"0","returnedPaise":"0","netPaise":"0"},"addon":{"collectedPaise":"0","returnedPaise":"0","netPaise":"0"},"unallocated":{"collectedPaise":"0","returnedPaise":"0","netPaise":"0","unknownReturnPaise":"0"}}}]$j$::jsonb and (pg_temp.snapj('2026-01-01','2026-02-01',null)#>>'{months,1,startsAt}')::timestamptz='2026-02-01T00:00:00+05:30'::timestamptz and (pg_temp.snapj('2026-01-01','2026-02-01',null)#>>'{months,1,endsBefore}')::timestamptz='2026-02-02T00:00:00+05:30'::timestamptz,'OCC-003/009: February holds only 708 — 707 sits exactly on the exclusive upper bound and contributes nothing');
 -- 24
-select ok(((select pg_temp.snap('2026-01-01','2026-03-31',null))::jsonb->'warnings'->'undatedPayments')::text not like '%25000%' and ((select pg_temp.snap('2026-01-01','2026-03-31',null))::jsonb->'months')::text not like '%25000%','OCC-009: a non-arrived attempt contributes no collected cash and no payment warning');
+select is(pg_temp.snapj('2026-01-01','2026-03-31',null)->'months'->1->'currencies',$j$[{"currency":"INR","collectedPaise":"98122","returnedPaise":"0","netPaise":"98122","categories":{"label":"Membership linkage (derived classification)","newMember":{"collectedPaise":"42345","returnedPaise":"0","netPaise":"42345"},"renewal":{"collectedPaise":"50000","returnedPaise":"0","netPaise":"50000"},"addon":{"collectedPaise":"5000","returnedPaise":"0","netPaise":"5000"},"unallocated":{"collectedPaise":"777","returnedPaise":"0","netPaise":"777","unknownReturnPaise":"0"}}}]$j$::jsonb,'OCC-012: exact February classification in the wide range — 707 (Feb 2 IST) inside joins 708 as first-membership money, successor renewal, add-on via order linkage, unallocated manual, no double counting');
+-- 25
+select is(pg_temp.snapj('2026-01-01','2026-03-31',null)->'months'->2->'currencies',$j$[{"currency":"INR","collectedPaise":"0","returnedPaise":"5100","netPaise":"-5100","categories":{"label":"Membership linkage (derived classification)","newMember":{"collectedPaise":"0","returnedPaise":"0","netPaise":"0"},"renewal":{"collectedPaise":"0","returnedPaise":"5000","netPaise":"-5000"},"addon":{"collectedPaise":"0","returnedPaise":"0","netPaise":"0"},"unallocated":{"collectedPaise":"0","returnedPaise":"100","netPaise":"-100","unknownReturnPaise":"100"}}}]$j$::jsonb,'OCC-010/012: a later-month completed return reduces that month (negative net visible), allocated whole to the original receipt''s category; an unallocated original stays unknown');
+-- 26
+select is(pg_temp.snapj('2026-01-01','2026-03-31',null)->'collection'->'currencies',$j$[{"currency":"INR","collectedPaise":"198122","returnedPaise":"5100","netPaise":"193022","categories":{"label":"Membership linkage (derived classification)","newMember":{"collectedPaise":"142345","returnedPaise":"0","netPaise":"142345"},"renewal":{"collectedPaise":"50000","returnedPaise":"5000","netPaise":"45000"},"addon":{"collectedPaise":"5000","returnedPaise":"0","netPaise":"5000"},"unallocated":{"collectedPaise":"777","returnedPaise":"100","netPaise":"677","unknownReturnPaise":"100"}}}]$j$::jsonb,'OCC-009/010/012: the whole-range collection reconciles exactly from the same components — categories sum to the totals at every field, net = collected − returned');
+-- 27
+select is((select jsonb_agg(r->>'paymentId') from jsonb_array_elements(pg_temp.snapj('2026-01-01','2026-03-31',null)->'collection'->'components'->'collected') r),$j$["83000000-0000-4000-8000-000000000701","83000000-0000-4000-8000-000000000708","83000000-0000-4000-8000-000000000707","83000000-0000-4000-8000-000000000702","83000000-0000-4000-8000-000000000703","83000000-0000-4000-8000-000000000704"]$j$::jsonb,'OCC-002/012: collected components are the real receipt rows sorted by event instant then id — 708 one second before 707 at the same instant boundary');
+-- 28
+select is((select jsonb_agg(jsonb_build_object('returnId',r->>'returnId','paymentId',r->>'paymentId','amountPaise',r->>'amountPaise','currency',r->>'currency','category',r->>'category','allocationUnknown',r->>'allocationUnknown','membershipEvidence',r->'membershipEvidence')) from jsonb_array_elements(pg_temp.snapj('2026-01-01','2026-03-31',null)->'collection'->'components'->'returned') r),$j$[{"returnId":"83000000-0000-4000-8000-000000000801","paymentId":"83000000-0000-4000-8000-000000000702","amountPaise":"5000","currency":"INR","category":"renewal","allocationUnknown":false,"membershipEvidence":{"createdAt":"2026-01-10T00:00:00+00:00","hasEarlierMembership":true}},{"returnId":"83000000-0000-4000-8000-000000000804","paymentId":"83000000-0000-4000-8000-000000000704","amountPaise":"100","currency":"INR","category":"unallocated","allocationUnknown":true,"membershipEvidence":null}]$j$::jsonb,'OCC-010/012: returned components carry the original receipt''s category whole — renewal evidence from the successor membership, unknown-allocation flagged exactly for the unallocated original');
+-- 29
+select ok((select r->>'category'='newMember' and r#>>'{membershipEvidence,hasEarlierMembership}'='false' and (r#>>'{membershipEvidence,createdAt}')::timestamptz='2025-06-01T00:00:00Z'::timestamptz from jsonb_array_elements(pg_temp.snapj('2026-01-01','2026-03-31',null)->'collection'->'components'->'collected') r where r->>'paymentId'=pg_temp.u(701)::text) and (select r->>'category'='renewal' and r#>>'{membershipEvidence,hasEarlierMembership}'='true' and (r#>>'{membershipEvidence,createdAt}')::timestamptz='2026-01-10T00:00:00Z'::timestamptz from jsonb_array_elements(pg_temp.snapj('2026-01-01','2026-03-31',null)->'collection'->'components'->'collected') r where r->>'paymentId'=pg_temp.u(702)::text),'OCC-012: membership evidence is the receipt''s own membership row — first row means newMember, a strictly-earlier same-member row means renewal');
+-- 30
+select ok((select r->>'category'='addon' and r->'membershipEvidence' is null from jsonb_array_elements(pg_temp.snapj('2026-01-01','2026-03-31',null)->'collection'->'components'->'collected') r where r->>'paymentId'=pg_temp.u(703)::text) and (select r->>'category'='unallocated' and r->'membershipEvidence' is null from jsonb_array_elements(pg_temp.snapj('2026-01-01','2026-03-31',null)->'collection'->'components'->'collected') r where r->>'paymentId'=pg_temp.u(704)::text),'OCC-012: add-on money through its order link and unallocated manual money carry no membership evidence');
+-- 31
+select is(pg_temp.snapj('2026-01-01','2026-03-31',null)->'warnings'->'undatedPayments',$j$[{"paymentId":"83000000-0000-4000-8000-000000000706","amountPaise":"999","currency":"INR"}]$j$::jsonb,'OCC-009: an arrived payment without paid_at stays in a visible all-date warning with exactly its pinned keys');
+-- 32
+select ok((select r.processed_at is not null from public.refunds r where r.id=pg_temp.u(803)) and (select coalesce(bool_and(r.processed_at is not null),true) from public.refunds r where r.tenant_id=pg_temp.u(1) and r.status='completed') and pg_temp.snapj('2026-01-01','2026-03-31',null)->'warnings'->'undatedReturns'=$j$[]$j$::jsonb,'OCC-010 (adjudicated amendment, runtime evidence): a completed return is stamped on every write path — the completed-undated state is unreachable, so the coupled invariant is pinned directly (every staged completed refund carries a stamped processed_at) and the snapshot discloses no undatedReturns under lawful staging');
+-- 33
+select ok(pg_temp.snapj('2026-01-01','2026-03-31',null)->'warnings'->>'scope'='Current all-date' and pg_temp.snapj('2026-01-01','2026-03-31',null)->'warnings'->'totals'=$j$[{"currency":"INR","undatedPaymentCount":"1","undatedPaymentPaise":"999","undatedReturnCount":"0","undatedReturnPaise":"0"}]$j$::jsonb,'OCC-009/010 (amended with the adjudicated unreachable-state finding): the all-date warning scope is disclosed and its totals sum exclusively from those arrays per currency — the returns array is empty under lawful staging, and its zero totals still sum exactly from it');
+-- 34
+select ok(pg_temp.snapj('2026-01-01','2026-03-31',null)::text not like '%4242%','OCC-001: foreign money contributes nothing anywhere in the snapshot');
+-- 35
+select is((select jsonb_agg(m->>'month') from jsonb_array_elements(pg_temp.snapj('2026-01-01','2026-03-31',null)->'months') m),$j$["2026-01","2026-02","2026-03"]$j$::jsonb,'OCC-009: months ascend over every intersecting gym-local month');
+-- 36
+select ok((pg_temp.snapj('2026-01-01','2026-03-31',null)->'months')::text not like '%25000%' and (pg_temp.snapj('2026-01-01','2026-03-31',null)->'collection')::text not like '%25000%','OCC-009: a non-arrived attempt contributes no collected cash and no payment warning');
 
 -- ============ E. whole-gym heatmap (gym zone, holiday exclusion) ============
 -- Whole-gym arrivals are bucketed in the disclosed gym zone (a local-time
--- comparison, OCC-008); branch-12 visits land on their gym-local dates; the
--- foreign visit 617 never appears.
--- 25
-select is((select jsonb_build_object('zone',(select pg_temp.snap('2026-09-14','2026-09-27',null))::jsonb->'heatmap'->>'zone','zoneSource',(select pg_temp.snap('2026-09-14','2026-09-27',null))::jsonb->'heatmap'->>'zoneSource')),jsonb_build_object('zone','Asia/Kolkata','zoneSource','gym'),'OCC-003/004: an inherited gym zone is disclosed for the whole-gym heatmap');
--- 26
-select is(((select pg_temp.snap('2026-09-14','2026-09-27',null))::jsonb->'heatmap'->>'eligibleDateCount')::integer,13,'OCC-005/006: the holiday date is removed from the exposure denominator (14 candidate dates − 1 holiday)');
--- 27
-select ok(((select pg_temp.snap('2026-09-14','2026-09-27',null))::jsonb->'heatmap'->>'noEligibleDays')::boolean is false and (select pg_temp.snap('2026-09-14','2026-09-27',null))::jsonb->'heatmap'->>'message' is not null and (select pg_temp.snap('2026-09-14','2026-09-27',null))::jsonb->'heatmap'->>'message' like '%Limited%','OCC-007: 13 eligible dates sit below the 14-date threshold and carry the Limited history disclosure');
--- 28
-select is((select jsonb_path_query_array((select pg_temp.snap('2026-09-14','2026-09-27',null))::jsonb->'heatmap'->'cells','$[*] ? (@.arrivals > 0)'),$j$[{"weekday":1,"hour":7,"arrivals":1,"todayArrivals":0,"eligibleDates":13,"fraction":null,"limited":true,"message":"Limited history"},{"weekday":2,"hour":7,"arrivals":1,"todayArrivals":0,"eligibleDates":13,"fraction":null,"limited":true,"message":"Limited history"}]$j$::jsonb),'OCC-004/005: exclusion moves numerator and denominator together — only eligible-date visits are counted, holiday-date visits are not, and limited cells show no fraction');
--- 29
-select is((select pg_temp.snap('2026-09-14','2026-09-27',null))::jsonb->'heatmap'->'excludedDates',$j$[{"localDate":"2026-09-14","visits":3}]$j$::jsonb,'OCC-005: the excluded holiday date and its visit count are available from the same snapshot');
--- 30
-select ok((select coalesce(sum((d->>'visits')::integer),0) from jsonb_array_elements((select pg_temp.snap('2026-09-14','2026-09-27',null))::jsonb->'heatmap'->'arrivalDays') d)=5,'OCC-004/008: two accepted visits by the same member count twice, branch populations are both included, and the foreign row adds nothing');
-
--- ============ F. branch heatmap (zone override, branch-local range) ============
--- 31
-select is((select pg_temp.snap('2026-09-14','2026-09-27',pg_temp.u(12)))::jsonb->'heatmap'->>'zone','America/New_York','OCC-004: the branch timezone override is the effective heatmap zone');
--- 32
-select is((select pg_temp.snap('2026-09-14','2026-09-27',pg_temp.u(12)))::jsonb->'heatmap'->>'zoneSource','branch','OCC-003: the gym-zone inheritance is disclosed as a source');
--- 33
-select is(((select pg_temp.snap('2026-09-14','2026-09-27',pg_temp.u(12)))::jsonb->'heatmap'->>'eligibleDateCount')::integer,13,'OCC-005: the tenant holiday excludes the branch-LOCAL date equal to holiday_on in the override zone too');
--- 34
-select ok((select coalesce(sum((c->>'arrivals')::integer),0) from jsonb_array_elements((select pg_temp.snap('2026-09-14','2026-09-27',pg_temp.u(12)))::jsonb->'heatmap'->'cells') c)=0 and (select pg_temp.snap('2026-09-14','2026-09-27',pg_temp.u(12)))::jsonb->'heatmap'->'excludedDates' = $j$[{"localDate":"2026-09-14","visits":1}]$j$::jsonb,'OCC-003/005: the Sep 13 New-York visit lies outside the branch-local range and the Sep 14 visit is holiday-excluded — no arrival survives');
-
--- ============ G. incomplete today (range derived from the run day) ============
--- 35
-select ok((select pg_temp.snap(pg_temp.gym_today(),pg_temp.gym_today(),null))::jsonb->'heatmap'->>'noEligibleDays' = 'true','OCC-006: today alone is not a completed exposure — no eligible days, never a quiet-day zero');
--- 36
-select is((select pg_temp.snap(pg_temp.gym_today(),pg_temp.gym_today(),null))::jsonb->'heatmap'->'cells',$j$[]$j$::jsonb,'OCC-006: an all-incomplete range presents no averaged cells');
+-- comparison, OCC-008); the foreign branch never appears; the invalid branch
+-- stays visible with its error instead of a fabricated zero.
 -- 37
-select is((select jsonb_path_query_array((select pg_temp.snap(pg_temp.gym_today(),pg_temp.gym_today(),null))::jsonb->'heatmap'->'arrivalDays','$[*] ? (@.visits > 0)'),jsonb_build_array(jsonb_build_object('localDate',pg_temp.gym_today()::text,'visits',1,'isHoliday',false,'incomplete',true))),'OCC-006: today''s arrivals are disclosed separately as incomplete, never mixed into an average');
+select is(pg_temp.snapj('2026-09-14','2026-09-27',null)->'heatmap'->>'alignment','Local time','OCC-008: clock-time alignment is labelled a local-time comparison, not simultaneous instants');
 -- 38
-select is((select pg_temp.snap(pg_temp.gym_today(),pg_temp.gym_today(),null))::jsonb->'months',$j$[]$j$::jsonb,'OCC-009: a range with no arrived payments shows no fabricated month rows');
+select is((select jsonb_agg(b->>'branchId') from jsonb_array_elements(pg_temp.snapj('2026-09-14','2026-09-27',null)->'heatmap'->'branches') b),$j$["83000000-0000-4000-8000-000000000011","83000000-0000-4000-8000-000000000012","83000000-0000-4000-8000-000000000013"]$j$::jsonb,'OCC-008: the branch array is the selected visible branch population sorted by branchId — the foreign branch is never present');
+-- 39
+select ok(pg_temp.hb(pg_temp.snapj('2026-09-14','2026-09-27',null),pg_temp.u(11))->>'zone'='Asia/Kolkata' and pg_temp.hb(pg_temp.snapj('2026-09-14','2026-09-27',null),pg_temp.u(11))->>'zoneSource'='gym' and pg_temp.hb(pg_temp.snapj('2026-09-14','2026-09-27',null),pg_temp.u(11))->'error' is null,'OCC-003: an inherited gym zone is disclosed with its source and no error');
+-- 40
+select ok((pg_temp.hb(pg_temp.snapj('2026-09-14','2026-09-27',null),pg_temp.u(11))#>>'{range,startsAt}')::timestamptz='2026-09-14T00:00:00+05:30'::timestamptz and (pg_temp.hb(pg_temp.snapj('2026-09-14','2026-09-27',null),pg_temp.u(11))#>>'{range,endsBefore}')::timestamptz='2026-09-28T00:00:00+05:30'::timestamptz and (pg_temp.hb(pg_temp.snapj('2026-09-14','2026-09-27',null),pg_temp.u(11))#>>'{range,cutoffAt}')::timestamptz=(pg_temp.hb(pg_temp.snapj('2026-09-14','2026-09-27',null),pg_temp.u(11))#>>'{range,endsBefore}')::timestamptz and pg_temp.hb(pg_temp.snapj('2026-09-14','2026-09-27',null),pg_temp.u(11))#>>'{range,localToday}'=pg_temp.gym_today()::text,'OCC-003: the branch range is that branch''s effective-zone local midnights with cutoff and disclosed localToday');
+-- 41
+select is(pg_temp.day(pg_temp.snapj('2026-09-14','2026-09-27',null),pg_temp.u(11),'2026-09-14')->>'visits','2','OCC-005: the excluded holiday date still discloses its real visit count from the same snapshot');
+-- 42
+select is(pg_temp.day(pg_temp.snapj('2026-09-14','2026-09-27',null),pg_temp.u(11),'2026-09-14')->'hours',$j$[{"hour":0,"exists":true,"visits":"0"},{"hour":1,"exists":true,"visits":"0"},{"hour":2,"exists":true,"visits":"0"},{"hour":3,"exists":true,"visits":"0"},{"hour":4,"exists":true,"visits":"0"},{"hour":5,"exists":true,"visits":"0"},{"hour":6,"exists":true,"visits":"0"},{"hour":7,"exists":true,"visits":"1"},{"hour":8,"exists":true,"visits":"0"},{"hour":9,"exists":true,"visits":"1"},{"hour":10,"exists":true,"visits":"0"},{"hour":11,"exists":true,"visits":"0"},{"hour":12,"exists":true,"visits":"0"},{"hour":13,"exists":true,"visits":"0"},{"hour":14,"exists":true,"visits":"0"},{"hour":15,"exists":true,"visits":"0"},{"hour":16,"exists":true,"visits":"0"},{"hour":17,"exists":true,"visits":"0"},{"hour":18,"exists":true,"visits":"0"},{"hour":19,"exists":true,"visits":"0"},{"hour":20,"exists":true,"visits":"0"},{"hour":21,"exists":true,"visits":"0"},{"hour":22,"exists":true,"visits":"0"},{"hour":23,"exists":true,"visits":"0"}]$j$::jsonb,'OCC-004/006: day hours are the ordered 0..23 clock-hour exposures with existing clock hours marked and hour visits summing to the day visits');
+-- 43
+select ok((select count(*)=14 and bool_and((e->>'localDate')::date >= '2026-09-14' and (e->>'localDate')::date <= '2026-09-27') from jsonb_array_elements(pg_temp.hb(pg_temp.snapj('2026-09-14','2026-09-27',null),pg_temp.u(11))->'days') e) and pg_temp.day(pg_temp.snapj('2026-09-14','2026-09-27',null),pg_temp.u(11),'2026-09-14')->>'isHoliday'='true' and pg_temp.day(pg_temp.snapj('2026-09-14','2026-09-27',null),pg_temp.u(11),'2026-09-14')->>'excluded'='true' and pg_temp.day(pg_temp.snapj('2026-09-14','2026-09-27',null),pg_temp.u(11),'2026-09-14')->>'state'='completed' and pg_temp.day(pg_temp.snapj('2026-09-14','2026-09-27',null),pg_temp.u(11),'2026-09-21')->>'visits'='1','OCC-005/006: one day row per selected local date ascending with truthful holiday/state/excluded flags');
+-- 44
+select is(jsonb_build_object('totalVisits',pg_temp.hb(pg_temp.snapj('2026-09-14','2026-09-27',null),pg_temp.u(11))->>'totalVisits','completedVisits',pg_temp.hb(pg_temp.snapj('2026-09-14','2026-09-27',null),pg_temp.u(11))->>'completedVisits','currentDayVisits',pg_temp.hb(pg_temp.snapj('2026-09-14','2026-09-27',null),pg_temp.u(11))->>'currentDayVisits','excludedVisits',pg_temp.hb(pg_temp.snapj('2026-09-14','2026-09-27',null),pg_temp.u(11))->>'excludedVisits'),$j${"totalVisits":"1","completedVisits":"1","currentDayVisits":"0","excludedVisits":"2"}$j$::jsonb,'OCC-004/005: totals reconcile — nonexcluded visits only in total/completed, both holiday-date visits disclosed as excluded');
+-- 45
+select is(pg_temp.cell(pg_temp.snapj('2026-09-14','2026-09-27',null),pg_temp.u(11),1,7),$j${"weekday":1,"hour":7,"arrivals":"1","todayArrivals":"0","eligibleDates":"13","fraction":{"numerator":"1","denominator":"13","basisPoints":"769"},"limited":true,"message":"Limited history"}$j$::jsonb,'OCC-006/007: the Monday 07:00 cell is the exact raw fraction 1/13 half-up 769 bp with the numerator drawn only from eligible dates, today disclosed separately, and Limited history below the 14-date threshold');
+-- 46
+select ok((select count(*)=168 from jsonb_array_elements(pg_temp.hb(pg_temp.snapj('2026-09-14','2026-09-27',null),pg_temp.u(11))->'cells') c) and (select min(((c->>'weekday')::integer*24+(c->>'hour')::integer))=0 and max(((c->>'weekday')::integer*24+(c->>'hour')::integer))=167 from jsonb_array_elements(pg_temp.hb(pg_temp.snapj('2026-09-14','2026-09-27',null),pg_temp.u(11))->'cells') c) and not exists(select 1 from jsonb_array_elements(pg_temp.hb(pg_temp.snapj('2026-09-14','2026-09-27',null),pg_temp.u(11))->'cells') c where not (c ? 'weekday' and c ? 'hour' and c ? 'arrivals' and c ? 'todayArrivals' and c ? 'eligibleDates' and c ? 'fraction' and c ? 'limited' and c ? 'message')) and not exists(select 1 from jsonb_array_elements(pg_temp.hb(pg_temp.snapj('2026-09-14','2026-09-27',null),pg_temp.u(11))->'cells') c where (c->>'eligibleDates')<>'13' or (c->>'limited')<>'true'),'OCC-006/007: cells are all 168 weekday/hour coordinates in coordinate order, each with the exact cell keys, the same 13 eligible dates and the below-threshold limit');
+-- 47
+select is(pg_temp.hb(pg_temp.snapj('2026-09-14','2026-09-27',null),pg_temp.u(11))->'week',$j${"arrivals":"1","eligibleDates":"13","fraction":{"numerator":"1","denominator":"13","basisPoints":"769"},"limited":true,"message":"Limited history"}$j$::jsonb,'OCC-007: the branch week aggregate counts each eligible date once — 1 arrival over 13 eligible dates, never an average of cell averages');
+-- 48
+select ok(pg_temp.hb(pg_temp.snapj('2026-09-14','2026-09-27',null),pg_temp.u(11))->>'availability'='complete' and pg_temp.hb(pg_temp.snapj('2026-09-14','2026-09-27',null),pg_temp.u(11))->>'noEligibleDays'='false','OCC-005: a fully completed range with a nonexcluded day is complete and not a no-eligible-days branch');
+-- 49
+select ok(pg_temp.hb(pg_temp.snapj('2026-09-14','2026-09-27',null),pg_temp.u(13))->>'zone'='Mars/Phobos' and pg_temp.hb(pg_temp.snapj('2026-09-14','2026-09-27',null),pg_temp.u(13))->>'zoneSource'='branch' and pg_temp.hb(pg_temp.snapj('2026-09-14','2026-09-27',null),pg_temp.u(13))->'error'=$j${"code":"invalid_branch_timezone"}$j$::jsonb and pg_temp.hb(pg_temp.snapj('2026-09-14','2026-09-27',null),pg_temp.u(13))->'range' is null and pg_temp.hb(pg_temp.snapj('2026-09-14','2026-09-27',null),pg_temp.u(13))->>'totalVisits' is null and pg_temp.hb(pg_temp.snapj('2026-09-14','2026-09-27',null),pg_temp.u(13))->>'excludedVisits' is null and pg_temp.hb(pg_temp.snapj('2026-09-14','2026-09-27',null),pg_temp.u(13))->'days'=$j$[]$j$::jsonb and pg_temp.hb(pg_temp.snapj('2026-09-14','2026-09-27',null),pg_temp.u(13))->'cells'=$j$[]$j$::jsonb and pg_temp.hb(pg_temp.snapj('2026-09-14','2026-09-27',null),pg_temp.u(13))->'week' is null and pg_temp.hb(pg_temp.snapj('2026-09-14','2026-09-27',null),pg_temp.u(13))->>'availability' is null,'OCC-003/008: an invalid configured branch zone keeps its branch entry with the preserved zone text and explicit error — no fallback zero, no silent dropping');
+-- 50
+select is(pg_temp.snapj('2026-09-14','2026-09-27',null)->'heatmap'->'reconciliation',$j${"complete":false,"totalVisits":null,"completedVisits":null,"currentDayVisits":null,"excludedVisits":null}$j$::jsonb,'OCC-008: reconciliation with an invalid included branch is incomplete with null totals, never an apparent organization total that silently omits errors');
+
+-- ============ F. selected branch (zone override, branch-local range, cash invariance) ============
+-- 51
+select is((select jsonb_agg(b->>'branchId') from jsonb_array_elements(pg_temp.snapj('2026-09-14','2026-09-27',pg_temp.u(12))->'heatmap'->'branches') b),$j$["83000000-0000-4000-8000-000000000012"]$j$::jsonb,'OCC-001: a selected branch narrows the analytics population to exactly that visible branch');
+-- 52
+select ok(pg_temp.hb(pg_temp.snapj('2026-09-14','2026-09-27',pg_temp.u(12)),pg_temp.u(12))->>'zone'='America/New_York' and pg_temp.hb(pg_temp.snapj('2026-09-14','2026-09-27',pg_temp.u(12)),pg_temp.u(12))->>'zoneSource'='branch' and (pg_temp.hb(pg_temp.snapj('2026-09-14','2026-09-27',pg_temp.u(12)),pg_temp.u(12))#>>'{range,startsAt}')::timestamptz='2026-09-14T00:00:00-04:00'::timestamptz and (pg_temp.hb(pg_temp.snapj('2026-09-14','2026-09-27',pg_temp.u(12)),pg_temp.u(12))#>>'{range,endsBefore}')::timestamptz='2026-09-28T00:00:00-04:00'::timestamptz,'OCC-003: the branch timezone override is the effective zone and its range boundaries are that zone''s local midnights');
+-- 53
+select ok(pg_temp.day(pg_temp.snapj('2026-09-14','2026-09-27',pg_temp.u(12)),pg_temp.u(12),'2026-09-14')->>'excluded'='true' and pg_temp.day(pg_temp.snapj('2026-09-14','2026-09-27',pg_temp.u(12)),pg_temp.u(12),'2026-09-14')->>'visits'='1' and (select (e->>'visits')='1' from jsonb_array_elements(pg_temp.day(pg_temp.snapj('2026-09-14','2026-09-27',pg_temp.u(12)),pg_temp.u(12),'2026-09-14')->'hours') e where (e->>'hour')='22') and pg_temp.hb(pg_temp.snapj('2026-09-14','2026-09-27',pg_temp.u(12)),pg_temp.u(12))->>'totalVisits'='0' and pg_temp.hb(pg_temp.snapj('2026-09-14','2026-09-27',pg_temp.u(12)),pg_temp.u(12))->>'excludedVisits'='1' and (select count(*)=14 from jsonb_array_elements(pg_temp.hb(pg_temp.snapj('2026-09-14','2026-09-27',pg_temp.u(12)),pg_temp.u(12))->'days') e),'OCC-003/005: the Sep 13 New-York visit lies branch-locally outside the range and the Sep 14 22:00 visit is holiday-excluded — no arrival survives into exposure');
+-- 54
+select ok((select bool_and((c->>'arrivals')='0' and (c->>'eligibleDates')='13') from jsonb_array_elements(pg_temp.hb(pg_temp.snapj('2026-09-14','2026-09-27',pg_temp.u(12)),pg_temp.u(12))->'cells') c),'OCC-006: the override branch carries zero arrivals with the same 13-eligible-date denominator');
+-- 55
+select ok(pg_temp.snapj('2026-09-14','2026-09-27',pg_temp.u(12))->'collection'->'currencies'=pg_temp.snapj('2026-09-14','2026-09-27',null)->'collection'->'currencies' and pg_temp.snapj('2026-09-14','2026-09-27',pg_temp.u(12))->'moneyRange'=pg_temp.snapj('2026-09-14','2026-09-27',null)->'moneyRange','OCC-013: the branch selector never changes whole-gym cash populations or money coverage');
+
+-- ============ G. incomplete today, current month, future month ============
+-- 56
+select ok(pg_temp.day(pg_temp.snapj(pg_temp.gym_today(),pg_temp.gym_today(),null),pg_temp.u(11),pg_temp.gym_today())->>'state'='current' and pg_temp.day(pg_temp.snapj(pg_temp.gym_today(),pg_temp.gym_today(),null),pg_temp.u(11),pg_temp.gym_today())->>'visits'='1' and (select (e->>'visits')='1' from jsonb_array_elements(pg_temp.day(pg_temp.snapj(pg_temp.gym_today(),pg_temp.gym_today(),null),pg_temp.u(11),pg_temp.gym_today())->'hours') e where (e->>'hour')=(extract(hour from now() at time zone 'Asia/Kolkata'))::text),'OCC-006: today is a current day whose arrivals are disclosed in their clock hour, never mixed into a completed average');
+-- 57
+select ok(pg_temp.cell(pg_temp.snapj(pg_temp.gym_today(),pg_temp.gym_today(),null),pg_temp.u(11),1,7)->'fraction'=pg_temp.fr('0','0',null) and pg_temp.cell(pg_temp.snapj(pg_temp.gym_today(),pg_temp.gym_today(),null),pg_temp.u(11),1,7)->>'limited'='true' and pg_temp.cell(pg_temp.snapj(pg_temp.gym_today(),pg_temp.gym_today(),null),pg_temp.u(11),1,7)->>'message'='Limited history','OCC-006/007: a current-only range has no completed exposure — zero denominator fraction with null basis points and the Limited history disclosure');
+-- 58
+select ok(pg_temp.hb(pg_temp.snapj(pg_temp.gym_today(),pg_temp.gym_today(),null),pg_temp.u(11))->>'availability'='partial' and pg_temp.hb(pg_temp.snapj(pg_temp.gym_today(),pg_temp.gym_today(),null),pg_temp.u(11))->>'noEligibleDays'='false','OCC-006: a current day makes availability partial and is not a no-eligible-days branch');
+-- 59
+select ok(pg_temp.snapj(pg_temp.gym_today(),pg_temp.gym_today(),null)->'moneyRange'->>'cutoffAt'=pg_temp.snapj(pg_temp.gym_today(),pg_temp.gym_today(),null)->>'asOf','OCC-002/003: the current range cutoff is the snapshot asOf itself');
+-- 60
+select is((select jsonb_agg(jsonb_build_object('month',m->>'month','from',m->>'from','through',m->>'through','coverage',m->>'coverage','currencies',m->'currencies') order by m->>'month') from jsonb_array_elements(pg_temp.snapj(pg_temp.gym_today(),pg_temp.gym_today(),null)->'months') m),jsonb_build_array(jsonb_build_object('month',to_char(pg_temp.gym_today(),'YYYY-MM'),'from',pg_temp.gym_today()::text,'through',pg_temp.gym_today()::text,'coverage','partial','currencies',$j$[]$j$::jsonb)),'OCC-009/013: the current month appears as Month-to-date partial with no invented currency zeros when no dated cash exists in it');
+-- 61
+select is((select jsonb_agg(jsonb_build_object('month',m->>'month','coverage',m->>'coverage','currencies',m->'currencies') order by m->>'month') from jsonb_array_elements(pg_temp.snapj('2027-01-01','2027-01-31',null)->'months') m),$j$[{"month":"2027-01","coverage":"unavailable","currencies":[]}]$j$::jsonb,'OCC-003: an entirely future month is unavailable with no currency zeros, never a full-period zero');
 
 -- ============ H. class cohort and booked fill ============
--- 39
-select is((select pg_temp.snap('2026-09-14','2026-09-27',null))::jsonb->'classes',$j${"cohortSessions":2,"totalCapacity":20,"holdingBookings":5,"bookedFillFraction":"0.2500…","cancelledSessionsExcluded":1,"attendedCount":2,"noShowCount":1,"unmarkedCount":2,"markingCoverage":"0.6000…","incompleteMarkingDisclosed":true,"limited":true,"message":"Limited history"}$j$::jsonb,'OCC-014/015/016: exact elapsed non-cancelled cohort — stored capacity, capacity-weighted booked fill, cancelled excluded, no-show holds a seat, unmarked disclosed, coverage separate, 2 sessions below the 10 threshold');
--- 40
-select is(((select pg_temp.snap('2026-09-14','2026-09-27',pg_temp.u(12)))::jsonb->'classes'->>'cohortSessions')::integer,0,'OCC-014: a branch with no sessions has an empty cohort');
--- 41
-select is((select pg_temp.snap('2026-09-14','2026-09-27',pg_temp.u(12)))::jsonb->'classes'->>'bookedFillFraction',null,'OCC-015: zero total capacity returns no fraction, not a zero');
+-- 62
+select is(pg_temp.cb(pg_temp.snapj('2026-09-14','2026-09-27',null),pg_temp.u(11))->'summary',$j${"cohortSessions":"2","totalCapacity":"20","holdingBookings":"5","attendedCount":"2","noShowCount":"1","unmarkedCount":"2","cancelledSessionsExcluded":"1","bookedFill":{"numerator":"5","denominator":"20","basisPoints":"2500"},"markedPresence":{"numerator":"2","denominator":"20","basisPoints":"1000"},"markingCoverage":{"numerator":"3","denominator":"5","basisPoints":"6000"},"incompleteMarkingDisclosed":true,"limited":true,"message":"Limited history"}$j$::jsonb,'OCC-014/015/016: exact elapsed non-cancelled cohort — stored capacity, capacity-weighted fractions, cancelled excluded, no-show holds a seat, unmarked disclosed, coverage separate, 2 sessions below the 10-session threshold');
+-- 63
+select is(pg_temp.cb(pg_temp.snapj('2026-09-14','2026-09-27',null),pg_temp.u(11))->'sessions'->0,jsonb_build_object('sessionId',pg_temp.u(421),'serviceId',pg_temp.u(411),'sessionDate','2026-09-14','capacity','10','bookedCount','1','attendedCount','1','noShowCount','1','holdingBookings','3','bookedFill',pg_temp.fr('3','10','3000'),'markedPresence',pg_temp.fr('1','10','1000'),'markingCoverage',pg_temp.fr('2','3','6667')),'OCC-014/015/016: the holiday session stayed in the cohort and its drill row is exact — one booked, one attended, one no-show over stored capacity 10');
+-- 64
+select is(pg_temp.cb(pg_temp.snapj('2026-09-14','2026-09-27',null),pg_temp.u(11))->'sessions'->1,jsonb_build_object('sessionId',pg_temp.u(422),'serviceId',pg_temp.u(411),'sessionDate','2026-09-16','capacity','10','bookedCount','1','attendedCount','1','noShowCount','0','holdingBookings','2','bookedFill',pg_temp.fr('2','10','2000'),'markedPresence',pg_temp.fr('1','10','1000'),'markingCoverage',pg_temp.fr('1','2','5000')),'OCC-015/016: the second elapsed session drills exactly — an unmarked booking stays booked, coverage counts only explicitly marked facts');
+-- 65
+select is((select jsonb_agg(s->>'sessionId') from jsonb_array_elements(pg_temp.cb(pg_temp.snapj('2026-09-14','2026-09-27',null),pg_temp.u(11))->'sessions') s),$j$["83000000-0000-4000-8000-000000000421","83000000-0000-4000-8000-000000000422"]$j$::jsonb,'OCC-014: the cohort is ordered sessionDate,startsAt,sessionId and excludes both the cancelled and the future session (the future booking contributes nothing)');
+-- 66
+select ok(pg_temp.cb(pg_temp.snapj('2026-09-14','2026-09-27',null),pg_temp.u(11))->'cancelledSessions'=$j$[{"sessionId":"83000000-0000-4000-8000-000000000423","serviceId":"83000000-0000-4000-8000-000000000411","sessionDate":"2026-09-18"}]$j$::jsonb,'OCC-014: the cancelled elapsed session is disclosed without capacity or bookings');
+-- 67
+select is(pg_temp.cb(pg_temp.snapj('2026-09-14','2026-09-27',null),pg_temp.u(11))->'services',$j$[{"serviceId":"83000000-0000-4000-8000-000000000411"}]$j$::jsonb,'OCC-015: the per-service rollup is keyed by service id alone — no trainer or member identifiers enter the cohort');
+-- 68
+select is(pg_temp.cb(pg_temp.snapj('2026-09-14','2026-09-27',pg_temp.u(12)),pg_temp.u(12))->'summary',$j${"cohortSessions":"0","totalCapacity":"0","holdingBookings":"0","attendedCount":"0","noShowCount":"0","unmarkedCount":"0","cancelledSessionsExcluded":"0","bookedFill":{"numerator":"0","denominator":"0","basisPoints":null},"markedPresence":{"numerator":"0","denominator":"0","basisPoints":null},"markingCoverage":{"numerator":"0","denominator":"0","basisPoints":null},"incompleteMarkingDisclosed":false,"limited":true,"message":"Limited history"}$j$::jsonb,'OCC-015: a branch with no elapsed sessions has a truthful zero-cohort summary — zero denominator returns no fraction, not a zero');
+-- 69
+select ok(pg_temp.cb(pg_temp.snapj('2026-09-14','2026-09-27',null),pg_temp.u(13))->>'summary' is null and pg_temp.cb(pg_temp.snapj('2026-09-14','2026-09-27',null),pg_temp.u(13))->'error'=$j${"code":"invalid_branch_timezone"}$j$::jsonb and pg_temp.cb(pg_temp.snapj('2026-09-14','2026-09-27',null),pg_temp.u(13))->>'availability' is null and pg_temp.cb(pg_temp.snapj('2026-09-14','2026-09-27',null),pg_temp.u(13))->'services'=$j$[]$j$::jsonb and pg_temp.cb(pg_temp.snapj('2026-09-14','2026-09-27',null),pg_temp.u(13))->'sessions'=$j$[]$j$::jsonb and pg_temp.cb(pg_temp.snapj('2026-09-14','2026-09-27',null),pg_temp.u(13))->'cancelledSessions'=$j$[]$j$::jsonb,'OCC-014: an invalid branch keeps its classes entry with null summary and empty arrays');
+-- 70
+select is(pg_temp.snapj('2026-09-14','2026-09-27',null)->'classes'->'reconciliation',$j${"complete":false,"summary":null}$j$::jsonb,'OCC-015: class reconciliation with an invalid branch is incomplete with a null aggregate, never a mean of percentages');
+-- 71
+select is((select jsonb_agg(b->>'branchId') from jsonb_array_elements(pg_temp.snapj('2026-09-14','2026-09-27',null)->'classes'->'branches') b),$j$["83000000-0000-4000-8000-000000000011","83000000-0000-4000-8000-000000000012","83000000-0000-4000-8000-000000000013"]$j$::jsonb,'OCC-008: the classes branch array mirrors the same selected visible population sorted by branchId');
 
--- ============ I. existing seams untouched ============
--- 42
+-- ============ I. existing seams untouched and the holiday toggle ============
+-- 72
 select ok(to_regprocedure('public.owner_metrics(date,date)') is not null and (select provolatile from pg_proc where oid=to_regprocedure('public.owner_metrics(date,date)'))='s' and not (select prosecdef from pg_proc where oid=to_regprocedure('public.owner_metrics(date,date)')),'OCC: the existing owner_metrics seam is untouched (still stable, still invoker)');
--- 43
+-- 73
 select ok(to_regprocedure('public.owner_metrics(date,date)') is distinct from to_regprocedure('public.owner_occupancy_analytics(date,date,uuid,boolean)'),'OCC: the analytics read is one versioned extension, not a changed owner_metrics');
--- 44
-select ok((select pg_temp.snapx('2026-09-14','2026-09-27',null,false))::jsonb->'heatmap'->>'eligibleDateCount' = '14' and (select pg_temp.snapx('2026-09-14','2026-09-27',null,false))::jsonb->'heatmap'->'excludedDates' = '[]'::jsonb and exists(select 1 from jsonb_array_elements((select pg_temp.snapx('2026-09-14','2026-09-27',null,false))::jsonb->'heatmap'->'cells') c where (c->>'weekday')='1' and (c->>'hour')='7' and (c->>'arrivals')='3'),'OCC-005: with the exclusion toggle off the holiday date returns to the exposure (14 eligible dates, no exclusions, the Monday 07:00 cell counts all three same-hour arrivals incl. the two holiday-date visits)');
+-- 74
+select ok(pg_temp.hb(pg_temp.snapjx('2026-09-14','2026-09-27',null,false),pg_temp.u(11))->>'totalVisits'='3' and pg_temp.hb(pg_temp.snapjx('2026-09-14','2026-09-27',null,false),pg_temp.u(11))->>'excludedVisits'='0' and pg_temp.day(pg_temp.snapjx('2026-09-14','2026-09-27',null,false),pg_temp.u(11),'2026-09-14')->>'excluded'='false' and pg_temp.day(pg_temp.snapjx('2026-09-14','2026-09-27',null,false),pg_temp.u(11),'2026-09-14')->>'isHoliday'='true' and pg_temp.cell(pg_temp.snapjx('2026-09-14','2026-09-27',null,false),pg_temp.u(11),1,7)->>'arrivals'='2' and pg_temp.cell(pg_temp.snapjx('2026-09-14','2026-09-27',null,false),pg_temp.u(11),1,7)->'fraction'=pg_temp.fr('2','14','1429') and pg_temp.hb(pg_temp.snapjx('2026-09-14','2026-09-27',null,false),pg_temp.u(11))->'week'=$j${"arrivals":"3","eligibleDates":"14","fraction":{"numerator":"3","denominator":"14","basisPoints":"2143"},"limited":false,"message":null}$j$::jsonb,'OCC-005: with the exclusion toggle off the holiday date returns to every denominator — 14 eligible dates, both holiday visits back in their cells, week 3/14, and the isHoliday fact stays visible');
+-- 75
+select ok(pg_temp.snapjx('2026-01-01','2026-03-31',null,true)->'collection'->'currencies'=pg_temp.snapjx('2026-01-01','2026-03-31',null,false)->'collection'->'currencies' and pg_temp.snapjx('2026-01-01','2026-03-31',null,true)->'months'=pg_temp.snapjx('2026-01-01','2026-03-31',null,false)->'months','OCC-005: the holiday toggle never moves actual payments, returns or class money');
+
+-- ============ J. invalid gym zone envelope ============
+select pg_temp.claim('gym_owner',25,null,905,2);
+-- 76
+select ok(pg_temp.snapj('2026-01-01','2026-03-31',null)->>'zone' is null and pg_temp.snapj('2026-01-01','2026-03-31',null)->'moneyRange'->>'scope'='Whole gym' and pg_temp.snapj('2026-01-01','2026-03-31',null)->'moneyRange'->>'zone' is null and pg_temp.snapj('2026-01-01','2026-03-31',null)->'moneyRange'->'error'=$j${"code":"invalid_gym_timezone"}$j$::jsonb and pg_temp.snapj('2026-01-01','2026-03-31',null)->'moneyRange'->>'startsAt' is null and pg_temp.snapj('2026-01-01','2026-03-31',null)->'months'=$j$[]$j$::jsonb and pg_temp.snapj('2026-01-01','2026-03-31',null)->'collection' is null,'OCC-003: an invalid gym zone yields explicit derived-field nulls, empty months and null collection — no fabricated UTC analytics');
+-- 77
+select ok(pg_temp.hb(pg_temp.snapj('2026-09-14','2026-09-27',null),pg_temp.u(14))->>'zone'='Mars/Phobos' and pg_temp.hb(pg_temp.snapj('2026-09-14','2026-09-27',null),pg_temp.u(14))->>'zoneSource'='gym' and pg_temp.hb(pg_temp.snapj('2026-09-14','2026-09-27',null),pg_temp.u(14))->'error'=$j${"code":"invalid_gym_timezone"}$j$::jsonb and pg_temp.hb(pg_temp.snapj('2026-09-14','2026-09-27',null),pg_temp.u(14))->'days'=$j$[]$j$::jsonb and pg_temp.hb(pg_temp.snapj('2026-09-14','2026-09-27',null),pg_temp.u(14))->'cells'=$j$[]$j$::jsonb and pg_temp.hb(pg_temp.snapj('2026-09-14','2026-09-27',null),pg_temp.u(14))->>'availability' is null,'OCC-003: a branch inheriting an invalid gym zone discloses the inherited zone text, its source and the gym-zone error');
+select pg_temp.claim('gym_owner',21,null,901,1);
 
 select * from finish();
 rollback;

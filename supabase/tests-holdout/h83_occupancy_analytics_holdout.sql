@@ -191,8 +191,9 @@ insert into public.refunds(id, tenant_id, payment_id, kind, amount_paise, curren
   ('83900000-0000-4000-8000-000000000101','83900000-0000-4000-8000-000000000001','83900000-0000-4000-8000-0000000000f2','refund',30000,'INR','completed','H83 test return','83900000-0000-4000-8000-0000000000a1', now() - interval '30 minutes', now() - interval '30 minutes'),
   -- r102 requested (in-flight): contributes zero returned cash.
   ('83900000-0000-4000-8000-000000000102','83900000-0000-4000-8000-000000000001','83900000-0000-4000-8000-0000000000f2','refund',1000,'INR','requested','H83 in-flight','83900000-0000-4000-8000-0000000000a1', null, now()),
-  -- r103 completed without processed_at: undated warning only.
-  ('83900000-0000-4000-8000-000000000103','83900000-0000-4000-8000-000000000001','83900000-0000-4000-8000-0000000000f1','reversal',2000,'INR','completed','H83 undated','83900000-0000-4000-8000-0000000000a1', null, now()),
+  -- r103 removed per the 2026-10-04 adjudication: a COMPLETED return with a
+  -- null processed_at is unreachable (the phase6 refund guard couples the two
+  -- in both directions), so there is no lawful undated-return fixture.
   -- r104 completed USD return inside the main range; original fa outside it;
   -- unallocated receipt -> allocationUnknown true.
   ('83900000-0000-4000-8000-000000000104','83900000-0000-4000-8000-000000000001','83900000-0000-4000-8000-0000000000fa','refund',7500,'USD','completed','H83 prior sale','83900000-0000-4000-8000-0000000000a1', now() - interval '30 minutes', now() - interval '30 minutes');
@@ -202,44 +203,54 @@ insert into public.refunds(id, tenant_id, payment_id, kind, amount_paise, curren
 do $seed$
 begin
   begin
-    insert into public.attendance(id, tenant_id, branch_id, member_id, checked_in_at) values
+    -- Lawful member-gate provenance: attendance_source is 'qr' (member gate);
+    -- source is NOT NULL and front_desk would additionally require staff+reason.
+    -- Lawful member-gate provenance: attendance_source is 'qr' (member gate);
+    -- source is NOT NULL, and front_desk would additionally require the staff
+    -- + reason pair. The staged facts and timestamps are unchanged.
+    insert into public.attendance(id, tenant_id, branch_id, member_id, source, checked_in_at) values
       -- Main branch (Kolkata), yesterday: two members at 09:00, the first
       -- member AGAIN at 09:30 (two accepted visits by one member count twice),
       -- one at 18:30, one exactly at the range-start local midnight.
-      ('83900000-0000-4000-8000-0000000000e1','83900000-0000-4000-8000-000000000001','83900000-0000-4000-8000-000000000011','83900000-0000-4000-8000-0000000000b1', ((current_date - 1)::timestamp + time '09:00') at time zone 'Asia/Kolkata'),
-      ('83900000-0000-4000-8000-0000000000e2','83900000-0000-4000-8000-000000000001','83900000-0000-4000-8000-000000000011','83900000-0000-4000-8000-0000000000b2', ((current_date - 1)::timestamp + time '09:00') at time zone 'Asia/Kolkata'),
-      ('83900000-0000-4000-8000-000000000e10','83900000-0000-4000-8000-000000000001','83900000-0000-4000-8000-000000000011','83900000-0000-4000-8000-0000000000b1', ((current_date - 1)::timestamp + time '09:30') at time zone 'Asia/Kolkata'),
-      ('83900000-0000-4000-8000-0000000000e3','83900000-0000-4000-8000-000000000001','83900000-0000-4000-8000-000000000011','83900000-0000-4000-8000-0000000000b2', ((current_date - 1)::timestamp + time '18:30') at time zone 'Asia/Kolkata'),
-      ('83900000-0000-4000-8000-0000000000e6','83900000-0000-4000-8000-000000000001','83900000-0000-4000-8000-000000000011','83900000-0000-4000-8000-0000000000b3', ((current_date - 1)::timestamp) at time zone 'Asia/Kolkata'),
+      ('83900000-0000-4000-8000-0000000000e1','83900000-0000-4000-8000-000000000001','83900000-0000-4000-8000-000000000011','83900000-0000-4000-8000-0000000000b1','qr', ((current_date - 1)::timestamp + time '09:00') at time zone 'Asia/Kolkata'),
+      ('83900000-0000-4000-8000-0000000000e2','83900000-0000-4000-8000-000000000001','83900000-0000-4000-8000-000000000011','83900000-0000-4000-8000-0000000000b2','qr', ((current_date - 1)::timestamp + time '09:00') at time zone 'Asia/Kolkata'),
+      ('83900000-0000-4000-8000-000000000e10','83900000-0000-4000-8000-000000000001','83900000-0000-4000-8000-000000000011','83900000-0000-4000-8000-0000000000b1','qr', ((current_date - 1)::timestamp + time '09:30') at time zone 'Asia/Kolkata'),
+      ('83900000-0000-4000-8000-0000000000e3','83900000-0000-4000-8000-000000000001','83900000-0000-4000-8000-000000000011','83900000-0000-4000-8000-0000000000b2','qr', ((current_date - 1)::timestamp + time '18:30') at time zone 'Asia/Kolkata'),
+      ('83900000-0000-4000-8000-0000000000e6','83900000-0000-4000-8000-000000000001','83900000-0000-4000-8000-000000000011','83900000-0000-4000-8000-0000000000b3','qr', ((current_date - 1)::timestamp) at time zone 'Asia/Kolkata'),
       -- Today (holiday): one visit inside the current day, hour pinned to one
       -- hour before the transaction clock so it is always before asOf.
-      ('83900000-0000-4000-8000-0000000000e5','83900000-0000-4000-8000-000000000001','83900000-0000-4000-8000-000000000011','83900000-0000-4000-8000-0000000000b3', date_trunc('hour', now()) - interval '1 hour'),
+      ('83900000-0000-4000-8000-0000000000e5','83900000-0000-4000-8000-000000000001','83900000-0000-4000-8000-000000000011','83900000-0000-4000-8000-0000000000b3','qr', date_trunc('hour', now()) - interval '1 hour'),
       -- Exactly at the after-through local midnight: excluded.
-      ('83900000-0000-4000-8000-0000000000e7','83900000-0000-4000-8000-000000000001','83900000-0000-4000-8000-000000000011','83900000-0000-4000-8000-0000000000b3', ((current_date + 1)::timestamp) at time zone 'Asia/Kolkata'),
+      ('83900000-0000-4000-8000-0000000000e7','83900000-0000-4000-8000-000000000001','83900000-0000-4000-8000-000000000011','83900000-0000-4000-8000-0000000000b3','qr', ((current_date + 1)::timestamp) at time zone 'Asia/Kolkata'),
       -- After asOf: excluded.
-      ('83900000-0000-4000-8000-0000000000e8','83900000-0000-4000-8000-000000000001','83900000-0000-4000-8000-000000000011','83900000-0000-4000-8000-0000000000b3', now() + interval '2 hours'),
+      ('83900000-0000-4000-8000-0000000000e8','83900000-0000-4000-8000-000000000001','83900000-0000-4000-8000-000000000011','83900000-0000-4000-8000-0000000000b3','qr', now() + interval '2 hours'),
       -- Other tenant.
-      ('83900000-0000-4000-8000-0000000000e9','83900000-0000-4000-8000-000000000002','83900000-0000-4000-8000-000000000014','83900000-0000-4000-8000-0000000000b4', now() - interval '2 hours'),
+      ('83900000-0000-4000-8000-0000000000e9','83900000-0000-4000-8000-000000000002','83900000-0000-4000-8000-000000000014','83900000-0000-4000-8000-0000000000b4','qr', now() - interval '2 hours'),
       -- Auckland branch, deterministic branch-local 15:00 yesterday.
-      ('83900000-0000-4000-8000-0000000000e4','83900000-0000-4000-8000-000000000001','83900000-0000-4000-8000-000000000012','83900000-0000-4000-8000-0000000000b3', ((current_date - 1)::timestamp + time '15:00') at time zone 'Pacific/Auckland'),
+      ('83900000-0000-4000-8000-0000000000e4','83900000-0000-4000-8000-000000000001','83900000-0000-4000-8000-000000000012','83900000-0000-4000-8000-0000000000b3','qr', ((current_date - 1)::timestamp + time '15:00') at time zone 'Pacific/Auckland'),
       -- DST gap: Sunday 2026-09-27 02:00-03:00 NZST does not exist; the visit
       -- sits on Sunday 2026-09-20 02:30 NZST so the Sunday/02 cell gains one
       -- eligible date while 2026-09-27 contributes none.
-      ('83900000-0000-4000-8000-000000000e11','83900000-0000-4000-8000-000000000001','83900000-0000-4000-8000-000000000012','83900000-0000-4000-8000-0000000000b3', '2026-09-19T14:30:00Z'::timestamptz),
+      ('83900000-0000-4000-8000-000000000e11','83900000-0000-4000-8000-000000000001','83900000-0000-4000-8000-000000000012','83900000-0000-4000-8000-0000000000b3','qr', '2026-09-19T14:30:00Z'::timestamptz),
       -- DST repeat: Sunday 2026-04-05 02:30 occurs twice (NZDT then NZST);
       -- both instants bucket into the same coordinate and the date counts once.
-      ('83900000-0000-4000-8000-000000000e12','83900000-0000-4000-8000-000000000001','83900000-0000-4000-8000-000000000012','83900000-0000-4000-8000-0000000000b3', '2026-04-04T13:30:00Z'::timestamptz),
-      ('83900000-0000-4000-8000-000000000e13','83900000-0000-4000-8000-000000000001','83900000-0000-4000-8000-000000000012','83900000-0000-4000-8000-0000000000b3', '2026-04-04T14:30:00Z'::timestamptz);
+      ('83900000-0000-4000-8000-000000000e12','83900000-0000-4000-8000-000000000001','83900000-0000-4000-8000-000000000012','83900000-0000-4000-8000-0000000000b3','qr', '2026-04-04T13:30:00Z'::timestamptz),
+      ('83900000-0000-4000-8000-000000000e13','83900000-0000-4000-8000-000000000001','83900000-0000-4000-8000-000000000012','83900000-0000-4000-8000-0000000000b3','qr', '2026-04-04T14:30:00Z'::timestamptz);
   exception when others then
     insert into h83_seed_errors values ('attendance: ' || SQLERRM);
   end;
   begin
-    insert into public.class_sessions(id, tenant_id, branch_id, session_date, capacity, status, ends_at) values
-      ('83900000-0000-4000-8000-000000001101','83900000-0000-4000-8000-000000000001','83900000-0000-4000-8000-000000000011', current_date - 1, 7, 'scheduled', now() - interval '1 hour'),
-      ('83900000-0000-4000-8000-000000001102','83900000-0000-4000-8000-000000000001','83900000-0000-4000-8000-000000000011', current_date - 1, 10, 'scheduled', now() + interval '2 hours'),   -- ongoing/future
-      ('83900000-0000-4000-8000-000000001103','83900000-0000-4000-8000-000000000001','83900000-0000-4000-8000-000000000011', current_date - 1, 10, 'cancelled', now() - interval '2 hours'),  -- cancelled elapsed
-      ('83900000-0000-4000-8000-000000001104','83900000-0000-4000-8000-000000000001','83900000-0000-4000-8000-000000000011', current_date, 10, 'scheduled', now() - interval '30 minutes'),   -- holiday-standing elapsed
-      ('83900000-0000-4000-8000-000000001105','83900000-0000-4000-8000-000000000001','83900000-0000-4000-8000-000000000012', current_date - 1, 5, 'scheduled', now() - interval '2 hours');    -- Auckland
+    -- Lawful service link: class_sessions.service_id is NOT NULL and the
+    -- session rows stage against one real per-tenant services row. starts_at
+    -- is staged explicitly before ends_at on every row.
+    insert into public.services(id, tenant_id, name, description, default_duration_minutes, default_capacity, sort_order, is_active)
+      values ('83900000-0000-4000-8000-0000000000c3','83900000-0000-4000-8000-000000000001','H83 Strength','H83 holdout service',45,10,1,true);
+    insert into public.class_sessions(id, tenant_id, service_id, branch_id, session_date, starts_at, capacity, status, ends_at) values
+      ('83900000-0000-4000-8000-000000001101','83900000-0000-4000-8000-000000000c3','83900000-0000-4000-8000-000000000001','83900000-0000-4000-8000-000000000011', current_date - 1, now() - interval '3 hours', 7, 'scheduled', now() - interval '1 hour'),
+      ('83900000-0000-4000-8000-000000001102','83900000-0000-4000-8000-000000000c3','83900000-0000-4000-8000-000000000001','83900000-0000-4000-8000-000000000011', current_date - 1, now() - interval '30 minutes', 10, 'scheduled', now() + interval '2 hours'),   -- ongoing/future
+      ('83900000-0000-4000-8000-000000001103','83900000-0000-4000-8000-000000000c3','83900000-0000-4000-8000-000000000001','83900000-0000-4000-8000-000000000011', current_date - 1, now() - interval '4 hours', 10, 'cancelled', now() - interval '2 hours'),  -- cancelled elapsed
+      ('83900000-0000-4000-8000-000000001104','83900000-0000-4000-8000-000000000c3','83900000-0000-4000-8000-000000000001','83900000-0000-4000-8000-000000000011', current_date, now() - interval '2 hours', 10, 'scheduled', now() - interval '30 minutes'),   -- holiday-standing elapsed
+      ('83900000-0000-4000-8000-000000001105','83900000-0000-4000-8000-000000000c3','83900000-0000-4000-8000-000000000001','83900000-0000-4000-8000-000000000012', current_date - 1, now() - interval '3 hours', 5, 'scheduled', now() - interval '2 hours');    -- Auckland
   exception when others then
     insert into h83_seed_errors values ('class_sessions: ' || SQLERRM);
   end;
@@ -488,9 +499,16 @@ select is((select array_agg(v->>'returnId' order by ord) from (select v, ord fro
 select is(pg_temp.snap('main')->'warnings'->>'scope','Current all-date','the warning population is the current all-date scope');
 select is((select count(*) from jsonb_array_elements(pg_temp.snap('main')->'warnings'->'undatedPayments'))::bigint,1::bigint,'exactly the one arrived undated payment is warned');
 select is(pg_temp.snap('main')->'warnings'->'undatedPayments'->0, jsonb_build_object('paymentId','83900000-0000-4000-8000-0000000000f6','amountPaise','7000','currency','INR'), 'undated payment rows carry exactly the frozen keys and values');
-select is(pg_temp.snap('main')->'warnings'->'undatedReturns'->0, jsonb_build_object('returnId','83900000-0000-4000-8000-000000000103','paymentId','83900000-0000-4000-8000-0000000000f1','amountPaise','2000','currency','INR'), 'undated return rows carry exactly the frozen keys and values');
+-- Adjudication (declaration warnings section, 2026-10-04): completed<=>processed_at
+-- is coupled in both directions by the phase6 refund guard, so undatedReturns
+-- is always empty; the coupled invariant is pinned on the lawful staged rows.
+select ok(
+  (select processed_at is not null from public.refunds where id = '83900000-0000-4000-8000-000000000101')
+  and coalesce((select true from public.refunds where id = '83900000-0000-4000-8000-000000000102' and status <> 'completed' and processed_at is null), false)
+  and pg_temp.snap('main')->'warnings'->'undatedReturns' = '[]'::jsonb,
+  'undatedReturns is always empty and the completed<=>processed_at coupling holds on lawful rows');
 select is((select count(*) from jsonb_array_elements(pg_temp.snap('main')->'warnings'->'totals'))::bigint,1::bigint,'totals are grouped per currency');
-select is(pg_temp.snap('main')->'warnings'->'totals'->0, jsonb_build_object('currency','INR','undatedPaymentCount','1','undatedPaymentPaise','7000','undatedReturnCount','1','undatedReturnPaise','2000'), 'warning totals sum exclusively from the warned rows per currency');
+select is(pg_temp.snap('main')->'warnings'->'totals'->0, jsonb_build_object('currency','INR','undatedPaymentCount','1','undatedPaymentPaise','7000','undatedReturnCount','0','undatedReturnPaise','0'), 'warning totals sum exclusively from the warned rows per currency');
 select is((select count(*) from jsonb_array_elements(pg_temp.snap('future')->'warnings'->'undatedPayments'))::bigint,1::bigint,'the all-date warning population is independent of the selected range');
 
 -- ---------------------------------------------------------------------------

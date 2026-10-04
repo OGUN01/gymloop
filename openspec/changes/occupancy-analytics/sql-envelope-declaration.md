@@ -172,6 +172,18 @@ Limited-history displays show raw numerator/denominator; normalized heatmap/comm
 ## Warnings, reusable seams and behavioral acceptance
 
 `warnings = {scope,undatedPayments,undatedReturns,totals}`; scope=`"Current all-date"`.
+
+ Adjudication (2026-10-04, orchestrator, runtime evidence): a COMPLETED
+ return with a null processed_at is unreachable in the money domain -- the
+ phase6 addon-sales refund guard couples the two in both directions
+ (insert/update to `completed` stamps `processed_at := clock_timestamp()`;
+ un-completion nulls it; both RLS-active and inactive paths). Every lawful
+ insert path therefore yields a dated completed return, and the built
+ envelope's always-empty `undatedReturns` content is the HONEST behavior.
+ Suites SHALL pin the coupled invariant (completed implies processed_at
+ stamped, and vice versa) and pin `undatedReturns` as empty under lawful
+ staging instead of demanding rows for an impossible state; the warnings
+ section and its scope disclosure remain part of the envelope.
 Population: same authorized tenant/current snapshot, independent of range/branch/holiday; arrived paid/refunded/reversed with paid_at null, completed refund/reversal with processed_at null. No pending/failed/requested/processing rows or invented cutoff. Undated payment rows exactly `{paymentId,amountPaise,currency}`, return rows exactly
 `{returnId,paymentId,amountPaise,currency}`, sorted id. `totals: {currency,
 undatedPaymentCount,undatedPaymentPaise,undatedReturnCount,undatedReturnPaise}[]`

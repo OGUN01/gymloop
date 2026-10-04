@@ -151,3 +151,30 @@ current source:
   occurrence. plan(77) preserved (77 verified); rollback guard green (159
   files). SQL NOT executed here.
 - New sha256: `82ce4bbe62eeeb3d5fb2ee59dfb5eb304837bb87f17f89e50569ca4d118f2796`.
+
+## Runtime repair — round 5 (coordinator adjudication: unreachable completed/undated return)
+
+- Adjudication: runtime evidence shows a completed refund with null
+  processed_at is UNREACHABLE — the phase6 addon-sales refund guard stamps
+  processed_at on every insert/update to `completed` (and nulls it on
+  un-completion) on every path; the coordinator probed fixture 803 mid-suite
+  (row exists, processed_at auto-stamped to transaction time) and the RPC's
+  undatedReturns population correctly excludes it. The former #32 pin (exact
+  one-row undatedReturns column) demanded an impossible state.
+- Amendment (recorded reason in the assertion label; per the adjudication
+  note in openspec/changes/occupancy-analytics/sql-envelope-declaration.md,
+  warnings section):
+  - #32 rewritten as `ok(...)`: the coupled invariant pinned directly —
+    staged 803 carries a non-null processed_at, every staged completed refund
+    for the tenant carries a non-null processed_at, and the snapshot's
+    `undatedReturns` is `[]` under lawful staging.
+  - #33 totals amended: `undatedReturnCount` "0" / `undatedReturnPaise" "0"`;
+    the totals-sum-exclusively-from-arrays discipline and the scope
+    disclosure pin both stay (the empty array still sums to exact zero
+    totals).
+  - Fixture comment corrected (803 stays a staged completed refund; its
+    stamp is now documented as invariant-driven).
+- Attendance staging provenance (round 2) untouched per coordinator note.
+  plan(77) preserved (77 verified); rollback guard green (159 files). SQL NOT
+  executed here.
+- New sha256: `1135c79633e204c38197135b3baec91fb8c9e21cfdd9f3b7cc82be3d681f3d6a`.

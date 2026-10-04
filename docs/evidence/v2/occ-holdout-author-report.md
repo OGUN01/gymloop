@@ -336,3 +336,51 @@ disabled, no protected timestamp forced null, nothing committed.
   candidates if they still fail on clean data. Rollback guard green
   (159 files).
 - New sha256: `531fe063dc2b18531ef491523ec84e94f7c978f1acb7b3c2d546764031867eb5`.
+
+## Runtime repair round 12 (2026-10-04)
+
+- Runtime facts (eleventh Cloud diagnostic round): (1) attendance staging
+  still failing — NOT NULL `source` column omitted; (2) undatedReturns
+  adjudication (declaration warnings section, 2026-10-04): completed⇔
+  processed_at is coupled in both directions by the phase6 refund guard, so
+  a completed return with null processed_at is unreachable and the built
+  envelope's always-empty `undatedReturns` is the honest behavior.
+- Edits:
+  1. Attendance staging now supplies `source` = 'qr' (lawful member-gate
+     provenance; attendance_source vocabulary is qr|front_desk and
+     front_desk would additionally require the staff+reason pair) on all
+     thirteen rows; ids, timestamps and facts unchanged. The block was
+     rewritten wholesale after an intermediate regex edit mangled
+     parentheses — the final block is hand-verified row by row.
+  2. The unlawful r103 fixture row (reversal, completed, null processed_at)
+     is REMOVED with an explanatory comment. The old undated-return row pin
+     is replaced (1:1, plan(183) preserved) by a single `ok()` that pins
+     (a) `undatedReturns` = '[]' always and (b) the coupled invariant on the
+     lawful staged rows: r101 completed ⇒ processed_at stamped; r102
+     non-completed ⇒ processed_at null is the lawful state.
+  3. The INR warnings-total pin now expects
+     `undatedReturnCount '0' / undatedReturnPaise '0'` (no warned returns).
+- Post-fix expectation: attendance/class/money staging lands cleanly; the
+  RED mass re-derives from genuine deviations, with #27 (nine-key order) and
+  the P0002 branch-refusal conformance note (already amended) as the flagged
+  adjudication candidates. Rollback guard green (159 files).
+- New sha256: `6be27f1b88b22d595f72299258964d547671b6f035ea4b2fd287dba71b3138fb`.
+
+## Runtime repair round 13 (2026-10-04)
+
+- Runtime fact (staging round 3): attendance staging lands, but the
+  class_sessions insert failed with `null value in column "service_id"`
+  (NOT NULL) — the session staging omitted the service reference.
+- Edit (lawful service link): one real per-tenant services row staged
+  (`…0c3`, tenant …0001, name/description/duration/capacity/sort_order/
+  is_active explicitly) before the session block; every class_sessions row
+  now carries `service_id …0c3` and an explicit `starts_at` before its
+  `ends_at` (values shifted, cohort/eligibility semantics unchanged — all
+  five rows keep their elapsed/ongoing/cancelled/holiday/Auckland roles).
+  plan(183) preserved. Rollback guard green (159 files).
+- Post-fix expectation: classes section (143-172) and the downstream day/
+  money pins run against clean staged data; remaining REDs split into
+  genuine envelope deviations to record publicly (candidates: #27 nine-key
+  order; branch refusal signal — already amended to the adjudicated P0002,
+  re-checked against the amended pins) and cascade noise.
+- New sha256: `11178558e29d87a9da313f15b1fc5f7a8396b04e4e9773ed1787eacc882c43ee`.
