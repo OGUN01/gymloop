@@ -1,3 +1,4 @@
+import { staffWhatsappConsentRequestSchema } from '@gymloop/shared';
 import { apiFail, jsonBody } from '../../../../../lib/api';
 import { commsOk, commsRpcFailure } from '../../../../../lib/comms';
 import { whatsappDispatchResult, whatsappStaffCaller } from '../../../../../lib/whatsapp';
@@ -8,25 +9,17 @@ import { whatsappDispatchResult, whatsappStaffCaller } from '../../../../../lib/
  * exactly the replay key; recipient, cost, sender, template and channel are
  * all derived by trusted server code and never accepted from a request, so a
  * client cannot smuggle a recipient or a price through this route. The path
- * reference is hex-dashed id text — the same shape-level check the contract's
- * wire layer uses, with the real uuid signature check at the RPC.
+ * reference and replay key reuse the canonical UUID wire schema; trusted SQL
+ * still performs current tenant, recipient and dispatch eligibility checks.
  */
-function validNotificationIdShape(value: string): boolean {
-  const stripped = value.replace(/-/g, '');
-  return /^[0-9a-fA-F]{32,64}$/.test(stripped);
-}
-
-function validRequestKeyShape(value: unknown): value is string {
-  return typeof value === 'string' && validNotificationIdShape(value);
-}
-
 /** The body carries exactly the replay key and nothing else. */
 function parseDispatchBody(payload: unknown): string | null {
   if (typeof payload !== 'object' || payload === null || Array.isArray(payload)) return null;
   const record = payload as Record<string, unknown>;
   const keys = Object.keys(record).sort();
   if (keys.length !== 1 || keys[0] !== 'requestKey') return null;
-  return validRequestKeyShape(record.requestKey) ? record.requestKey : null;
+  const parsed = staffWhatsappConsentRequestSchema.shape.requestKey.safeParse(record.requestKey);
+  return parsed.success ? parsed.data : null;
 }
 
 export async function POST(
@@ -37,7 +30,7 @@ export async function POST(
   if ('failure' in caller) return caller.failure;
 
   const { notificationId } = await context.params;
-  if (!validNotificationIdShape(notificationId)) {
+  if (!staffWhatsappConsentRequestSchema.shape.memberId.safeParse(notificationId).success) {
     return apiFail('bad_request', 'invalid_request', 'That message reference is not a valid id.');
   }
 

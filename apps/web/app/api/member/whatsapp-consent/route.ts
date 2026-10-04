@@ -45,6 +45,6 @@ export async function POST(request: Request): Promise<Response> {
   if (error) return commsRpcFailure(error, 'paise');
 
   const result = whatsappConsentWriteResult(data);
-  if (result === null) return apiFail('server_error', 'operation_failed', 'The WhatsApp consent could not be recorded. Nothing was written.');
+  if (result === null || result.purpose !== purpose || result.granted !== granted) return apiFail('server_error', 'operation_failed', 'The WhatsApp consent result could not be confirmed. Refresh your settings before trying again.');
   return commsOk('created', result);
 }

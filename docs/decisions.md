@@ -1967,3 +1967,12 @@ take an explicit finite clock and introduce no seventh status or new calendar.
 Frozen cbc17d0 and independent RED additions140d276 precede separate source
 cc69ec7. The current approved CLS cutoff/policy boundaries supersede the older
 pending language in the historical reuse note above.
+
+### WSP concealed phone and cursor validator reuse (2026-10-04)
+
+Registry/code search found no reusable concealed-phone total-digit bound; the existing local consecutive-run bound admitted grouped full recipient numbers. WSP_MASKED_PHONE_VISIBLE_DIGITS_MAX centralizes the existing six-digit visibility ceiling and applies it across all groups. Operations cursor validation reuses the registered ptBookRequestSchema startsAt schema, whose complete timezone-aware ISO datetime validation rejects impossible calendar dates without introducing a second instant parser. No consent, authority, money or paging contract changes.
+
+
+### WSP UUID wire validation reuse (2026-10-04)
+
+Registry/code search found the canonical isUuid helper in the web-only keyset module. Importing it into platform-free shared would reverse the dependency boundary. The existing Zod dependency's guid schema supplies the same case-insensitive 8-4-4-4-12 grouping without an RFC version restriction, replacing WSP's local permissive stripped-hex helper. No new exported symbol or authority change.

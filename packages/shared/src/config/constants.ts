@@ -621,6 +621,8 @@ export const WSP_CLAIM_BATCH_MAX = 50;
 export const WSP_DISPATCH_TICKET_SECONDS = 120;
 export const WSP_TENANT_REQUESTS_PER_MINUTE = 30;
 export const WSP_OPERATIONS_PAGE_MAX = 100;
+/** Concealed WhatsApp projections expose at most six digits across all groups. */
+export const WSP_MASKED_PHONE_VISIBLE_DIGITS_MAX = 6;
 
 /** Frozen SLF-001…018 member freeze request bounds (member-self-service proposal). */
 export const SLF_LIMITS = { reasonMaxChars: 2000, decisionReasonMinChars: 3, decisionReasonMaxChars: 200, maxOpenRequestsPerMember: 1 } as const;

@@ -1,4 +1,4 @@
-import { isNonnegativeCanonicalDecimalInteger, WSP_OPERATIONS_PAGE_MAX } from '@gymloop/shared';
+import { isNonnegativeCanonicalDecimalInteger, WSP_MASKED_PHONE_VISIBLE_DIGITS_MAX, WSP_OPERATIONS_PAGE_MAX } from '@gymloop/shared';
 import { isObject } from './keyset';
 import type { GymloopIdentity } from './identity';
 import { staffSession, type StaffSession } from './api';
@@ -68,19 +68,16 @@ export type WhatsappOutcome = 'read' | 'delivered' | 'accepted' | 'failed' | 'op
 
 /**
  * A masked phone carries an explicit mask character and never contains an
- * unmasked digit run long enough to be a real number (a `•`-mask is the
+ * too many visible digits across all groups (a `•`-mask is the
  * contract's own example `'`+91 ••••• 810`' shape). A full E.164 phone or a
- * bare digit run is refused, never re-masked. The digit-run bound matches
- * ITU E.164's shortest national numbering plans: the masks make runs short,
- * so a run this long is an unmasked number.
+ * bare digit run is refused, never re-masked. Separators and decorative mask
+ * markers cannot disguise a fully visible recipient number.
  */
-const UNMASKED_DIGIT_RUN_FORBIDDEN = 7;
-
 function isMaskedPhone(value: unknown): value is string {
   if (typeof value !== 'string' || value.trim() === '') return false;
   if (!/[•*xX]/.test(value)) return false;
-  const digitRuns = value.match(/[0-9]+/g) ?? [];
-  return digitRuns.every((run) => run.length < UNMASKED_DIGIT_RUN_FORBIDDEN);
+  const visibleDigits = value.match(/[0-9]/g) ?? [];
+  return visibleDigits.length <= WSP_MASKED_PHONE_VISIBLE_DIGITS_MAX;
 }
 
 function exactKeys(object: Record<string, unknown>, keys: readonly string[]): boolean {
@@ -177,6 +174,7 @@ function whatsappOperationsRow(value: unknown): WhatsappOperationsRow | null {
   for (const key of OPTIONAL_INSTANT) {
     if (!isOptionalInstant(row[key])) return null;
   }
+  if (row.status === 'delivered' && row.deliveredAt === null) return null;
   if (row.failedReason !== null && (typeof row.failedReason !== 'string' || row.failedReason === '')) return null;
   if (row.optedOutReason !== null && (typeof row.optedOutReason !== 'string' || row.optedOutReason === '')) return null;
   if (typeof row.outcomeUnknown !== 'boolean') return null;
@@ -245,7 +243,7 @@ export function readWhatsappOperationsPage(data: unknown): WhatsappOperationsPag
   if (!isObject(data)) return null;
   const record = data as Record<string, unknown>;
   if (!exactKeys(record, ['chargedTotals', 'nextAfter', 'nextAfterId', 'operations', 'statusCounts', 'templateBlockers', 'wallet'])) return null;
-  if (!isObject(record.operations) && !Array.isArray(record.operations)) return null;
+  if (!Array.isArray(record.operations)) return null;
   const rows = record.operations as unknown[];
   if (rows.length > WSP_OPERATIONS_PAGE_MAX) return null;
   const validatedRows: WhatsappOperationsRow[] = [];
@@ -256,7 +254,7 @@ export function readWhatsappOperationsPage(data: unknown): WhatsappOperationsPag
   }
   const statusCounts = whatsappStatusCounts(record.statusCounts);
   if (statusCounts === null) return null;
-  if (record.templateBlockers !== null && !Array.isArray(record.templateBlockers)) return null;
+  if (!Array.isArray(record.templateBlockers)) return null;
   const blockers: WhatsappTemplateBlocker[] = [];
   for (const blocker of record.templateBlockers as unknown[]) {
     const validated = WhatsappTemplateBlocker(blocker);

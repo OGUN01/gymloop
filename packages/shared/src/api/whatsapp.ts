@@ -20,19 +20,8 @@ import { z } from 'zod';
 
 const nonBlank = z.string().trim().min(1);
 
-/**
- * Shape-level uuid check, deliberately looser than the RFC's 8-4-4-4-12
- * grouping: hex characters only once hyphens are stripped, at least 32 hex
- * chars. The real signature check belongs to the RPC (`postuuid`/bigint
- * discipline lives server-side); the wire layer only refuses text that is
- * not a hex-dashed id at all, so fixture-prefixed ids of varied hyphen
- * grouping also travel.
- */
-function isHexStringId(value: string): boolean {
-  const stripped = value.replace(/-/g, '');
-  return /^[0-9a-fA-F]{32,64}$/.test(stripped);
-}
-const uuid = z.string().refine(isHexStringId, 'Not a hexadecimal dashed id');
+/** Canonical hexadecimal UUID grouping without an RFC version restriction. */
+const uuid = z.guid();
 
 /** `POST /api/member/whatsapp-consent` — the member's own channel consent command. */
 export const memberWhatsappConsentRequestSchema = z.object({

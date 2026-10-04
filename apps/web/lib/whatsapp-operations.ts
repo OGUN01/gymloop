@@ -1,4 +1,6 @@
 import { requireAudience } from './identity-session';
+import { ptBookRequestSchema, WSP_OPERATIONS_PAGE_MAX } from '@gymloop/shared';
+import { isUuid } from './keyset';
 import { whatsappOperationsView, type WhatsappOperationsPage } from './whatsapp';
 
 /**
@@ -17,10 +19,12 @@ export type WhatsappOperationsLoad = {
   isPreview: boolean;
 };
 
-const MAX_PAGE = 100;
-
 export async function loadWhatsappOperations(params: WhatsappOperationsParams): Promise<WhatsappOperationsLoad> {
   const { supabase, identity } = await requireAudience('console');
+  const isPreview = identity.kind === 'impersonation';
+  const refused = { view: null, errorMessage: 'The WhatsApp operations list could not be loaded.', isPreview };
+  if (!isPreview && !(identity.kind === 'staff' &&
+      ['gym_owner', 'gym_manager', 'front_desk'].includes(identity.role))) return refused;
 
   // `read_whatsapp_operations` does not exist before the WSP migration lands;
   // the narrow local cast matches the pattern `messages.ts` uses for
@@ -29,9 +33,12 @@ export async function loadWhatsappOperations(params: WhatsappOperationsParams): 
   let afterCreatedAt: string | null = null;
   let afterId: string | null = null;
   if (params.cursor !== undefined) {
-    const [createdAt, id] = params.cursor.split('|');
-    afterCreatedAt = typeof createdAt === 'string' && createdAt !== '' ? createdAt : null;
-    afterId = typeof id === 'string' && id !== '' ? id : null;
+    const parts = params.cursor.split('|');
+    const [createdAt, id] = parts;
+    if (parts.length !== ['createdAt', 'id'].length || !createdAt ||
+        !ptBookRequestSchema.shape.startsAt.safeParse(createdAt).success || !isUuid(id)) return refused;
+    afterCreatedAt = createdAt;
+    afterId = id;
   }
 
   const reader = supabase as unknown as {
@@ -42,15 +49,16 @@ export async function loadWhatsappOperations(params: WhatsappOperationsParams): 
   const { data, error } = await reader.rpc('read_whatsapp_operations', {
     p_after_created_at: afterCreatedAt,
     p_after_id: afterId,
-    p_limit: MAX_PAGE,
+    p_limit: WSP_OPERATIONS_PAGE_MAX,
   });
+  if (error) return refused;
   const view = whatsappOperationsView(identity, data);
   if (view !== null) {
     return { view, errorMessage: null, isPreview: identity.kind === 'impersonation' };
   }
   return {
     view: null,
-    errorMessage: error?.message ?? 'The WhatsApp operations list could not be loaded.',
+    errorMessage: 'The WhatsApp operations list could not be loaded.',
     isPreview: identity.kind === 'impersonation',
   };
 }
