@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const fixture = vi.hoisted(() => ({
   platform: 'android', online: true, permission: 'granted',
+  identity: undefined as unknown,
   states: [] as unknown[], cursor: 0, effects: [] as Array<() => unknown>,
   channel: vi.fn(), request: vi.fn(), token: vi.fn(), post: vi.fn(), open: vi.fn(),
   module: {} as Record<string, unknown>,
@@ -30,6 +31,7 @@ vi.mock('expo-secure-store', () => ({ getItemAsync: async () => '57428966-e440-4
 vi.mock('expo-crypto', () => ({ randomUUID: () => '57428966-e440-45a5-a934-815c32319d5b' }));
 vi.mock('expo-notifications', () => fixture.module);
 vi.mock('../../apps/mobile/lib/mobile-context', () => ({ useMobile: () => ({
+  identity: fixture.identity,
   api: { post: fixture.post }, session: { user: { id: 'member-account' } },
   claims: { role: 'member', tenant_id: 'gym', member_id: 'member', sub: 'member-account' },
   online: fixture.online,
@@ -50,6 +52,10 @@ beforeEach(async () => {
   vi.resetModules();
   vi.clearAllMocks();
   fixture.platform = 'android'; fixture.online = true; fixture.permission = 'granted';
+  fixture.identity = {
+    kind: 'member', userId: '0c244bd2-fbf9-4c32-b0c3-7db6cc2f7e93',
+    tenantId: '11122bf7-115c-4364-a0b7-f194befa786a', memberId: 'f7c95f98-2cde-4bc5-9f36-8a4c295f5ebf',
+  };
   fixture.states = []; fixture.effects = [];
   fixture.channel.mockResolvedValue({ id: 'fitcruxx-updates' });
     fixture.request.mockImplementation(async () => ({ status: fixture.permission, granted: fixture.permission === 'granted' }));
@@ -70,6 +76,22 @@ beforeEach(async () => {
 });
 
 describe('NFC-003/004 independent enable-action channel contract', () => {
+  it.each([
+    ['absent', undefined],
+    ['unlinked', { kind: 'unlinked', userId: '0c244bd2-fbf9-4c32-b0c3-7db6cc2f7e93' }],
+    ['staff', { kind: 'staff', userId: '0c244bd2-fbf9-4c32-b0c3-7db6cc2f7e93', tenantId: '11122bf7-115c-4364-a0b7-f194befa786a', role: 'owner' }],
+  ])('retains NTF-003 fail-closed registration for %s member identity', async (_label, identity) => {
+    fixture.identity = identity;
+    await (await mount()).enableNotifications();
+    expect(fixture.channel).not.toHaveBeenCalled();
+    expect(fixture.request).not.toHaveBeenCalled();
+    expect(fixture.token).not.toHaveBeenCalled();
+    expect(fixture.post.mock.calls.some(([path]) => path === '/api/member/push-device')).toBe(false);
+    expect(render().actionError).toMatch(/sign.?in|member|account|link|try|again/i);
+    expect(render().registration).toBeNull();
+    expect(render().settings).toEqual(expect.objectContaining({ preferences: expect.any(Array), devices: expect.any(Array) }));
+  });
+
   it('does not create channels or prompt consent while rendering and reading settings', async () => {
     render();
     for (const effect of fixture.effects) effect();

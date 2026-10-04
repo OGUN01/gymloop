@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const fixture = vi.hoisted(() => ({
   platform: 'android', online: true, permission: 'granted', missingChannel: false,
+  identity: { kind: 'member', userId: '74a2c026-8af0-4c75-9ea2-8b2b408f0fcf', tenantId: '83c3387b-7548-45aa-bc5f-146ed8b3ff2c', memberId: 'dbd7f814-762e-4f48-aa03-b53ab88977e5' } as Record<string, string> | undefined,
   events: [] as string[], states: [] as unknown[], cursor: 0, effects: [] as (() => unknown)[],
   channel: vi.fn(), request: vi.fn(), token: vi.fn(), post: vi.fn(), openSettings: vi.fn(),
 }));
@@ -17,7 +18,7 @@ vi.mock('react', () => ({
   useEffect: (effect: () => unknown) => { fixture.effects.push(effect); },
 }));
 vi.mock('react-native', () => ({ Platform: { get OS() { return fixture.platform; } }, Linking: { openSettings: fixture.openSettings } }));
-vi.mock('../mobile-context', () => ({ useMobile: () => ({ api: { post: fixture.post } }) }));
+vi.mock('../mobile-context', () => ({ useMobile: () => ({ identity: fixture.identity, api: { post: fixture.post } }) }));
 vi.mock('expo-network', () => ({ getNetworkStateAsync: async () => ({ isConnected: fixture.online, isInternetReachable: fixture.online }) }));
 vi.mock('expo-secure-store', () => ({ getItemAsync: async () => '6eae41ab-3717-4c7b-a9f2-579659504a81', setItemAsync: vi.fn() }));
 vi.mock('expo-crypto', () => ({ randomUUID: () => '6eae41ab-3717-4c7b-a9f2-579659504a81' }));
@@ -44,6 +45,7 @@ const mount = async () => {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  fixture.identity = { kind: 'member', userId: '74a2c026-8af0-4c75-9ea2-8b2b408f0fcf', tenantId: '83c3387b-7548-45aa-bc5f-146ed8b3ff2c', memberId: 'dbd7f814-762e-4f48-aa03-b53ab88977e5' };
   fixture.platform = 'android'; fixture.online = true; fixture.permission = 'granted'; fixture.missingChannel = false;
   fixture.events = []; fixture.states = []; fixture.effects = [];
   fixture.channel.mockImplementation(async () => { fixture.events.push('channel'); });
@@ -56,6 +58,15 @@ beforeEach(() => {
 });
 
 describe('NFC-003/004 explicit Android channel setup', () => {
+  it('NTF-003 refuses malformed absent identity before any native setup or registration', async () => {
+    fixture.identity = undefined;
+    await (await mount()).enableNotifications();
+    expect(fixture.channel).not.toHaveBeenCalled();
+    expect(fixture.request).not.toHaveBeenCalled();
+    expect(fixture.token).not.toHaveBeenCalled();
+    expect(fixture.post.mock.calls.some(([path]) => path === '/api/member/push-device')).toBe(false);
+    expect(render().actionError).toMatch(/sign.?in|log.?in|account/i);
+  });
   it('permissive Android reaches native token and caller API without provider configuration', async () => {
     await (await mount()).enableNotifications();
     expect(fixture.token).toHaveBeenCalledOnce();
@@ -112,6 +123,7 @@ describe('NFC-003/004 explicit Android channel setup', () => {
     expect(fixture.openSettings).not.toHaveBeenCalled();
   });
 });
+
 
 
 
