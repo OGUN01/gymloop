@@ -313,7 +313,7 @@ as $fn$
 declare v_existing app.purchase_request_commands%rowtype;
 begin
   perform app.pay_take_capability('command_note', p_tenant_id, p_request_id,
-    case when p_command in ('create','cancel','reconfirm','attach') then 'member' else 'staff' end);
+    case when p_command in ('create','cancel','reconfirm','attach','register') then 'member' else 'staff' end);
   select * into v_existing
     from app.purchase_request_commands c
    where c.tenant_id = p_tenant_id and c.request_id = p_request_id
@@ -334,7 +334,7 @@ as $fn$
 declare v_row app.purchase_request_commands%rowtype;
 begin
   perform app.pay_take_capability('command_note', p_tenant_id, p_request_id,
-    case when p_command in ('create','cancel','reconfirm','attach') then 'member' else 'staff' end);
+    case when p_command in ('create','cancel','reconfirm','attach','register') then 'member' else 'staff' end);
   select * into v_row
     from app.purchase_request_commands c
    where c.tenant_id = p_tenant_id and c.request_id = p_request_id
