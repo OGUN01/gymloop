@@ -6,7 +6,7 @@
 -- advisory locks and deterministic replay/budget effects without publishing data.
 begin;
 set local role postgres;
-select plan(176);
+select plan(183);
 
 create function pg_temp.h26_id(bucket integer, n integer) returns uuid
 language sql immutable strict as $$
@@ -631,5 +631,32 @@ update h26_seen set value=(select to_jsonb(p) from public.addon_products p where
 select pg_temp.h26_claim();
 set local role authenticated;
 select is(pg_temp.h26_sale(7,399)->>'detail','unsupported_currency','H26 v1 refuses non-INR sale without conversion');
+-- Independent supplement, 2026-10-04: addon-sales frozen sold-kind rule,
+-- BUY-004/012. Existing assertions above remain unchanged. These assertions
+-- cover the normal authorized path after PAY introduces stock/private readers;
+-- they do not assume an implementation-specific private helper signature.
+select pg_temp.h26_claim();
+set local role authenticated;
+select lives_ok($q$update public.addon_products set stock_quantity=stock_quantity+1
+  where id=pg_temp.h26_id(4,1)$q$,
+  'H26 PAY stock integration retains a real owner stock adjustment with no accepted holds');
+select is((select stock_quantity from public.addon_products where id=pg_temp.h26_id(4,1)),6,
+  'H26 authorized stock adjustment actually changes the owned row');
+select is(pg_temp.h26_call(format('select public.read_purchase_request(%L) as value',pg_temp.h26_id(7,999)))->>'state',
+  'P0002','H26 real owner reaches the private-reader boundary and receives uniform invisible-target refusal');
+select pg_temp.h26_claim('trainer',1,4);
+select is(pg_temp.h26_call(format('select public.read_purchase_request(%L) as value',pg_temp.h26_id(7,999)))->>'state',
+  '42501','H26 trainer cannot use the purchase reader even for an unknown target');
+select pg_temp.h26_claim('gym_owner',2,6);
+select lives_ok($q$update public.addon_products set stock_quantity=999
+  where id=pg_temp.h26_id(4,1)$q$,
+  'H26 foreign owner stock update remains silently RLS-filtered');
+set local role postgres;
+select set_config('request.jwt.claims','',true);
+select is((select stock_quantity from public.addon_products where id=pg_temp.h26_id(4,1)),6,
+  'H26 foreign owner cannot change another tenant stock after PAY integration');
+select is(pg_temp.h26_exec(format('update public.addon_products set kind=''diet_plan'',stock_quantity=null where id=%L',pg_temp.h26_id(4,1)))->>'state',
+  'GL055','H26 sold product kind is permanent even for a trusted storage writer after PAY integration');
+
 select * from finish();
 rollback;

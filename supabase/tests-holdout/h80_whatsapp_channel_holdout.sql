@@ -17,7 +17,7 @@ set local role postgres;
 set local search_path = extensions, public;
 set local timezone = 'UTC';
 select set_config('request.jwt.claims','',true);
-select plan(147);
+select plan(150);
 
 -- ---------------------------------------------------------------- helpers
 create function pg_temp.wsp_scalar(q text) returns text language plpgsql as $f$
@@ -372,6 +372,49 @@ select is(pg_temp.wsp_scalar($q$select count(*)::text from public.messaging_wall
 select is(pg_temp.wsp_scalar($q$select count(*)::text from public.notification_whatsapp_attempts where charged_ledger_id is not null and uncertain_at is not null$q$),'0','WSP-H-I06 an uncertain attempt never carries a charge');
 select is(pg_temp.wsp_scalar($q$select count(*)::text from public.whatsapp_channel_consents where granted and recorded_at is null$q$),'0','WSP-H-I07 every granted channel consent carries its recorded instant');
 select is(pg_temp.wsp_scalar($q$select count(*)::text from public.whatsapp_template_revisions where approved_at is not null and approval_evidence_digest is null$q$),'0','WSP-H-I08 every approved template carries its approval evidence digest');
+
+-- Independent supplement, 2026-10-04: WSP frozen table declarations + ADR-052.
+-- Exact composite tenant FKs are checked structurally, without relying on an
+-- implementation-specific constraint name or swallowed fixture insertion.
+select ok(exists (
+  select 1 from pg_constraint k
+  where k.contype='f' and k.conrelid=to_regclass('public.whatsapp_template_revisions')
+    and k.confrelid=to_regclass('public.message_templates')
+    and array(select a.attname::text from unnest(k.conkey) with ordinality x(n,pos)
+              join pg_attribute a on a.attrelid=k.conrelid and a.attnum=x.n order by x.pos)
+        = array['tenant_id','template_id']
+    and array(select a.attname::text from unnest(k.confkey) with ordinality x(n,pos)
+              join pg_attribute a on a.attrelid=k.confrelid and a.attnum=x.n order by x.pos)
+        = array['tenant_id','id']),
+  'WSP-H-J01 template revision cannot bind an existing template in a different tenant');
+select ok(exists (
+  select 1 from pg_constraint k
+  where k.contype='f' and k.conrelid=to_regclass('public.notification_whatsapp_attempts')
+    and k.confrelid=to_regclass('public.whatsapp_template_revisions')
+    and array(select a.attname::text from unnest(k.conkey) with ordinality x(n,pos)
+              join pg_attribute a on a.attrelid=k.conrelid and a.attnum=x.n order by x.pos)
+        @> array['tenant_id']
+    and cardinality(k.conkey)=2
+    and (select a.attname::text from pg_attribute a
+         where a.attrelid=k.conrelid and a.attnum=k.conkey[1])='tenant_id'
+    and array(select a.attname::text from unnest(k.confkey) with ordinality x(n,pos)
+              join pg_attribute a on a.attrelid=k.confrelid and a.attnum=x.n order by x.pos)
+        = array['tenant_id','id']),
+  'WSP-H-J02 attempt template evidence is constrained to the same tenant');
+select ok(exists (
+  select 1 from pg_constraint k
+  where k.contype='f' and k.conrelid=to_regclass('public.notification_whatsapp_attempts')
+    and k.confrelid=to_regclass('public.whatsapp_channel_consents')
+    and array(select a.attname::text from unnest(k.conkey) with ordinality x(n,pos)
+              join pg_attribute a on a.attrelid=k.conrelid and a.attnum=x.n order by x.pos)
+        @> array['tenant_id']
+    and cardinality(k.conkey)=2
+    and (select a.attname::text from pg_attribute a
+         where a.attrelid=k.conrelid and a.attnum=k.conkey[1])='tenant_id'
+    and array(select a.attname::text from unnest(k.confkey) with ordinality x(n,pos)
+              join pg_attribute a on a.attrelid=k.confrelid and a.attnum=x.n order by x.pos)
+        = array['tenant_id','id']),
+  'WSP-H-J03 attempt opt-in evidence is constrained to the same tenant');
 
 select * from finish();
 rollback;

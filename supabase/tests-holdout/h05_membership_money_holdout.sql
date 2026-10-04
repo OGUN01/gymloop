@@ -10,7 +10,7 @@ begin;
 -- the owner role is assumed explicitly, never inherited from the connection.
 set local role postgres;
 
-select plan(149);
+select plan(163);
 
 -- ============================================================
 -- 1. The eleven tables the cluster promises
@@ -852,6 +852,81 @@ select throws_ok($$ insert into public.membership_pauses (id, tenant_id, members
 select throws_ok($$ insert into public.membership_pauses (id, tenant_id, membership_id, starts_on, ends_on, reason) values ('00000000-0000-4000-8000-000000502059'::uuid, '00000000-0000-4000-8000-000000501001'::uuid, '00000000-0000-4000-8000-000000501061'::uuid, date '2026-09-10', date '2026-09-20', '') $$,
   '23514'::char(5), null::text,
   'membership_pauses: a freeze carries a stated reason');
+
+-- Independent supplement, 2026-10-04: frozen PAY canonical-currency
+-- declaration b556f349. All earlier global currency assertions are unchanged.
+-- Evaluate real catalogue expressions over synthetic typed records; no guessed
+-- purchase INSERT, legacy money rewrite, Cloud call or implementation read.
+set local role postgres;
+create function pg_temp.h05_generated_currency(p_table text,p_source text) returns text
+language plpgsql as $f$
+declare v_expression text; v_result text;
+begin
+  select pg_get_expr(d.adbin,d.adrelid) into v_expression
+  from pg_attribute a join pg_attrdef d on d.adrelid=a.attrelid and d.adnum=a.attnum
+  where a.attrelid=to_regclass(p_table) and a.attname='currency' and a.attgenerated<>'';
+  if v_expression is null then return null; end if;
+  execute 'select ('||v_expression||')::text from (select $1::text as recorded_currency, $1::text as hold_currency) currency_facts'
+    into v_result using p_source;
+  return v_result;
+exception when others then return null;
+end $f$;
+create function pg_temp.h05_currency_check_refuses(p_table text,p_source_column text) returns boolean
+language plpgsql as $f$
+declare v_check record; v_pass boolean; v_facts jsonb;
+begin
+  if to_regclass(p_table) is null then return null; end if;
+  v_facts:=jsonb_build_object(p_source_column,'USD','currency','USD',
+    'recorded_amount_paise',100,'hold_maximum_paise',100,'status','recorded',
+    'snapshot',jsonb_build_object('currency','USD','amountPaise','100'));
+  for v_check in
+    select pg_get_expr(k.conbin,k.conrelid) as expression
+    from pg_constraint k join pg_attribute a on a.attrelid=k.conrelid
+      and a.attnum=any(k.conkey)
+    where k.conrelid=to_regclass(p_table) and k.contype='c'
+      and a.attname=p_source_column
+  loop
+    execute 'select ('||v_check.expression||') from jsonb_populate_record(null::'||p_table||',$1) currency_facts'
+      into v_pass using v_facts;
+    if v_pass is false then return true; end if;
+  end loop;
+  return false;
+exception when others then return null;
+end $f$;
+select ok(exists(select 1 from pg_attribute where attrelid=to_regclass('public.purchase_requests')
+  and attname='currency' and attnotnull and atttypid='text'::regtype and attgenerated<>''),
+  'H05 PAY canonical currency is non-null generated text');
+select ok(exists(select 1 from pg_attribute where attrelid=to_regclass('public.notification_whatsapp_attempts')
+  and attname='currency' and attnotnull and atttypid='text'::regtype and attgenerated<>''),
+  'H05 WSP canonical currency is non-null generated text');
+select is(pg_temp.h05_generated_currency('public.purchase_requests',null),'INR',
+  'H05 unrecorded purchase has canonical INR without inventing a recorded currency');
+select is(pg_temp.h05_generated_currency('public.purchase_requests','INR'),'INR',
+  'H05 recorded purchase canonical currency agrees with its factual recorded INR');
+select is(pg_temp.h05_generated_currency('public.purchase_requests','USD'),'USD',
+  'H05 canonical generation preserves the factual input rather than silently converting it; checks must refuse USD');
+select is(pg_temp.h05_generated_currency('public.notification_whatsapp_attempts','INR'),'INR',
+  'H05 WSP currency agrees with held INR');
+select is(pg_temp.h05_generated_currency('public.notification_whatsapp_attempts','USD'),'USD',
+  'H05 WSP alias preserves held-currency identity without conversion');
+select throws_ok($q$update public.purchase_requests set currency='USD' where false$q$,
+  '428C9'::char(5),null,'H05 canonical purchase currency cannot be supplied directly');
+select throws_ok($q$update public.notification_whatsapp_attempts set currency='USD' where false$q$,
+  '428C9'::char(5),null,'H05 canonical WSP currency cannot be supplied directly');
+select is(pg_temp.h05_currency_check_refuses('public.purchase_requests','recorded_currency'),true,
+  'H05 retained purchase checks refuse recorded non-INR facts instead of converting them');
+select is(pg_temp.h05_currency_check_refuses('public.notification_whatsapp_attempts','hold_currency'),true,
+  'H05 retained WSP checks refuse non-INR hold facts instead of converting them');
+
+select ok((select count(*)=2 and bool_and(not a.attnotnull) and bool_and(d.adbin is null)
+  from pg_attribute a left join pg_attrdef d on d.adrelid=a.attrelid and d.adnum=a.attnum
+  where a.attrelid=to_regclass('public.purchase_requests')
+    and a.attname in ('recorded_currency','recorded_amount_paise')),
+  'H05 canonical currency does not fill nullable not-yet-recorded money facts or introduce defaults');
+select throws_ok($q$insert into public.purchase_requests(currency) values('INR')$q$,
+  '428C9'::char(5),null,'H05 caller cannot supply even INR to generated purchase currency');
+select throws_ok($q$insert into public.notification_whatsapp_attempts(currency) values('INR')$q$,
+  '428C9'::char(5),null,'H05 caller cannot supply even INR to generated WSP currency');
 
 select * from finish();
 

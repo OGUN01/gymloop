@@ -9,7 +9,7 @@ set local role postgres;
 set local search_path = extensions, public;
 select set_config('request.jwt.claims', '', true);
 
-select plan(202);
+select plan(206);
 
 -- ---------------------------------------------------------------------------
 -- Exact schema, indexes, callable boundaries and private capabilities.
@@ -514,6 +514,28 @@ set local role postgres;
 select set_config('request.jwt.claims','',true);
 alter table public.audit_log drop constraint visible_addon_audit_failure;
 select results_eq($$select (select count(*) from public.addon_orders where idempotency_key='54000000-0000-4000-8000-000000000260'),(select count(*) from public.audit_log where reason='Audit rollback')$$,$$select 0::bigint,0::bigint$$,'audit failure leaves no order, audit or consumed key');
+
+
+-- ADD-002/006 and BUY-004/012 regression: PAY's hold guard must retain the
+-- original nullable catalogue stock and permanent kind of already sold offers.
+select col_is_null('public','addon_products','stock_quantity','ADD: stock remains nullable for nonphysical catalogue offers');
+-- The catalogue validator and retained nonnegative CHECK may run in either order.
+-- This invoker helper observes the ordinary owner's permissions and never elevates.
+create function pg_temp.stock_catalogue_refusal() returns text language plpgsql as $stock$
+begin
+ update public.addon_products set stock_quantity=-1 where id='54000000-0000-4000-8000-000000000101';
+ return null;
+exception when others then return sqlstate;
+end $stock$;
+grant execute on function pg_temp.stock_catalogue_refusal() to authenticated;
+-- Reuse existing Owner A Auth/staff fixtures, with the full verified claim shape.
+select set_config('request.jwt.claims','{"sub":"54000000-0000-4000-8000-000000000901","role":"authenticated","app_role":"gym_owner","tenant_id":"54000000-0000-4000-8000-000000000001","staff_id":"54000000-0000-4000-8000-000000000021"}',true);
+set local role authenticated;
+select throws_ok($$update public.addon_products set kind='diet_plan',stock_quantity=null where id='54000000-0000-4000-8000-000000000101'$$,'GL055',null,'ADD: PAY guard retains sold product kind permanence');
+select ok(pg_temp.stock_catalogue_refusal()=any(array['23514','GL055']),'ADD: PAY guard retains nonnegative product stock');
+set local role postgres;
+select set_config('request.jwt.claims','',true);
+select results_eq($$select kind::text,stock_quantity is not null from public.addon_products where id='54000000-0000-4000-8000-000000000101'$$,$$select 'product'::text,true$$,'ADD: rejected catalogue mutations preserve sold kind and stock');
 
 select * from finish();
 rollback;

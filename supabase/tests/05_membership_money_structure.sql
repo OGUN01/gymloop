@@ -18,7 +18,7 @@ begin;
 -- the owner role is assumed explicitly, never inherited from the connection.
 set local role postgres;
 
-select plan(40);
+select plan(48);
 
 -- ---------------------------------------------------------------------------
 -- The eleven tables of the cluster.
@@ -247,6 +247,30 @@ select is_empty($$
         and p.policyname = n.name || n.suffix
    )
 $$, 'contract: and its two write policies -- webhook_events excepted, since ADR-049 grants it select only and a write policy there would permit what the grant denies');
+
+
+-- Independent supplement: canonical-currency-declaration.md (2026-10-04),
+-- MNY-001/002. Global assertions above are unchanged. Catalog expressions are
+-- evaluated only at test execution, without copying any production expression.
+create function pg_temp.canonical_currency_example(p_table text,p_fact text)
+returns text language plpgsql as $currency$
+declare expression text; result text;
+begin
+ select pg_get_expr(d.adbin,d.adrelid) into expression
+ from pg_attribute a join pg_attrdef d on d.adrelid=a.attrelid and d.adnum=a.attnum
+ where a.attrelid=to_regclass('public.'||p_table) and a.attname='currency' and a.attgenerated='s';
+ if expression is null then return null; end if;
+ execute 'select '||expression||' from (select $1::text as recorded_currency,$1::text as hold_currency) f' into result using p_fact;
+ return result;
+end $currency$;
+select ok(exists(select 1 from pg_attribute where attrelid=to_regclass('public.purchase_requests') and attname='currency' and attnotnull and attgenerated='s'),'PAY: canonical currency is non-null and generated');
+select is(pg_temp.canonical_currency_example('purchase_requests',null),'INR','PAY: no recorded currency fact still quotes INR');
+select is(pg_temp.canonical_currency_example('purchase_requests','INR'),'INR','PAY: recorded INR agrees with canonical currency');
+select throws_ok($q$update public.purchase_requests set currency='USD' where false$q$,'428C9',null,'PAY: canonical currency cannot be supplied directly even without matching rows');
+select ok(exists(select 1 from pg_attribute where attrelid=to_regclass('public.purchase_requests') and attname='recorded_currency' and not attnotnull) and exists(select 1 from pg_attribute where attrelid=to_regclass('public.purchase_requests') and attname='recorded_amount_paise' and not attnotnull),'PAY: absent recorded facts retain their nullable meaning');
+select ok(exists(select 1 from pg_attribute where attrelid=to_regclass('public.notification_whatsapp_attempts') and attname='currency' and attnotnull and attgenerated='s'),'WSP: canonical hold currency is non-null and generated');
+select is(pg_temp.canonical_currency_example('notification_whatsapp_attempts','INR'),'INR','WSP: canonical currency agrees with the hold fact');
+select throws_ok($q$update public.notification_whatsapp_attempts set currency='USD' where false$q$,'428C9',null,'WSP: generated hold currency cannot be directly supplied');
 
 select * from finish();
 
