@@ -244,11 +244,11 @@ async function proofConfirm(c: Config, token: string, actor: Actor, id: string):
   if (value.tenant_id !== actor.tenantId || value.kind !== 'payment_proof' || value.created_by_member_id !== actor.memberId) reject('asset_not_found');
   const stage = scoped(value, actor, 'staging');
   if (value.confirmed_at) {
-    // A confirmed-asset replay is read-only but not authority-free: the
-    // registered request must still be live, owned and visible to this exact
-    // caller (revalidated from the caller-JWT read alone).
-    const linked = typeof value.linked_request_id === 'string' ? value.linked_request_id.toLowerCase() : '';
-    if (!uuid(linked) || !live.some(item => item.requestId === linked)) reject('asset_not_found');
+    // A confirmed-asset replay is read-only but not authority-free: the replay
+    // return gates on the caller read's bound state — the asset must be the
+    // request's ACTIVE proof for this caller — and re-proves the live actor
+    // before returning.
+    if (!live.some(item => item.activeProofAssetId === id)) reject('asset_not_found');
     await activeActor(c, token, actor);
     published(value, actor);
     return { assetId: id, confirmed: true };
@@ -256,29 +256,19 @@ async function proofConfirm(c: Config, token: string, actor: Actor, id: string):
   return publishAndFinalize(c, token, actor, id, value, stage, 'member', async () => { await proofRows(c, token, actor); await activeActor(c, token, actor); });
 }
 async function proofUrl(c: Config, token: string, actor: Actor, id: string): Promise<unknown> {
-  // The caller read alone carries the live requests this caller may verify;
-  // every refusal below resolves from it or from the exact registered link —
-  // never from an any-live-request fallback (BUY-009, frozen decision 1).
+  // Caller-read-first ordering (round-5/6 contract, restored): the bound gate
+  // runs on the caller's own RLS read — the asset must be the ACTIVE proof of
+  // a live request visible to this caller — and refuses before ANY privileged
+  // metadata read. Unknown, superseded and unbound ids share the one refusal
+  // from the caller read alone (BUY-009, frozen decision 1).
   const live = await proofRows(c, token, actor);
+  const bound = live.find(item => item.activeProofAssetId === id);
+  if (!bound) reject('asset_not_found');
+  // The privileged read happens only for the signing path, after the bound
+  // gate passed.
   const value = await asset(c, token, id, true);
   if (value.tenant_id !== actor.tenantId || value.kind !== 'payment_proof') reject('asset_not_found');
   if (actor.memberId && value.created_by_member_id !== actor.memberId) reject('asset_not_found');
-  const linked = typeof value.linked_request_id === 'string' ? value.linked_request_id.toLowerCase() : '';
-  if (!uuid(linked)) reject('asset_not_found');
-  const bound = live.find(item => item.requestId === linked);
-  if (!bound) reject('asset_not_found');
-  // Attached path: the request's active proof asset must be exactly this one.
-  // Unattached path: no active proof yet and this asset is the member's latest
-  // confirmed, never-attached registration for that exact request (a rejected
-  // or superseded earlier proof is history, never the current view).
-  if (bound.activeProofAssetId != null) {
-    if (bound.activeProofAssetId !== id) reject('asset_not_found');
-  } else {
-    const latest = row(await rest(c, token, `media_assets?select=id&tenant_id=eq.${actor.tenantId}&kind=eq.payment_proof&linked_request_id=eq.${linked}&confirmed_at=not.is.null&deleted_at=is.null&attached_to_id=is.null&order=created_at.desc,id.desc&limit=1`, undefined, true));
-    if (!latest || latest.id !== id) reject('asset_not_found');
-    const history = row(await rest(c, token, `payment_proofs?select=id&tenant_id=eq.${actor.tenantId}&asset_id=eq.${id}&limit=1`, undefined, true));
-    if (history) reject('asset_not_found');
-  }
   // Only a verified, immutably published proof is signable: missing verified
   // state shares the one external refusal (BUY-009/018).
   const key = published(value, actor);
@@ -288,12 +278,11 @@ async function proofUrl(c: Config, token: string, actor: Actor, id: string): Pro
   if (!sameRegistration(current, value) || current.confirmed_at !== value.confirmed_at) reject('asset_not_found');
   await activeActor(c, token, actor);
   const stillLive = await proofRows(c, token, actor);
-  const stillBound = stillLive.find(item => item.requestId === linked);
-  if (!stillBound || (stillBound.activeProofAssetId != null ? stillBound.activeProofAssetId !== id : false)) reject('asset_not_found');
+  if (!stillLive.some(item => item.activeProofAssetId === id)) reject('asset_not_found');
   const signedRequest = await signed(c, 'GET', key, {}, BUY_LIMITS.privateProofGetTtlSeconds, String(value.mime));
   await activeActor(c, token, actor);
   const finalLive = await proofRows(c, token, actor);
-  if (!finalLive.some(item => item.requestId === linked)) reject('asset_not_found');
+  if (!finalLive.some(item => item.activeProofAssetId === id)) reject('asset_not_found');
   return { imageUrl: signedRequest.url.toString() };
 }
 type Exposure = { kind: string; parent: string };
