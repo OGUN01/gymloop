@@ -67,7 +67,7 @@ insert into public.payments(id,tenant_id,member_id,amount_paise,currency,status,
 (pg_temp.u(401),pg_temp.u(1),pg_temp.u(101),12345,'INR','paid','upi','RPE-0001',timestamptz '2026-01-10 09:05:00+00',timestamptz '2026-01-10 09:00:00+00',pg_temp.u(21)),
 (pg_temp.u(402),pg_temp.u(1),pg_temp.u(102),6789,'INR','created','cash',null,null,timestamptz '2026-01-11 10:00:00+00',pg_temp.u(21)),
 (pg_temp.u(403),pg_temp.u(1),pg_temp.u(103),555,'INR','refunded','cash','RPE-0003',timestamptz '2026-01-12 11:00:00+00',timestamptz '2026-01-12 10:30:00+00',pg_temp.u(21)),
-(pg_temp.u(404),pg_temp.u(1),pg_temp.u(101),2500,'USD','paid','card',null,timestamptz '2026-01-13 12:00:00+00',timestamptz '2026-01-13 11:45:00+00',null);
+(pg_temp.u(404),pg_temp.u(1),pg_temp.u(101),2500,'USD','paid','card',null,timestamptz '2026-01-13 12:00:00+00',timestamptz '2026-01-13 11:45:00+00',pg_temp.u(21));
 insert into public.attendance(id,tenant_id,branch_id,member_id,source,checked_in_at,checked_out_at,offline_recorded_at,replayed_at) values
 (pg_temp.u(421),pg_temp.u(1),pg_temp.u(11),pg_temp.u(101),'qr',timestamptz '2026-01-05 02:00:00+00',null,null,null),
 (pg_temp.u(422),pg_temp.u(1),pg_temp.u(13),pg_temp.u(102),'front_desk',timestamptz '2026-01-01 02:00:00+00',null,null,null),

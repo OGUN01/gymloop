@@ -115,7 +115,7 @@ begin
       'count', (select count(*) from snap),
       'asOf', now()::text, 'zone', z,
       'rangeFrom', p_from, 'rangeThrough', p_through
-    ) into payload from snap;
+    ) into payload from snap as x;
   elsif p_dataset = 'members' then
     with snap as (
       select m.id, m.member_code, m.full_name, m.phone, m.email, m.branch_id, m.status, m.joined_on
@@ -128,7 +128,7 @@ begin
       'count', (select count(*) from snap),
       'asOf', now()::text, 'zone', z,
       'rangeFrom', p_from, 'rangeThrough', p_through
-    ) into payload from snap;
+    ) into payload from snap as x;
   else
     raise exception 'unknown export dataset' using errcode = '22023';
   end if;

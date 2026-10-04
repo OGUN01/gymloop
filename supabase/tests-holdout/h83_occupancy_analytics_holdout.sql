@@ -38,6 +38,8 @@ set local search_path to public, extensions, holdout_occ;
 select plan(67);
 
 create schema if not exists holdout_occ;
+-- Test adapter lookup only: source-table privileges remain untouched.
+grant usage on schema holdout_occ to authenticated;
 create table if not exists holdout_occ.occ_attendance(
   id uuid primary key, tenant_id uuid not null, branch_id uuid not null,
   member_id uuid not null, checked_in_at timestamptz not null,

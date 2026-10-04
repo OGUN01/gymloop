@@ -170,7 +170,7 @@ set local role authenticated;
 select pg_temp.claim('member',null,101,906,1);
 select is(pg_temp.probe($q$select public.request_member_freeze(pg_temp.u(301),app.gym_today(pg_temp.u(1))+2,app.gym_today(pg_temp.u(1))+4,'Family function',pg_temp.u(701))$q$),'OK','SLF-004: eligible member creates one requested freeze');
 set local role postgres;
-select pg_temp.probe($q$insert into proof select 'r101',to_jsonb(id) from public.member_freeze_requests where tenant_id=pg_temp.u(1) and request_key=pg_temp.u(701)$q$);
+select pg_temp.probe($q$insert into proof select 'r101',jsonb_build_object('id',id) from public.member_freeze_requests where tenant_id=pg_temp.u(1) and request_key=pg_temp.u(701)$q$);
 select is(pg_temp.val($q$select status::text||':'||revision::text from public.member_freeze_requests where tenant_id=pg_temp.u(1) and request_key=pg_temp.u(701)$q$),'requested:1','SLF-004: request created requested with revision one');
 set local role authenticated;
 select pg_temp.claim('member',null,101,906,1);
@@ -202,7 +202,7 @@ set local role postgres;
 -- the RPC-created adjacency request above moves to key 741 so key 703 names
 -- this elapsed fixture for the E-section expiry flow.
 select is(pg_temp.probe($q$insert into public.member_freeze_requests(id,tenant_id,member_id,membership_id,requested_by_user_id,request_key,starts_on,ends_on,reason) values(pg_temp.u(415),pg_temp.u(1),pg_temp.u(101),pg_temp.u(301),pg_temp.u(906),pg_temp.u(703),app.gym_today(pg_temp.u(1))-5,app.gym_today(pg_temp.u(1))-2,'Elapsed fixture')$q$),'OK','SLF-010: an elapsed-start open request is a legitimate state the expire command exists to close');
-select pg_temp.probe($q$insert into proof select 'r102',to_jsonb(id) from public.member_freeze_requests where tenant_id=pg_temp.u(1) and request_key=pg_temp.u(703)$q$);
+select pg_temp.probe($q$insert into proof select 'r102',jsonb_build_object('id',id) from public.member_freeze_requests where tenant_id=pg_temp.u(1) and request_key=pg_temp.u(703)$q$);
 set local role authenticated;
 select pg_temp.claim('member',null,101,906,1);
 select is(pg_temp.probe($q$select public.request_member_freeze(pg_temp.u(302),app.gym_today(pg_temp.u(1))+2,app.gym_today(pg_temp.u(1))+4,'Foreign target',pg_temp.u(738))$q$),'42501','SLF-003: another member''s membership is not requestable');
@@ -265,7 +265,7 @@ set local role authenticated;
 select pg_temp.claim('member',null,109,915,1);
 select is(pg_temp.probe($q$select public.request_member_freeze(pg_temp.u(306),app.gym_today(pg_temp.u(1))+1,app.gym_today(pg_temp.u(1))+3,'Budget request',pg_temp.u(705))$q$),'OK','SLF-012: request creation does not consume allowance');
 set local role postgres;
-select pg_temp.probe($q$insert into proof select 'r109',to_jsonb(id) from public.member_freeze_requests where tenant_id=pg_temp.u(1) and request_key=pg_temp.u(705)$q$);
+select pg_temp.probe($q$insert into proof select 'r109',jsonb_build_object('id',id) from public.member_freeze_requests where tenant_id=pg_temp.u(1) and request_key=pg_temp.u(705)$q$);
 set local role authenticated;
 select pg_temp.claim('front_desk',23,null,903,1);
 select is(pg_temp.probe('select public.adopt_member_freeze_request((select (v->>''id'')::uuid from proof where k=''r109''),1,pg_temp.u(716))'),'OK','SLF-012: adoption does not consume allowance');
@@ -277,7 +277,7 @@ select is(pg_temp.probe('select public.approve_member_freeze_request((select (v-
 select pg_temp.claim('member',null,108,914,1);
 select is(pg_temp.probe($q$select public.request_member_freeze(pg_temp.u(305),app.gym_today(pg_temp.u(1))+2,app.gym_today(pg_temp.u(1))+4,'Reject flow',pg_temp.u(706))$q$),'OK','SLF-008: rejection flow request created');
 set local role postgres;
-select pg_temp.probe($q$insert into proof select 'r108',to_jsonb(id) from public.member_freeze_requests where tenant_id=pg_temp.u(1) and request_key=pg_temp.u(706)$q$);
+select pg_temp.probe($q$insert into proof select 'r108',jsonb_build_object('id',id) from public.member_freeze_requests where tenant_id=pg_temp.u(1) and request_key=pg_temp.u(706)$q$);
 set local role authenticated;
 select pg_temp.claim('front_desk',23,null,903,1);
 select is(pg_temp.probe('select public.adopt_member_freeze_request((select (v->>''id'')::uuid from proof where k=''r108''),1,pg_temp.u(717))'),'OK','SLF-008: rejection flow request adopted');

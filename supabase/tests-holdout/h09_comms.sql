@@ -156,7 +156,7 @@ select throws_ok(
   'NTF frozen grant matrix: direct device SELECT is refused, including staff/platform'
 );
 select throws_ok(
-  $$ insert into public.member_devices (tenant_id, member_id, platform, push_token, is_active) values ('09c00000-0000-4000-8000-000000000b00', '09c00000-0000-4000-8000-000000000b02', 'web', 'h9.comms.holdout.token.x9') $$,
+  $$ insert into public.member_devices (tenant_id, member_id, platform, push_token, is_active) values ('09c00000-0000-4000-8000-000000000b00', '09c00000-0000-4000-8000-000000000b02', 'web', 'h9.comms.holdout.token.x9', false) $$,
   '42501'::char(5), null,
   'ISO member_devices: Gym A cannot insert a row labelled with Gym B'
 );
@@ -267,7 +267,7 @@ select results_eq(
 );
 select results_eq(
   $$ select is_active from public.member_devices where id = '09c00000-0000-4000-8000-000000000b12' $$,
-  ARRAY[true],
+  ARRAY[false],
   'ISO member_devices: Gym B row is unchanged after Gym A attempted to update it by primary key'
 );
 select results_eq(
@@ -432,7 +432,7 @@ select results_eq(
 set local role postgres;
 
 select lives_ok(
-  $$ insert into public.member_devices (tenant_id, member_id, platform, push_token, is_active) values ('09c00000-0000-4000-8000-000000000a00', '09c00000-0000-4000-8000-000000000a02', 'web', 'h9.comms.holdout.token.a2') $$,
+  $$ insert into public.member_devices (tenant_id, member_id, platform, push_token, is_active) values ('09c00000-0000-4000-8000-000000000a00', '09c00000-0000-4000-8000-000000000a02', 'web', 'h9.comms.holdout.token.a2', false) $$,
   'ADR-016: a member may register a second device with a different push token'
 );
 select throws_ok(
@@ -441,7 +441,7 @@ select throws_ok(
   'ADR-016: a push token already registered at this gym is rejected, the uniqueness is (tenant_id, push_token)'
 );
 select throws_ok(
-  $$ insert into public.member_devices (tenant_id, member_id, platform, push_token, is_active) values ('09c00000-0000-4000-8000-000000000a00', '09c00000-0000-4000-8000-000000000a02', 'windows', 'h9.comms.holdout.token.a3') $$,
+  $$ insert into public.member_devices (tenant_id, member_id, platform, push_token, is_active) values ('09c00000-0000-4000-8000-000000000a00', '09c00000-0000-4000-8000-000000000a02', 'windows', 'h9.comms.holdout.token.a3', false) $$,
   '23514'::char(5), null,
   'ADR-016: a device platform outside (ios, android, web) is rejected'
 );

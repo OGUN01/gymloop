@@ -118,7 +118,7 @@ insert into public.payments(id,tenant_id,member_id,membership_id,amount_paise,cu
 (pg_temp.u(707),pg_temp.u(1),pg_temp.u(101),pg_temp.u(301),12345,'INR','paid','cash','2026-02-01T18:30:00Z','2026-02-01T18:30:00Z',pg_temp.u(21)),
 (pg_temp.u(708),pg_temp.u(1),pg_temp.u(101),pg_temp.u(301),30000,'INR','paid','cash','2026-02-01T18:29:59Z','2026-02-01T18:29:59Z',pg_temp.u(21)),
 (pg_temp.u(760),pg_temp.u(2),pg_temp.u(106),pg_temp.u(306),4242,'INR','paid','cash','2026-02-10T05:00:00Z','2026-02-10T05:00:00Z',pg_temp.u(25));
-insert into public.addon_products(id,tenant_id,kind,name,price_paise,stock_quantity) values(pg_temp.u(401),pg_temp.u(1),'product','OCC product',5000,5);
+insert into public.addon_products(id,tenant_id,kind,name,description,price_paise,validity_days,cancellation_terms,stock_quantity) values(pg_temp.u(401),pg_temp.u(1),'product','OCC product','Disclosed occupancy fixture product',5000,30,'Unopened product return within the disclosed validity window',5);
 insert into public.addon_orders(id,tenant_id,member_id,addon_product_id,payment_id,status,quantity,unit_price_paise,total_paise,currency) values
 (pg_temp.u(501),pg_temp.u(1),pg_temp.u(102),pg_temp.u(401),pg_temp.u(703),'paid',1,5000,5000,'INR');
 -- Returns: 801 completes in a later month against a renewal payment (later-
