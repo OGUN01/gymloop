@@ -625,6 +625,11 @@ export const PUSH_DISPATCH_RUNTIME = {
   genericBody: 'You have an update. Open the app to view it.',
 } as const;
 export const PUSH_DISPATCH_HTTP_STATUS = { ok: 200, method_not_allowed: 405, unauthorized: 401, bad_request: 400, payload_too_large: 413, configuration_invalid: 503, upstream_failed: 502 } as const;
+/** Frozen PSD-001…018 inert deployment scheduler bounds (deployment-scheduler-declaration). */
+export const PUSH_SCHEDULER = {
+  tenantTickLimit: 100, tickIntervalSeconds: 60, wakeupTimeoutMs: 5000,
+  cronJobName: 'push-dispatch-minute', vaultSecretName: 'gymloop_push_dispatch_secret',
+} as const;
 
 /** Frozen BUY-001…025 member purchase request bounds (member-purchases proposal). */
 export const BUY_LIMITS = { requestTtlSecondsAfterAcceptance: 86_400, requestTtlSecondsUnaccepted: 86_400, openRequestsPerMember: 5, creationsPerMemberPerDay: 10, proofRegistrationsPerMemberPerHour: 10, maxQuantity: 10, reasonMinLength: 3, reasonMaxLength: 200, proofMaxBytes: 2_097_152, privateProofGetTtlSeconds: 60 } as const;

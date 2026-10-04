@@ -1486,6 +1486,7 @@ These scoped rows register application source; rendered-surface and live accepta
 |---|---|---|---|
 | `app.run_push_dispatch_tick()` / `app.read_push_dispatch_secret()` / `app.enqueue_push_dispatch_wakeup(text)` | `supabase/migrations/20261005130000_push_scheduler.sql` | Bounded private definer helpers: cyclic 100-tenant minute tick with single-snapshot eligibility and seven-key result, exact value-free Vault lookup, private fixed HTTP wakeup enqueue; four-role EXECUTE denials; no activation in-migration | Scheduled activation step (owner-approved), fresh critic |
 | `gymloop_push_dispatch_secret` (Vault name) / `push-dispatch-minute` (approved cron job name) | `supabase/migrations/20261005130000_push_scheduler.sql` | Exact Vault secret reference and cron job identity; never recreated or renamed ad hoc | Activation path, protected deployment wiring |
+| `PUSH_SCHEDULER` | `packages/shared/src/config/constants.ts` | Frozen PSD operational constants mirrored from the migration literals: tenant tick/activation limit 100, tick interval 60 s, wakeup timeout 5000 ms, cron job name, Vault secret name | Scheduler activation step, Edge/ops wiring, consistency proof vs SQL literals |
 
 ## SLF private preparation capability
 
