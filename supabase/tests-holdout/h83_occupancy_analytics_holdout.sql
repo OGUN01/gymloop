@@ -331,7 +331,7 @@ begin
     -- trigger's invoker read sees the payment under the staff RLS the way
     -- production's desk session does.
     set local role authenticated;
-    select set_config('request.jwt.claims','{"sub":"83900000-0000-4000-8000-0000000000a3","role":"authenticated","app_role":"front_desk","staff_id":"83900000-0000-4000-8000-0000000000a3","tenant_id":"83900000-0000-4000-8000-000000000001"}',true);
+    perform set_config('request.jwt.claims','{"sub":"83900000-0000-4000-8000-0000000000a3","role":"authenticated","app_role":"front_desk","staff_id":"83900000-0000-4000-8000-0000000000a3","tenant_id":"83900000-0000-4000-8000-000000000001"}',true);
     update public.addon_orders
       set status = 'paid',
           payment_id = '83900000-0000-4000-8000-0000000000ac',

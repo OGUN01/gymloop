@@ -537,3 +537,63 @@ SQL NOT executed here.
 - plan(77) preserved (77 verified); rollback guard green (159 files). SQL NOT
   executed here.
 - New sha256: `499d7497265c6073d91c325c971af5b6607596991190c813fedc7e1661e114ff`.
+
+## Round 20 — observability split (both directions)
+
+- #76 (direction a): the routing echo is now its own `select is(...)` —
+  have = the live `current_setting('request.jwt.claims',true)::jsonb->>'tenant_id'`
+  read in the same statement context as the snapshot call, want = the corrupt
+  gym's id — so the TAP shows the echo's own pass/fail, separated from the
+  envelope zone assertion (which keeps every envelope conjunct as ok()).
+  If the echo pin is green while the zone pin is red, the claims context at
+  execution is provably tenant-2 and the failure is downstream derivation
+  (owner packet); if the echo pin itself is red, the wrapper lives in the
+  executing harness, not the suite.
+- #56 (direction b): split into three `is()` pins with visible have/want —
+  #56a today-day state, #56b today-day visits ('1'), #56c the recorded
+  clock-hour cell ('1'). Branch identity is already proven lawful: the
+  gate-scan row's branch is the live session's branch (…11) — the same
+  branch the heatmap exposes (KEYhb11/KEYhb13 branchId …11) — so a zero
+  in #56b/#56c with a green #56a names the day/hour bucketing state source
+  as the residual divergence, folding toward the builder's tenant/actor
+  sourcing packet.
+- Plan literal follows the assertion count exactly: plan(79) = 47 is + 32 ok
+  (the three #56 pins and one #76 echo pin are additions; every prior
+  expectation is preserved verbatim in the split pins). Rollback guard green
+  (159 files). SQL NOT executed here.
+- New sha256: `1425d779710e0d5253ee4e6110ad94478ddedb158c230ad4ed293fb8a066ece5`.
+
+## Round 21 — split-pin results and the in-invocation coupling
+
+- Split results (coordinator runtime): #56a GREEN (today day row state
+  current); #56b/#56c RED with `have: 0` while `occ_today_arrival` proves the
+  arrival exists. Per the builder's correction the Day shape carries NO
+  state filter and NO separate today key — `days[].visits` (counts all
+  accepted arrivals before asOf, including today), `hours[].visits` (sums to
+  the day total) and `cells[].todayArrivals` are exactly what my pins read.
+  So the residual is genuine aggregation divergence: the recorded instant is
+  not bucketing into the today day row/hour cell — same state-sourcing
+  family as the #76 finding, routed to the builder packet. #56 stays as
+  authored (all three pins; no nonexistent keys).
+- #76: the split echo came back RED — the in-statement `current_setting`
+  read shows NOT the corrupt gym's tenant. My suite's own bytes set the
+  claims in an unambiguous top-level statement immediately before it, which
+  at raw-statement execution cannot roll back — so the remaining live
+  mechanism is statement-level isolation in the executing harness (the same
+  signature as the builder's "set_config inside a subtransaction", but
+  located at the runner, not the suite source). To make the pin independent
+  of ANY statement isolation: `pg_temp.zone76()` now sets the tenant-2 owner
+  claims and calls the analytics RPC inside ONE plain plpgsql invocation (a
+  plain body is not a subtransaction, so the local setting survives within
+  it), capturing `{ctxTenant, snapshot}` into `zone76_capture`. The #76 ok()
+  asserts ctxTenant = tenant …2 at the exact point of resolution AND the
+  same envelope expectations on the captured snapshot. If ctxTenant is
+  green and the snapshot zone is still tenant …0001's, the derivation
+  defect is proven in-suite and the owner packet is warranted; if ctxTenant
+  is red inside the invocation too, the isolation lives even below function
+  scope and the harness itself is the finding.
+- The standalone top-level claims routing and the echo is() remain in place
+  as the harness-behavior probe. plan(79) unchanged (no assertion count
+  change; helper and capture are fixture plumbing). Rollback guard green
+  (159 files). SQL NOT executed here.
+- New sha256: `b0567f9c3cab17f35ff0d8d17696b03e8cbc23c44b587998622a4144ffcb7ee6`.

@@ -929,3 +929,14 @@ disabled, no protected timestamp forced null, nothing committed.
   strengthening-precedent as the WSP ordering suite); disclosed here, no
   weakening anywhere. Audit green; rollback guard green (159 files).
 - New sha256: `04b524322222b6045f3ab38d35a92983936c765d37b4b31c77111c002d80d45e`.
+
+## Runtime repair round 44 (2026-10-04)
+
+- Runtime fact: `query has no destination for result data` — the addon block
+  contains `select set_config('request.jwt.claims', …)` (the desk-actor
+  context for the acceptance UPDATE) as a bare SELECT inside the plpgsql
+  block, which requires PERFORM.
+- Edit: the statement is now `perform set_config(…)`; the claims content and
+  the surrounding desk-actor context are unchanged. Audit green. plan(185)
+  preserved. Rollback guard green (159 files).
+- New sha256: `d20cf72a648eb794bd36382d7961d9c51856850fda567c71498c1ebc8335b84e`.

@@ -59,7 +59,7 @@ create function pg_temp.cb(js jsonb, p_id uuid) returns jsonb language sql immut
 create function pg_temp.cell(js jsonb, p_id uuid, w integer, h integer) returns jsonb language sql immutable as $$select e from jsonb_array_elements(pg_temp.hb(js,p_id)->'cells') e where (e->>'weekday')=w::text and (e->>'hour')=h::text$$;
 create function pg_temp.day(js jsonb, p_id uuid, d date) returns jsonb language sql immutable as $$select e from jsonb_array_elements(pg_temp.hb(js,p_id)->'days') e where e->>'localDate'=d::text$$;
 create function pg_temp.fr(n text, d text, bp text) returns jsonb language sql immutable as $$select jsonb_build_object('numerator',n,'denominator',d,'basisPoints',bp)$$;
-grant execute on function pg_temp.u(integer),pg_temp.claim(text,integer,integer,integer,integer,boolean),pg_temp.probe(text),pg_temp.state(text),pg_temp.snap(date,date,uuid),pg_temp.snapx(date,date,uuid,boolean),pg_temp.snapj(date,date,uuid),pg_temp.snapjx(date,date,uuid,boolean),pg_temp.hb(jsonb,uuid),pg_temp.cb(jsonb,uuid),pg_temp.cell(jsonb,uuid,integer,integer),pg_temp.day(jsonb,uuid,date),pg_temp.fr(text,text,text),pg_temp.gym_today() to authenticated,anon,service_role;
+grant execute on function pg_temp.zone76(),pg_temp.u(integer),pg_temp.claim(text,integer,integer,integer,integer,boolean),pg_temp.probe(text),pg_temp.state(text),pg_temp.snap(date,date,uuid),pg_temp.snapx(date,date,uuid,boolean),pg_temp.snapj(date,date,uuid),pg_temp.snapjx(date,date,uuid,boolean),pg_temp.hb(jsonb,uuid),pg_temp.cb(jsonb,uuid),pg_temp.cell(jsonb,uuid,integer,integer),pg_temp.day(jsonb,uuid,date),pg_temp.fr(text,text,text),pg_temp.gym_today() to authenticated,anon,service_role;
 
 -- ============ fixtures (existing schema only) ============
 insert into auth.users(id) select pg_temp.u(n) from generate_series(901,916) n;
@@ -394,6 +394,18 @@ select ok(pg_temp.hb(pg_temp.snapjx('2026-09-14','2026-09-27',null,false),pg_tem
 -- 75
 select ok(pg_temp.snapjx('2026-01-01','2026-03-31',null,true)->'collection'->'currencies'=pg_temp.snapjx('2026-01-01','2026-03-31',null,false)->'collection'->'currencies' and pg_temp.snapjx('2026-01-01','2026-03-31',null,true)->'months'=pg_temp.snapjx('2026-01-01','2026-03-31',null,false)->'months','OCC-005: the holiday toggle never moves actual payments, returns or class money');
 
+-- The corrupt-gym snapshot is taken through a helper that sets the claims and calls
+-- the analytics RPC inside ONE function invocation: no statement-level isolation
+-- (runner savepoints, per-statement contexts) can separate the claims context from
+-- the call, and a plain plpgsql body is not a subtransaction, so the local setting
+-- survives within the invocation. The returned object carries the in-invocation
+-- claims tenant alongside the snapshot so a wrong tenant is named at the exact
+-- point of resolution.
+create function pg_temp.zone76() returns jsonb language plpgsql as $$begin
+  perform set_config('request.jwt.claims',jsonb_build_object('sub',pg_temp.u(916),'role','authenticated','app_role','gym_owner','tenant_id',pg_temp.u(2),'staff_id',pg_temp.u(26))::text,true);
+  return jsonb_build_object('ctxTenant',current_setting('request.jwt.claims',true)::jsonb->>'tenant_id','snapshot',public.owner_occupancy_analytics('2026-01-01','2026-03-31',null::uuid,true));
+end$$;
+create temp table zone76_capture as select pg_temp.zone76() as v;
 -- ============ J. invalid gym zone envelope ============
 -- Routing through the OWNED tenant-2 owner binding (adjudication option (a)):
 -- the actor is a gym_owner whose staff binding lives in the corrupt gym, so
@@ -410,7 +422,7 @@ select set_config('request.jwt.claims',jsonb_build_object('sub',pg_temp.u(916),'
 -- set immediately before this call, at top level, outside any wrapper.
 select set_config('request.jwt.claims',jsonb_build_object('sub',pg_temp.u(916),'role','authenticated','app_role','gym_owner','tenant_id',pg_temp.u(2),'staff_id',pg_temp.u(26))::text,true);
 select is(current_setting('request.jwt.claims',true)::jsonb->>'tenant_id',pg_temp.u(2)::text,'#76 routing echo: the live claims tenant read in the same statement context as the snapshot call is the corrupt gym');
-select ok(pg_temp.snapj('2026-01-01','2026-03-31',null)->>'zone' is null and pg_temp.snapj('2026-01-01','2026-03-31',null)->'moneyRange'->>'scope'='Whole gym' and pg_temp.snapj('2026-01-01','2026-03-31',null)->'moneyRange'->>'zone' is null and pg_temp.snapj('2026-01-01','2026-03-31',null)->'moneyRange'->'error'=$j${"code":"invalid_gym_timezone"}$j$::jsonb and pg_temp.snapj('2026-01-01','2026-03-31',null)->'moneyRange'->>'startsAt' is null and pg_temp.snapj('2026-01-01','2026-03-31',null)->'months'=$j$[]$j$::jsonb and pg_temp.snapj('2026-01-01','2026-03-31',null)->'collection' is null,'OCC-003 (routing first): the snapshot call executes under the corrupt gym''s owner identity — the claims context itself is pinned as the first conjunct so a fallthrough to the valid tenant is named, and the invalid gym zone yields explicit derived-field nulls, empty months and null collection');
+select ok((zone76_capture.v->>'ctxTenant')=pg_temp.u(2)::text and (zone76_capture.v->'snapshot')->>'zone' is null and (zone76_capture.v->'snapshot')->'moneyRange'->>'scope'='Whole gym' and (zone76_capture.v->'snapshot')->'moneyRange'->>'zone' is null and (zone76_capture.v->'snapshot')->'moneyRange'->'error'=$j${"code":"invalid_gym_timezone"}$j$::jsonb and (zone76_capture.v->'snapshot')->'moneyRange'->>'startsAt' is null and (zone76_capture.v->'snapshot')->'months'=$j$[]$j$::jsonb and (zone76_capture.v->'snapshot')->'collection' is null,'#76 (in-invocation coupling): zone76_capture holds the claims set and the analytics call from ONE function invocation — ctxTenant is the in-call claims tenant read at the exact point of resolution (a mismatch here names the derivation defect directly), and the invalid gym zone yields explicit derived-field nulls, empty months and null collection');
 -- 77
 select ok(pg_temp.hb(pg_temp.snapj('2026-09-14','2026-09-27',null),pg_temp.u(14))->>'zone'='Mars/Phobos' and pg_temp.hb(pg_temp.snapj('2026-09-14','2026-09-27',null),pg_temp.u(14))->>'zoneSource'='gym' and pg_temp.hb(pg_temp.snapj('2026-09-14','2026-09-27',null),pg_temp.u(14))->'error'=$j${"code":"invalid_gym_timezone"}$j$::jsonb and pg_temp.hb(pg_temp.snapj('2026-09-14','2026-09-27',null),pg_temp.u(14))->'days'=$j$[]$j$::jsonb and pg_temp.hb(pg_temp.snapj('2026-09-14','2026-09-27',null),pg_temp.u(14))->'cells'=$j$[]$j$::jsonb and pg_temp.hb(pg_temp.snapj('2026-09-14','2026-09-27',null),pg_temp.u(14))->>'availability' is null,'OCC-003: a branch inheriting an invalid gym zone discloses the inherited zone text, its source and the gym-zone error');
 select pg_temp.claim('gym_owner',21,null,901,1);
