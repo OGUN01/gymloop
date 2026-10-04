@@ -274,3 +274,37 @@ the named-object dump from the holdout author for a precise per-label
 verdict; any object the platform will not let the apply role (or its owner
 roles) touch is recorded as the honest operator prerequisite per-label.
 New sha256 `10cbb342...8ba9`.
+
+## Named-object verdict (A-cluster close-out)
+
+Live-catalog capture of the 8 residual executables:
+
+- Cron family (granted to anon+authenticated+service_role):
+  `cron.job_cache_invalidate()`, `cron.schedule(text, text)`,
+  `cron.schedule(text, text, text)`, `cron.unschedule(text)`,
+  `cron.unschedule(bigint)`.
+- Vault family (granted to service_role only):
+  `vault._crypto_aead_det_decrypt(bytea, bytea, bigint, bytea, bytea)`,
+  `vault.create_secret(text, text, text, uuid)`,
+  `vault.update_secret(uuid, text, text, text, uuid)`.
+
+All 8 were ALREADY inside the migration's enumeration scope (the vault block
+scans every function in schema `vault`; the cron union names schedule/
+unschedule; `job_cache_invalidate` is a pg_cron pg_depend member) — the
+widening changed nothing because these are not enumeration misses. They are
+privilege-model misses: REVOKE requires being the object owner or holding
+the privilege with grant option; these extension-managed objects are owned
+by the platform's admin roles (extension scripts executed outside the apply
+role), and the apply role holds membership of neither owning role — so both
+the direct attempt and every owner-role escalation fail. A migration running
+as postgres cannot revoke platform-granted privileges on objects it does not
+own. **Honest per-label limit: operator prerequisite.** The protected
+activation workflow (or a platform dashboard SQL editor session as
+`supabase_admin`) must run, per object:
+
+  revoke execute on function <object> from public, anon, authenticated, service_role;
+
+for the five cron functions and the three vault functions above. Until that
+runs, the A-cluster labels stay RED by design and no suite edit may paper
+over them. Note: net-family residuals closed by the widening — net custody
+is migration-complete.

@@ -620,3 +620,48 @@ SQL NOT executed here.
   longer names the removed table. plan(79) unchanged; rollback guard green
   (159 files). SQL NOT executed here.
 - New sha256: `72292ec1238ceb881fcc4991e168eb4e89c2964e8c12fb9454e57fdcf8585776`.
+
+## Round 24 — self-serve adjudication bytes
+
+- #56b/c: the seven-day window (`gym_today()-6 .. gym_today()`) has been the
+  pin's call form since round 12 — the round-24 runtime naming "the 7-day Oct
+  window as the fix" indicates a stale-bytes run; the current sha already
+  carries it (verified: all three #56 pins call the seven-day snapshot). No
+  further edit; the have/want (0 vs 1) at these bytes remains genuine
+  aggregation divergence for the builder packet.
+- #76/78 routing echo: all claims statements are top-level in the source
+  (rounds 13-21), yet the statement-context echo still reads the wrong
+  tenant under the runner — the only mechanism left standing is runtime
+  statement isolation in the executing harness. Made the echo harness-immune:
+  the routing echo pin now reads
+  `pg_temp.zone76()->>'ctxTenant'` — the claims context INSIDE the same
+  function invocation that performs the snapshot (set + read + call share one
+  plain plpgsql body, which is not a subtransaction). Either both ctxTenant
+  and the zone expectations go green (routing and envelope proven), or
+  ctxTenant is green with red zone expectations (derivation defect, owner
+  packet), or ctxTenant itself is red (isolation below function scope — the
+  harness is the finding).
+- plan(79) unchanged (echo rewritten in place, no count change); rollback
+  guard green (159 files). SQL NOT executed here.
+- New sha256: `58b7ca56f175dc6f064636d748897ea11682143c9ef741778f8f4c61d4e3a7ed`.
+
+## Round 25 — pre-call context read forced in the zone76 helper
+
+- Runtime at sha 58b7ca56: #56a GREEN; #56b/#56c RED (have 0 / want 1);
+  ctxTenant RED inside the zone76 invocation. Inside ONE plain plpgsql body
+  that sets claims and immediately reports them, the only remaining mechanism
+  is evaluation-order coupling: `jsonb_build_object('ctxTenant',
+  current_setting(...), 'snapshot', <RPC call>)` has an UNSPECIFIED argument
+  order — if the analytics RPC evaluates first and rewrites the claims GUC
+  during its own execution, the inline context read observes the POST-call
+  context. That would also explain the whole red-echo family.
+- Repair: the helper now reads the context into a local variable BEFORE the
+  RPC call (forced pre-call read) and returns it. Decision matrix unchanged:
+  ctxTenant (pre-call) green + zone red = derivation defect with the context
+  provably correct at the point of entry (owner packet, now with exactly the
+  evidence the builder asked for: the helper's functiondef + the K1_ATT
+  triple); ctxTenant red even pre-call = something inside the helper's own
+  subtransaction stack reverts the setting (harness finding).
+- plan(79) unchanged; rollback guard green (159 files). SQL NOT executed
+  here.
+- New sha256: `86bfcef158e87eb8abf5968ad6271d9158ec382c4fb499577da76dc917134b7b`.
