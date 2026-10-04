@@ -79,6 +79,21 @@ where n.tenant_id=pg_temp.aid(1) and n.category='renewal'
   and n.status='sent' and n.related_type='membership';
 select set_config('request.jwt.claims','',true);
 
+-- Chronological historical bootstrap: verify through the public command, then
+-- append a distinct truthful decision at a later actual recording instant.
+-- Existing immutable consent rows are never edited; tied instants belong only
+-- to the independent ordering regression.
+create function pg_temp.chronological_channel_decision(m uuid,p public.consent_purpose,g boolean,v text,s text,k uuid) returns jsonb language plpgsql security invoker as $f$
+declare r jsonb; actor_claim text; stamp timestamptz;
+begin
+ r:=public.record_whatsapp_consent(m,p,g,v,s,k);
+ actor_claim:=current_setting('request.jwt.claims',true);
+ stamp:=clock_timestamp();
+ insert into public.whatsapp_channel_consents(id,tenant_id,member_id,purpose,granted,notice_version,source,recipient_phone_digest,contact_version_ref,recipient_basis,recorded_by_staff_id,recorded_at,created_at)
+ select gen_random_uuid(),cc.tenant_id,cc.member_id,cc.purpose,g,v,s,cc.recipient_phone_digest,cc.contact_version_ref,cc.recipient_basis,(actor_claim::jsonb->>'staff_id')::uuid,stamp,stamp
+ from public.whatsapp_channel_consents cc where cc.tenant_id=(actor_claim::jsonb->>'tenant_id')::uuid and cc.member_id=m and cc.purpose=p order by cc.recorded_at desc,cc.id desc limit 1;
+ return r;
+end$f$;
 -- Schema evidence is distinct from generic-purpose evidence. Zip FK operands;
 -- physical ordinal/deparser order is not a behavior requirement.
 select ok(exists(select 1 from pg_attribute where attrelid=to_regclass('public.notification_whatsapp_attempts') and attname='channel_consent_id' and attnotnull and not attisdropped),'WSP-010: exact channel evidence is mandatory');
@@ -89,20 +104,20 @@ select ok(exists(select 1 from pg_index i where i.indrelid=to_regclass('public.w
 
 -- Five independent observable assertions per final authorization; no provider
 -- adapter is invoked and a truthful initiated ticket is never called a debit.
-create function pg_temp.evidence_authorize(m integer,expected boolean,label text,specific_attempt uuid default null) returns void language plpgsql as $f$
+create function pg_temp.evidence_authorize(m integer,expected boolean,label text,specific_attempt uuid default null) returns setof text language plpgsql as $f$
 declare a public.notification_whatsapp_attempts%rowtype; r jsonb; source_before jsonb;
 begin
  select * into a from public.notification_whatsapp_attempts where tenant_id=pg_temp.aid(1) and member_id=pg_temp.aid(m) and (specific_attempt is null or id=specific_attempt) order by created_at desc,id desc limit 1;
  select to_jsonb(nn) into source_before from public.notifications nn where nn.id=a.notification_id;
  r:=public.authorize_whatsapp_dispatch(a.id,a.lease_ticket);
- perform is(r->>'authorized',expected::text,label||': final permission');
- perform ok(expected or r->>'recipient' is null,label||': refusal reveals no recipient');
- perform ok(expected or exists(select 1 from public.notification_whatsapp_attempts where id=a.id and io_started_at is null),label||': refusal starts no I/O');
- perform ok(expected or exists(select 1 from public.notification_whatsapp_attempts where id=a.id and released_at is not null),label||': refusal releases hold');
- perform is((select count(*) from public.messaging_wallet_ledger where notification_id=a.notification_id),0::bigint,label||': no debit before provider evidence');
- perform ok(expected or exists(select 1 from public.notification_whatsapp_attempts where id=a.id and failure_code='opted_out' and released_at is not null),label||': durable exact opted_out refusal and release');
- perform ok(expected or not exists(select 1 from public.notifications where source_notification_id=a.notification_id and channel='whatsapp_link' and dedupe_key='whatsapp-paid:'||a.notification_id::text),label||': refusal creates no paid child');
- perform ok(expected or (select to_jsonb(nn) from public.notifications nn where nn.id=a.notification_id)=source_before,label||': refusal preserves the factual source row');
+ return next is(r->>'authorized',expected::text,label||': final permission');
+ return next ok(expected or r->>'recipient' is null,label||': refusal reveals no recipient');
+ return next ok(expected or exists(select 1 from public.notification_whatsapp_attempts where id=a.id and io_started_at is null),label||': refusal starts no I/O');
+ return next ok(expected or exists(select 1 from public.notification_whatsapp_attempts where id=a.id and released_at is not null),label||': refusal releases hold');
+ return next is((select count(*) from public.messaging_wallet_ledger where notification_id=a.notification_id),0::bigint,label||': no debit before provider evidence');
+ return next ok(expected or exists(select 1 from public.notification_whatsapp_attempts where id=a.id and failure_code='opted_out' and released_at is not null),label||': durable exact opted_out refusal and release');
+ return next ok(expected or not exists(select 1 from public.notifications where source_notification_id=a.notification_id and channel='whatsapp_link' and dedupe_key='whatsapp-paid:'||a.notification_id::text),label||': refusal creates no paid child');
+ return next ok(expected or (select to_jsonb(nn) from public.notifications nn where nn.id=a.notification_id)=source_before,label||': refusal preserves the factual source row');
 end$f$;
 
 -- A valid minimal attempt shape derived solely from the public WSP declaration.
@@ -111,11 +126,11 @@ begin
  insert into public.notification_whatsapp_attempts(id,tenant_id,member_id,notification_id,sender_account_id,template_revision_id,rate_version_id,consent_id,channel_consent_id,request_key,lease_ticket,lease_expires_at,recipient_contact_revision,hold_max_paise,hold_currency)
  values(pg_temp.aid(child+100),pg_temp.aid(1),pg_temp.aid(112),pg_temp.aid(child),pg_temp.aid(501),pg_temp.aid(2051),pg_temp.aid(503),pg_temp.aid(407),channel_id,pg_temp.aid(child+200),pg_temp.aid(child+300),now()+interval '120 seconds',(select contact_version_ref from public.whatsapp_channel_consents where id=channel_id),100,'INR');
 end$f$;
-do $b$
+create function pg_temp.visible_tap_block_1() returns setof text language plpgsql security invoker as $b$
 declare m integer; c jsonb; n integer; a uuid; before_balance bigint; before_attempts bigint; before_ledger bigint; prep_source jsonb;
 begin
  if not pg_temp.col('public.notification_whatsapp_attempts','channel_consent_id') then
-  perform skip('WSP channel evidence schema absent',86); return;
+  return query select * from skip('WSP channel evidence schema absent',86); return;
  end if;
  -- Independently reuse the lawful public visible fixture. Consent commands
  -- derive actual digest/contact revision rather than inventing opt-in history.
@@ -135,30 +150,30 @@ begin
  perform public.adjust_messaging_wallet_paise(pg_temp.aid(1),5000,'INR','evidence-test-funding',pg_temp.aid(630));
  perform pg_temp.claim('gym_owner',21,null,901,1,false);
  for m in select unnest(array[101,102,109,110,111,112]) loop
-  perform lives_ok(format('select public.request_whatsapp_dispatch(%L::uuid,%L::uuid)',(select id from wsp_ids where k='src_'||m),pg_temp.aid(700+m)),'WSP-003: queue current service grant '||m);
+  return next lives_ok(format('select public.request_whatsapp_dispatch(%L::uuid,%L::uuid)',(select id from wsp_ids where k='src_'||m),pg_temp.aid(700+m)),'WSP-003: queue current service grant '||m);
  end loop;
  perform set_config('request.jwt.claims','',true);
  c:=public.claim_whatsapp_dispatch(10);
- perform is(jsonb_array_length(c->'attempts'),6,'WSP-003: claim selects six lawful current service grants');
+ return next is(jsonb_array_length(c->'attempts'),6,'WSP-003: claim selects six lawful current service grants');
  for m in select unnest(array[101,102,109,110,111,112]) loop
-  perform ok(exists(select 1 from public.notification_whatsapp_attempts aa join public.whatsapp_channel_consents cc on cc.tenant_id=aa.tenant_id and cc.member_id=aa.member_id and cc.id=aa.channel_consent_id where aa.member_id=pg_temp.aid(m) and aa.tenant_id=pg_temp.aid(1) and cc.granted and cc.id=(select id from public.whatsapp_channel_consents where tenant_id=aa.tenant_id and member_id=aa.member_id and purpose='service' order by recorded_at desc,id desc limit 1)),'WSP-010: claim freezes exact current opt-in '||m);
+  return next ok(exists(select 1 from public.notification_whatsapp_attempts aa join public.whatsapp_channel_consents cc on cc.tenant_id=aa.tenant_id and cc.member_id=aa.member_id and cc.id=aa.channel_consent_id where aa.member_id=pg_temp.aid(m) and aa.tenant_id=pg_temp.aid(1) and cc.granted and cc.id=(select id from public.whatsapp_channel_consents where tenant_id=aa.tenant_id and member_id=aa.member_id and purpose='service' order by recorded_at desc,id desc limit 1)),'WSP-010: claim freezes exact current opt-in '||m);
  end loop;
  -- Authorized record retains both independent evidence identities.
- perform pg_temp.evidence_authorize(101,true,'WSP service current grant');
+ return query select * from pg_temp.evidence_authorize(101,true,'WSP service current grant');
  perform pg_temp.claim('gym_owner',21,null,901,1,false);
- perform public.record_whatsapp_consent(pg_temp.aid(102),'service',false,'wsp-notice-v1','desk_verification',pg_temp.aid(1602));
+ perform pg_temp.chronological_channel_decision(pg_temp.aid(102),'service',false,'wsp-notice-v1','desk_verification',pg_temp.aid(1602));
  perform set_config('request.jwt.claims','',true);
- perform pg_temp.evidence_authorize(102,false,'WSP withdrawal before I/O');
+ return query select * from pg_temp.evidence_authorize(102,false,'WSP withdrawal before I/O');
  perform pg_temp.claim('gym_owner',21,null,901,1,false);
- perform public.record_whatsapp_consent(pg_temp.aid(109),'service',true,'wsp-notice-v2','desk_verification',pg_temp.aid(1609));
+ perform pg_temp.chronological_channel_decision(pg_temp.aid(109),'service',true,'wsp-notice-v2','desk_verification',pg_temp.aid(1609));
  perform set_config('request.jwt.claims','',true);
- perform pg_temp.evidence_authorize(109,false,'WSP superseding version cannot rewrite causal evidence');
+ return query select * from pg_temp.evidence_authorize(109,false,'WSP superseding version cannot rewrite causal evidence');
  perform pg_temp.claim('gym_owner',21,null,901,1,false);
  update public.members set phone='+917599000110' where id=pg_temp.aid(110);
  perform set_config('request.jwt.claims','',true);
- perform pg_temp.evidence_authorize(110,false,'WSP recipient drift before I/O');
- perform pg_temp.evidence_authorize(111,true,'WSP independent other service grant');
- perform pg_temp.evidence_authorize(112,true,'WSP current service evidence preserved');
+ return query select * from pg_temp.evidence_authorize(110,false,'WSP recipient drift before I/O');
+ return query select * from pg_temp.evidence_authorize(111,true,'WSP independent other service grant');
+ return query select * from pg_temp.evidence_authorize(112,true,'WSP current service evidence preserved');
  -- Fresh registration probes prevent immutability from masking a missing FK.
  perform pg_temp.claim('gym_owner',21,null,901,1,false);
  -- Fresh attempt FKs reference ordinary source notifications, not paid children.
@@ -173,20 +188,20 @@ begin
  perform pg_temp.claim('gym_owner',25,null,905,2,false);
  perform public.record_whatsapp_consent(pg_temp.aid(107),'service',true,'wsp-notice-v1','desk_verification',pg_temp.aid(2005));
  perform set_config('request.jwt.claims','',true);
- perform lives_ok(format('select pg_temp.attempt_probe(2001,%L::uuid)',(select id from public.whatsapp_channel_consents where tenant_id=pg_temp.aid(1) and member_id=pg_temp.aid(112) and purpose='service' order by recorded_at desc,id desc limit 1)),'WSP-010: valid fresh evidence registration accepted');
- perform throws_ok('select pg_temp.attempt_probe(2002,null)','23502',null,'WSP-010: missing channel evidence rejected');
- perform throws_ok(format('select pg_temp.attempt_probe(2003,%L::uuid)',(select id from public.whatsapp_channel_consents where tenant_id=pg_temp.aid(1) and member_id=pg_temp.aid(101) and purpose='service' order by recorded_at desc,id desc limit 1)),'23503',null,'WSP-010: foreign member channel evidence rejected');
- perform throws_ok(format('select pg_temp.attempt_probe(2004,%L::uuid)',(select id from public.whatsapp_channel_consents where tenant_id=pg_temp.aid(2) and member_id=pg_temp.aid(107) and purpose='service' order by recorded_at desc,id desc limit 1)),'23503',null,'WSP-010: foreign tenant channel evidence rejected');
- perform isnt(pg_temp.refusal(format('update public.notification_whatsapp_attempts set channel_consent_id=(select id from public.whatsapp_channel_consents where member_id=%L::uuid order by recorded_at desc,id desc limit 1) where member_id=%L::uuid',pg_temp.aid(109),pg_temp.aid(109))),'SUCCESS','WSP-010: exact causal reference immutable even within same member');
+ return next lives_ok(format('select pg_temp.attempt_probe(2001,%L::uuid)',(select id from public.whatsapp_channel_consents where tenant_id=pg_temp.aid(1) and member_id=pg_temp.aid(112) and purpose='service' order by recorded_at desc,id desc limit 1)),'WSP-010: valid fresh evidence registration accepted');
+ return next throws_ok('select pg_temp.attempt_probe(2002,null)','23502',null,'WSP-010: missing channel evidence rejected');
+ return next throws_ok(format('select pg_temp.attempt_probe(2003,%L::uuid)',(select id from public.whatsapp_channel_consents where tenant_id=pg_temp.aid(1) and member_id=pg_temp.aid(101) and purpose='service' order by recorded_at desc,id desc limit 1)),'23503',null,'WSP-010: foreign member channel evidence rejected');
+ return next throws_ok(format('select pg_temp.attempt_probe(2004,%L::uuid)',(select id from public.whatsapp_channel_consents where tenant_id=pg_temp.aid(2) and member_id=pg_temp.aid(107) and purpose='service' order by recorded_at desc,id desc limit 1)),'23503',null,'WSP-010: foreign tenant channel evidence rejected');
+ return next isnt(pg_temp.refusal(format('update public.notification_whatsapp_attempts set channel_consent_id=(select id from public.whatsapp_channel_consents where member_id=%L::uuid order by recorded_at desc,id desc limit 1) where member_id=%L::uuid',pg_temp.aid(109),pg_temp.aid(109))),'SUCCESS','WSP-010: exact causal reference immutable even within same member');
  -- Manual handoff has no paid transport or wallet side effect.
  select balance_paise into before_balance from public.messaging_wallets where tenant_id=pg_temp.aid(1);
  select count(*) into before_attempts from public.notification_whatsapp_attempts where tenant_id=pg_temp.aid(1);
  select count(*) into before_ledger from public.messaging_wallet_ledger where tenant_id=pg_temp.aid(1);
  perform pg_temp.claim('gym_owner',21,null,901,1,false);
  perform public.open_notification_whatsapp((select id from wsp_ids where k='src_111'));
- perform is((select count(*) from public.notification_whatsapp_attempts where tenant_id=pg_temp.aid(1)),before_attempts,'WSP-M03: manual handoff adds no attempt');
- perform is((select balance_paise from public.messaging_wallets where tenant_id=pg_temp.aid(1)),before_balance,'WSP-M03: manual handoff preserves balance');
- perform is((select count(*) from public.messaging_wallet_ledger where tenant_id=pg_temp.aid(1)),before_ledger,'WSP-M03: manual handoff appends no movement');
+ return next is((select count(*) from public.notification_whatsapp_attempts where tenant_id=pg_temp.aid(1)),before_attempts,'WSP-M03: manual handoff adds no attempt');
+ return next is((select balance_paise from public.messaging_wallets where tenant_id=pg_temp.aid(1)),before_balance,'WSP-M03: manual handoff preserves balance');
+ return next is((select count(*) from public.messaging_wallet_ledger where tenant_id=pg_temp.aid(1)),before_ledger,'WSP-M03: manual handoff appends no movement');
  -- Promotions have distinct generic marketing AND channel marketing evidence.
  perform public.record_consent(pg_temp.aid(101),'marketing',true,'promo-v1','desk_verification',pg_temp.aid(1900));
 
@@ -198,23 +213,24 @@ begin
  perform public.send_notification(pg_temp.aid(1804));
  select to_jsonb(nn) into prep_source from public.notifications nn where nn.id=pg_temp.aid(1804);
  c:=public.request_whatsapp_dispatch(pg_temp.aid(1804),pg_temp.aid(1805));
- perform is(c->>'queued','false','WSP-003: missing channel grant refuses preparation');
- perform is((select count(*) from public.notification_whatsapp_attempts where notification_id=pg_temp.aid(1804)),0::bigint,'WSP-003: preparation refusal invents no attempt');
- perform ok(not exists(select 1 from public.notifications where source_notification_id=pg_temp.aid(1804) and channel='whatsapp_link'),'WSP-003: preparation refusal creates no paid child');
- perform is((select count(*) from public.messaging_wallet_ledger where notification_id=pg_temp.aid(1804)),0::bigint,'WSP-003: preparation refusal debits nothing');
- perform is((select to_jsonb(nn) from public.notifications nn where nn.id=pg_temp.aid(1804)),prep_source,'WSP-003: preparation preserves factual sent source');
+ return next is(c->>'queued','false','WSP-003: missing channel grant refuses preparation');
+ return next is((select count(*) from public.notification_whatsapp_attempts where notification_id=pg_temp.aid(1804)),0::bigint,'WSP-003: preparation refusal invents no attempt');
+ return next ok(not exists(select 1 from public.notifications where source_notification_id=pg_temp.aid(1804) and channel='whatsapp_link'),'WSP-003: preparation refusal creates no paid child');
+ return next is((select count(*) from public.messaging_wallet_ledger where notification_id=pg_temp.aid(1804)),0::bigint,'WSP-003: preparation refusal debits nothing');
+ return next is((select to_jsonb(nn) from public.notifications nn where nn.id=pg_temp.aid(1804)),prep_source,'WSP-003: preparation preserves factual sent source');
  perform public.record_whatsapp_consent(pg_temp.aid(101),'marketing',true,'wsp-notice-v1','desk_verification',pg_temp.aid(1901));
  insert into public.notifications(id,tenant_id,member_id,channel,status,category,dedupe_key,payload) values(pg_temp.aid(1904),pg_temp.aid(1),pg_temp.aid(101),'in_app','scheduled','promotion','evidence-promo','{"body":"Promotion notice"}');
  perform public.send_notification(pg_temp.aid(1904));
- perform lives_ok($q$select public.request_whatsapp_dispatch(pg_temp.aid(1904),pg_temp.aid(1905))$q$,'WSP: valid promotion queues');
+ return next lives_ok($q$select public.request_whatsapp_dispatch(pg_temp.aid(1904),pg_temp.aid(1905))$q$,'WSP: valid promotion queues');
  perform set_config('request.jwt.claims','',true);
  c:=public.claim_whatsapp_dispatch(10);
- perform is(jsonb_array_length(c->'attempts'),1,'WSP: valid marketing opt-in claims');
+ return next is(jsonb_array_length(c->'attempts'),1,'WSP: valid marketing opt-in claims');
  select (c->'attempts'->0->>'attemptId')::uuid into a;
- perform ok(exists(select 1 from public.notification_whatsapp_attempts aa join public.whatsapp_channel_consents cc on cc.id=aa.channel_consent_id where aa.id=a and cc.member_id=aa.member_id and cc.tenant_id=aa.tenant_id and cc.purpose='marketing' and cc.granted),'WSP: promotion pins marketing channel evidence');
- perform ok(exists(select 1 from public.notification_whatsapp_attempts aa join public.consents cc on cc.id=aa.consent_id where aa.id=a and cc.member_id=aa.member_id and cc.tenant_id=aa.tenant_id and cc.purpose='marketing' and cc.granted),'WSP: promotion keeps generic marketing evidence');
+ return next ok(exists(select 1 from public.notification_whatsapp_attempts aa join public.whatsapp_channel_consents cc on cc.id=aa.channel_consent_id where aa.id=a and cc.member_id=aa.member_id and cc.tenant_id=aa.tenant_id and cc.purpose='marketing' and cc.granted),'WSP: promotion pins marketing channel evidence');
+ return next ok(exists(select 1 from public.notification_whatsapp_attempts aa join public.consents cc on cc.id=aa.consent_id where aa.id=a and cc.member_id=aa.member_id and cc.tenant_id=aa.tenant_id and cc.purpose='marketing' and cc.granted),'WSP: promotion keeps generic marketing evidence');
  -- Pin the claimed attempt explicitly; transaction timestamps may tie.
- perform pg_temp.evidence_authorize(101,true,'WSP valid promotion final authorization',a);
+ return query select * from pg_temp.evidence_authorize(101,true,'WSP valid promotion final authorization',a);
 end $b$;
+select * from pg_temp.visible_tap_block_1();
 select * from finish();
 rollback;

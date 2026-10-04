@@ -17,7 +17,7 @@ set local role postgres;
 set local search_path = extensions, public;
 set local timezone = 'UTC';
 select set_config('request.jwt.claims','',true);
-select plan(151);
+select plan(154);
 
 -- ---------------------------------------------------------------- helpers
 create function pg_temp.wsp_scalar(q text) returns text language plpgsql as $f$
@@ -39,8 +39,6 @@ begin
   insert into public.whatsapp_rate_versions(id,tenant_id,sender_account_id,effective_from,destination_market,provider_category,amount_paise,max_amount_paise,currency,rounding_revision,evidence_digest)
    values ('80900000-0000-8000-8000-00000000c001','80900000-0000-8000-8000-000000000001','80900000-0000-8000-8000-00000000a001',now()-interval '1 hour','IN','payment',350,350,'INR','all_in','1111111111111111111111111111111111111111111111111111111111111111'),
           ('80900000-0000-8000-8000-00000000c003','80900000-0000-8000-8000-000000000002','80900000-0000-8000-8000-00000000a002',now()-interval '1 hour','IN','payment',350,350,'INR','all_in','3333333333333333333333333333333333333333333333333333333333333333');
-  insert into public.whatsapp_channel_consents(id,tenant_id,member_id,purpose,granted,notice_version,source,recipient_phone_digest,contact_version_ref,recipient_basis,recorded_at)
-   values ('80900000-0000-8000-8000-00000000d001','80900000-0000-8000-8000-000000000001','80900000-0000-8000-8000-000000000031','service',true,'wsp-notice-v1','holdout','deadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef','contact-v1','self',now());
 exception when others then null;
 end $f$;
 
@@ -132,11 +130,23 @@ create temporary table h80_results(label text primary key, result jsonb);
 grant all on h80_results to authenticated;
 grant all on h80_results to service_role;
 
+-- Bootstrap with actual current recipient evidence, then retain a truthful
+-- earlier copy. Never guess the private digest/contact-version format or edit
+-- immutable consent history. Distinct recorded instants make chronology explicit.
+select set_config('request.jwt.claims','{"sub":"80900000-0000-8000-8000-000000000901","role":"authenticated","app_role":"member","tenant_id":"80900000-0000-8000-8000-000000000001","member_id":"80900000-0000-8000-8000-000000000031"}',true);
+set local role authenticated;
+select lives_ok($q$insert into h80_results select 'bootstrap_consent',public.set_member_whatsapp_consent('service',true,'wsp-notice-v1')$q$,'WSP-H-FIX0a public member command derives current recipient evidence');
+reset role;
+select set_config('request.jwt.claims','',true);
+select lives_ok($q$insert into public.whatsapp_channel_consents(id,tenant_id,member_id,purpose,granted,notice_version,source,recipient_phone_digest,contact_version_ref,recipient_basis,recorded_at)
+ select '80900000-0000-8000-8000-00000000d001',c.tenant_id,c.member_id,c.purpose,c.granted,c.notice_version,c.source,c.recipient_phone_digest,c.contact_version_ref,c.recipient_basis,c.recorded_at-interval '1 hour'
+ from public.whatsapp_channel_consents c join h80_results r on r.label='bootstrap_consent' and c.id=(r.result->>'consentId')::uuid$q$,'WSP-H-FIX0b historical bootstrap retains exact truthful contact facts');
+
 -- fixture prerequisites
 select is(pg_temp.wsp_scalar($q$select count(*)::text from public.messaging_wallets where tenant_id='80900000-0000-8000-8000-000000000001' and balance_paise=100000$q$),'1','WSP-H-FIX1 wallet staged in paise units');
 select is(pg_temp.wsp_scalar($q$select count(*)::text from public.whatsapp_sender_accounts$q$),'2','WSP-H-FIX2 sender accounts staged');
 select is(pg_temp.wsp_scalar($q$select count(*)::text from public.whatsapp_rate_versions where amount_paise=350 and currency='INR'$q$),'2','WSP-H-FIX3 rate versions staged');
-select is(pg_temp.wsp_scalar($q$select count(*)::text from public.whatsapp_channel_consents where granted$q$),'1','WSP-H-FIX4 channel consent staged');
+select is(pg_temp.wsp_scalar($q$select count(*)::text from public.whatsapp_channel_consents where granted$q$),'2','WSP-H-FIX4 current command and historical channel evidence staged');
 
 -- ---------------------------------------------------------------- A. schema and grant armor
 select is(pg_temp.wsp_scalar($q$select (to_regclass('public.whatsapp_sender_accounts') is not null and to_regclass('public.whatsapp_template_revisions') is not null and to_regclass('public.whatsapp_rate_versions') is not null and to_regclass('public.whatsapp_channel_consents') is not null and to_regclass('public.notification_whatsapp_attempts') is not null and to_regclass('public.notification_whatsapp_receipts') is not null)::text$q$),'true','WSP-H-A01 six WSP tables exist');
@@ -165,7 +175,7 @@ select is(pg_temp.wsp_scalar($q$select (select count(*) from jsonb_object_keys(p
 select lives_ok($q$select public.set_member_whatsapp_consent('marketing',false,'wsp-notice-v1')$q$,'WSP-H-B03 member may refuse marketing channel independently');
 reset role;
 select set_config('request.jwt.claims','',true);
-select is(pg_temp.wsp_scalar($q$select count(*)::text from public.whatsapp_channel_consents where member_id='80900000-0000-8000-8000-000000000031'$q$),'2','WSP-H-B04 distinct purposes are separate append-only rows');
+select is(pg_temp.wsp_scalar($q$select count(*)::text from public.whatsapp_channel_consents where member_id='80900000-0000-8000-8000-000000000031'$q$),'3','WSP-H-B04 distinct purposes and historical bootstrap are separate append-only rows');
 select set_config('request.jwt.claims','{"sub":"80900000-0000-8000-8000-000000000901","role":"authenticated","app_role":"member","tenant_id":"80900000-0000-8000-8000-000000000001","member_id":"80900000-0000-8000-8000-000000000031"}',true);
 set local role authenticated;
 reset role;
@@ -204,7 +214,6 @@ select lives_ok($q$select public.request_whatsapp_dispatch('80900000-0000-8000-8
 select lives_ok($q$select public.request_whatsapp_dispatch('80900000-0000-8000-8000-000000000054','80900000-0000-8000-8000-00000000f0c6')$q$,'WSP-H-C07 member A third source queued (template abuse target)');
 select lives_ok($q$select public.request_whatsapp_dispatch('80900000-0000-8000-8000-000000000055','80900000-0000-8000-8000-00000000f0c7')$q$,'WSP-H-C08 member A fourth source queued (withdrawal target)');
 select lives_ok($q$select public.request_whatsapp_dispatch('80900000-0000-8000-8000-000000000056','80900000-0000-8000-8000-00000000f0c8')$q$,'WSP-H-C09 member A fifth source queued (uncertainty target)');
-select lives_ok($q$select public.request_whatsapp_dispatch('80900000-0000-8000-8000-000000000057','80900000-0000-8000-8000-00000000f0c9')$q$,'WSP-H-C10 member A sixth source queued (late-evidence target)');
 reset role;
 select set_config('request.jwt.claims','',true);
 
@@ -228,10 +237,10 @@ select throws_like($q$select public.authorize_whatsapp_dispatch((select id from 
 select is(pg_temp.wsp_scalar($q$select (io_started_at is not null)::text from public.notification_whatsapp_attempts where notification_id='80900000-0000-8000-8000-000000000051'$q$),'true','WSP-H-D11a authorization marks initiation exactly once');
 select is(pg_temp.wsp_scalar($q$select balance_paise::text from public.messaging_wallets where tenant_id='80900000-0000-8000-8000-000000000001'$q$),'100000','WSP-H-D12 a hold never alters the posted balance');
 select is(pg_temp.wsp_scalar($q$select count(*)::text from public.messaging_wallet_ledger where notification_id='80900000-0000-8000-8000-000000000051'$q$),'0','WSP-H-D13 no ledger movement exists before verified billable delivery');
-select lives_ok($q$select public.record_whatsapp_acceptance((select id from public.notification_whatsapp_attempts where notification_id='80900000-0000-8000-8000-000000000051' limit 1),(select lease_ticket from public.notification_whatsapp_attempts where notification_id='80900000-0000-8000-8000-000000000051' limit 1),'wamid.h80-accept-1','441f6a1b')$q$,'WSP-H-D14 provider acceptance records evidence');
+select lives_ok($q$select public.record_whatsapp_acceptance((select id from public.notification_whatsapp_attempts where notification_id='80900000-0000-8000-8000-000000000051' limit 1),(select lease_ticket from public.notification_whatsapp_attempts where notification_id='80900000-0000-8000-8000-000000000051' limit 1),'wamid.h80-accept-1',repeat('441f6a1b',8))$q$,'WSP-H-D14 provider acceptance records evidence');
 select is(pg_temp.wsp_scalar($q$select (status='sent')::text from public.notifications where id='80900000-0000-8000-8000-000000000051'$q$),'true','WSP-H-D15 acceptance marks sent as accepted-for-delivery');
 select is(pg_temp.wsp_scalar($q$select count(*)::text from public.messaging_wallet_ledger where notification_id='80900000-0000-8000-8000-000000000051'$q$),'0','WSP-H-D16 API acceptance never debits');
-select lives_ok($q$select public.record_whatsapp_acceptance((select id from public.notification_whatsapp_attempts where notification_id='80900000-0000-8000-8000-000000000051' limit 1),(select lease_ticket from public.notification_whatsapp_attempts where notification_id='80900000-0000-8000-8000-000000000051' limit 1),'wamid.h80-accept-1','441f6a1b')$q$,'WSP-H-D17 duplicate acceptance is an inert replay');
+select lives_ok($q$select public.record_whatsapp_acceptance((select id from public.notification_whatsapp_attempts where notification_id='80900000-0000-8000-8000-000000000051' limit 1),(select lease_ticket from public.notification_whatsapp_attempts where notification_id='80900000-0000-8000-8000-000000000051' limit 1),'wamid.h80-accept-1',repeat('441f6a1b',8))$q$,'WSP-H-D17 duplicate acceptance is an inert replay');
 select is(pg_temp.wsp_scalar($q$select count(*)::text from public.messaging_wallet_ledger where notification_id='80900000-0000-8000-8000-000000000051'$q$),'0','WSP-H-D18 replay appends no movement');
 select lives_ok($q$select public.record_whatsapp_receipt('80900000-0000-8000-8000-00000000a001','wamid.h80-accept-1','f1e2d3c4b5a697887766554433221100ffeeddccbbaa99887766554433221100','delivered',now(),'aa11bb22cc33dd44aa11bb22cc33dd44aa11bb22cc33dd44aa11bb22cc33dd44')$q$,'WSP-H-D19 verified delivery receipt accepted');
 select is(pg_temp.wsp_scalar($q$select (status='delivered')::text from public.notifications where id='80900000-0000-8000-8000-000000000051'$q$),'true','WSP-H-D20 delivered evidence records delivered');
@@ -246,7 +255,7 @@ select is(pg_temp.wsp_scalar($q$select (provider_read_at is not null)::text from
 select is(pg_temp.wsp_scalar($q$select (clicked_at is null)::text from public.notifications where id='80900000-0000-8000-8000-000000000051'$q$),'true','WSP-H-D29 WhatsApp read never fabricates clicked_at');
 select is(pg_temp.wsp_scalar($q$select count(*)::text from public.messaging_wallet_ledger where notification_id='80900000-0000-8000-8000-000000000051'$q$),'1','WSP-H-D30 a read receipt never debits');
 select lives_ok($q$select public.authorize_whatsapp_dispatch((select id from public.notification_whatsapp_attempts where notification_id='80900000-0000-8000-8000-000000000052' limit 1),(select lease_ticket from public.notification_whatsapp_attempts where notification_id='80900000-0000-8000-8000-000000000052' limit 1))$q$,'WSP-H-D31 second attempt authorized');
-select lives_ok($q$select public.record_whatsapp_acceptance((select id from public.notification_whatsapp_attempts where notification_id='80900000-0000-8000-8000-000000000052' limit 1),(select lease_ticket from public.notification_whatsapp_attempts where notification_id='80900000-0000-8000-8000-000000000052' limit 1),'wamid.h80-accept-2','441f6a1b')$q$,'WSP-H-D31a second attempt accepted');
+select lives_ok($q$select public.record_whatsapp_acceptance((select id from public.notification_whatsapp_attempts where notification_id='80900000-0000-8000-8000-000000000052' limit 1),(select lease_ticket from public.notification_whatsapp_attempts where notification_id='80900000-0000-8000-8000-000000000052' limit 1),'wamid.h80-accept-2',repeat('441f6a1b',8))$q$,'WSP-H-D31a second attempt accepted');
 select lives_ok($q$select public.record_whatsapp_receipt('80900000-0000-8000-8000-00000000a001','wamid.h80-accept-2','f3e2d3c4b5a697887766554433221100ffeeddccbbaa99887766554433221100','read',now(),'cc33dd44aa11bb22cc33dd44aa11bb22cc33dd44aa11bb22cc33dd44aa11bb22')$q$,'WSP-H-D32 a read receipt legally implies delivery through the frozen graph');
 select throws_like($q$select public.record_whatsapp_receipt('80900000-0000-8000-8000-00000000a001','wamid.h80-accept-3','f4e2d3c4b5a697887766554433221100ffeeddccbbaa99887766554433221100','delivered',now(),'dd44aa11bb22cc33dd44aa11bb22cc33dd44aa11bb22cc33dd44aa11bb22cc33')$q$,'%','WSP-H-D33 delivery evidence without an accepted send is refused');
 reset role;
@@ -255,7 +264,7 @@ select throws_ok($q$insert into public.messaging_wallet_ledger(tenant_id,delta_p
 select is(pg_temp.wsp_scalar($q$select (select currency from public.whatsapp_rate_versions where id=(select rate_version_id from public.notification_whatsapp_attempts where notification_id='80900000-0000-8000-8000-000000000051' limit 1))::text$q$),'INR','WSP-H-D35 the causal debit resolved an INR tariff; non-INR versions are never used');
 set local role service_role;
 select lives_ok($q$select public.authorize_whatsapp_dispatch((select id from public.notification_whatsapp_attempts where notification_id='80900000-0000-8000-8000-000000000059' limit 1),(select lease_ticket from public.notification_whatsapp_attempts where notification_id='80900000-0000-8000-8000-000000000059' limit 1))$q$,'WSP-H-D36 tenant B winner authorized');
-select lives_ok($q$select public.record_whatsapp_acceptance((select id from public.notification_whatsapp_attempts where notification_id='80900000-0000-8000-8000-000000000059' limit 1),(select lease_ticket from public.notification_whatsapp_attempts where notification_id='80900000-0000-8000-8000-000000000059' limit 1),'wamid.h80-b-1','441f6a1b')$q$,'WSP-H-D36a tenant B winner accepted');
+select lives_ok($q$select public.record_whatsapp_acceptance((select id from public.notification_whatsapp_attempts where notification_id='80900000-0000-8000-8000-000000000059' limit 1),(select lease_ticket from public.notification_whatsapp_attempts where notification_id='80900000-0000-8000-8000-000000000059' limit 1),'wamid.h80-b-1',repeat('441f6a1b',8))$q$,'WSP-H-D36a tenant B winner accepted');
 select lives_ok($q$select public.record_whatsapp_receipt('80900000-0000-8000-8000-00000000a002','wamid.h80-b-1','f5e2d3c4b5a697887766554433221100ffeeddccbbaa99887766554433221100','delivered',now(),'ee11ff22aa33bb44ee11ff22aa33bb44ee11ff22aa33bb44ee11ff22aa33bb44')$q$,'WSP-H-D36b tenant B winner completes its causal debit');
 select is(pg_temp.wsp_scalar($q$select balance_after_paise::text from public.messaging_wallet_ledger where tenant_id='80900000-0000-8000-8000-000000000002' limit 1$q$),'0','WSP-H-D37 the final amount goes to exactly one send');
 select is(pg_temp.wsp_scalar($q$select jsonb_array_length(result->'attempts')::text from h80_results where label='claim2'$q$),'0','WSP-H-D38 the losing send is not claimable: nothing left to claim');
@@ -280,7 +289,7 @@ select set_config('request.jwt.claims','',true);
 set local role service_role;
 select lives_ok($q$insert into h80_results select 'claim3',public.claim_whatsapp_dispatch(10)$q$,'WSP-H-E02 claim picks up the uncertainty target');
 select lives_ok($q$select public.authorize_whatsapp_dispatch((select id from public.notification_whatsapp_attempts where notification_id='80900000-0000-8000-8000-000000000058' limit 1),(select lease_ticket from public.notification_whatsapp_attempts where notification_id='80900000-0000-8000-8000-000000000058' limit 1))$q$,'WSP-H-E03 authorization for the uncertainty target');
-select lives_ok($q$select public.record_whatsapp_acceptance((select id from public.notification_whatsapp_attempts where notification_id='80900000-0000-8000-8000-000000000058' limit 1),(select lease_ticket from public.notification_whatsapp_attempts where notification_id='80900000-0000-8000-8000-000000000058' limit 1),'wamid.h80-e-1','441f6a1b')$q$,'WSP-H-E04 acceptance before the transport crash');
+select lives_ok($q$select public.record_whatsapp_acceptance((select id from public.notification_whatsapp_attempts where notification_id='80900000-0000-8000-8000-000000000058' limit 1),(select lease_ticket from public.notification_whatsapp_attempts where notification_id='80900000-0000-8000-8000-000000000058' limit 1),'wamid.h80-e-1',repeat('441f6a1b',8))$q$,'WSP-H-E04 acceptance before the transport crash');
 select throws_ok($q$select public.finish_whatsapp_rejection((select id from public.notification_whatsapp_attempts where notification_id='80900000-0000-8000-8000-000000000058' limit 1),(select lease_ticket from public.notification_whatsapp_attempts where notification_id='80900000-0000-8000-8000-000000000058' limit 1),'provider_rejected',false)$q$,'22023',null,'WSP-H-E05 known=false cannot carry a failure code');
 select lives_ok($q$select public.finish_whatsapp_rejection((select id from public.notification_whatsapp_attempts where notification_id='80900000-0000-8000-8000-000000000058' limit 1),(select lease_ticket from public.notification_whatsapp_attempts where notification_id='80900000-0000-8000-8000-000000000058' limit 1),null,false)$q$,'WSP-H-E06 unknown outcome records uncertainty without releasing the hold');
 select is(pg_temp.wsp_scalar($q$select (uncertain_at is not null)::text from public.notification_whatsapp_attempts where notification_id='80900000-0000-8000-8000-000000000058'$q$),'true','WSP-H-E07 uncertainty is a recorded durable fact');
@@ -305,10 +314,14 @@ select is(pg_temp.wsp_scalar($q$select count(*)::text from public.messaging_wall
 select set_config('request.jwt.claims','{"sub":"80900000-0000-8000-8000-000000000902","role":"authenticated","app_role":"gym_owner","tenant_id":"80900000-0000-8000-8000-000000000001","staff_id":"80900000-0000-8000-8000-000000000041"}',true);
 set local role authenticated;
 select public.record_whatsapp_consent('80900000-0000-8000-8000-000000000031','service',true,'wsp-notice-v1','desk_verified','80900000-0000-8000-8000-00000000f0f0');
+-- This late-evidence target is prepared only after the new lawful grant.
+-- An older attempt's exact channel reference may never be replaced by regrant.
+select lives_ok($q$select public.request_whatsapp_dispatch('80900000-0000-8000-8000-000000000057','80900000-0000-8000-8000-00000000f0c9')$q$,'WSP-H-C10 member A sixth source queued (late-evidence target)');
 select set_config('request.jwt.claims','',true);
 set local role service_role;
+select lives_ok($q$insert into h80_results select 'claim_late',public.claim_whatsapp_dispatch(10)$q$,'WSP-H-F00 fresh late-evidence claim binds current regrant');
 select lives_ok($q$select public.authorize_whatsapp_dispatch((select id from public.notification_whatsapp_attempts where notification_id='80900000-0000-8000-8000-000000000057' limit 1),(select lease_ticket from public.notification_whatsapp_attempts where notification_id='80900000-0000-8000-8000-000000000057' limit 1))$q$,'WSP-H-F01 late-evidence target authorized');
-select lives_ok($q$select public.record_whatsapp_acceptance((select id from public.notification_whatsapp_attempts where notification_id='80900000-0000-8000-8000-000000000057' limit 1),(select lease_ticket from public.notification_whatsapp_attempts where notification_id='80900000-0000-8000-8000-000000000057' limit 1),'wamid.h80-f-1','441f6a1b')$q$,'WSP-H-F02 late-evidence target accepted');
+select lives_ok($q$select public.record_whatsapp_acceptance((select id from public.notification_whatsapp_attempts where notification_id='80900000-0000-8000-8000-000000000057' limit 1),(select lease_ticket from public.notification_whatsapp_attempts where notification_id='80900000-0000-8000-8000-000000000057' limit 1),'wamid.h80-f-1',repeat('441f6a1b',8))$q$,'WSP-H-F02 late-evidence target accepted');
 select lives_ok($q$select public.finish_whatsapp_rejection((select id from public.notification_whatsapp_attempts where notification_id='80900000-0000-8000-8000-000000000057' limit 1),(select lease_ticket from public.notification_whatsapp_attempts where notification_id='80900000-0000-8000-8000-000000000057' limit 1),'recipient_invalid',true)$q$,'WSP-H-F03 known rejection finalizes the attempt');
 select is(pg_temp.wsp_scalar($q$select (status='failed')::text from public.notifications where id='80900000-0000-8000-8000-000000000057'$q$),'true','WSP-H-F04 known rejection marks failed');
 select lives_ok($q$select public.record_whatsapp_receipt('80900000-0000-8000-8000-00000000a001','wamid.h80-f-1','f7e2d3c4b5a697887766554433221100ffeeddccbbaa99887766554433221100','delivered',now(),'aa22bb33cc44dd55aa22bb33cc44dd55aa22bb33cc44dd55aa22bb33cc44dd55')$q$,'WSP-H-F05 late delivery evidence is retained for reconciliation');
