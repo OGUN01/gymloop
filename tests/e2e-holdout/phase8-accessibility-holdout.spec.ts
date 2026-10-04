@@ -63,6 +63,15 @@ async function useVisibleControl(
 }
 
 async function chooseAppearance(page: Page, appearance: Appearance): Promise<void> {
+  // ThemeControl renders an aria-hidden placeholder until the client hydrates;
+  // on a slow CI worker the hydration can land after chooseDirectly's probes.
+  // Wait for the real (non-placeholder) control before probing — a timing wait,
+  // not a weakening: the reachability assertion below still runs.
+  await page
+    .locator(".theme-control button")
+    .first()
+    .waitFor({ state: "visible", timeout: 10_000 })
+    .catch(() => undefined);
   const accessibleName = new RegExp(`^${appearance}$`, "i");
   const chooseDirectly = async (): Promise<boolean> => {
     const clicked = await useVisibleControl(
