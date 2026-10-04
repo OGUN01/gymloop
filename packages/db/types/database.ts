@@ -1527,10 +1527,12 @@ export type Database = {
           bytes: number
           confirmed_at: string | null
           created_at: string
-          created_by_staff_id: string
+          created_by_member_id: string | null
+          created_by_staff_id: string | null
           deleted_at: string | null
           id: string
           kind: string
+          linked_request_id: string | null
           mime: string
           object_key: string | null
           published_etag: string | null
@@ -1543,10 +1545,12 @@ export type Database = {
           bytes: number
           confirmed_at?: string | null
           created_at?: string
-          created_by_staff_id: string
+          created_by_member_id?: string | null
+          created_by_staff_id?: string | null
           deleted_at?: string | null
           id?: string
           kind: string
+          linked_request_id?: string | null
           mime: string
           object_key?: string | null
           published_etag?: string | null
@@ -1559,10 +1563,12 @@ export type Database = {
           bytes?: number
           confirmed_at?: string | null
           created_at?: string
-          created_by_staff_id?: string
+          created_by_member_id?: string | null
+          created_by_staff_id?: string | null
           deleted_at?: string | null
           id?: string
           kind?: string
+          linked_request_id?: string | null
           mime?: string
           object_key?: string | null
           published_etag?: string | null
@@ -1571,6 +1577,13 @@ export type Database = {
           verified_source_etag?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "media_assets_tenant_id_created_by_member_fkey"
+            columns: ["tenant_id", "created_by_member_id"]
+            isOneToOne: false
+            referencedRelation: "members"
+            referencedColumns: ["tenant_id", "id"]
+          },
           {
             foreignKeyName: "media_assets_tenant_id_created_by_staff_id_fkey"
             columns: ["tenant_id", "created_by_staff_id"]
@@ -1585,40 +1598,62 @@ export type Database = {
             referencedRelation: "organizations"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "media_assets_tenant_id_linked_request_fkey"
+            columns: ["tenant_id", "linked_request_id"]
+            isOneToOne: false
+            referencedRelation: "purchase_requests"
+            referencedColumns: ["tenant_id", "id"]
+          },
         ]
       }
       member_devices: {
         Row: {
           created_at: string
           id: string
+          installation_id: string | null
+          invalidated_at: string | null
+          invalidated_reason: string | null
           is_active: boolean
           last_seen_at: string
           member_id: string
           platform: string
           push_token: string
+          registered_user_id: string | null
           tenant_id: string
+          token_revision: number | null
           updated_at: string
         }
         Insert: {
           created_at?: string
           id?: string
+          installation_id?: string | null
+          invalidated_at?: string | null
+          invalidated_reason?: string | null
           is_active?: boolean
           last_seen_at?: string
           member_id: string
           platform: string
           push_token: string
+          registered_user_id?: string | null
           tenant_id: string
+          token_revision?: number | null
           updated_at?: string
         }
         Update: {
           created_at?: string
           id?: string
+          installation_id?: string | null
+          invalidated_at?: string | null
+          invalidated_reason?: string | null
           is_active?: boolean
           last_seen_at?: string
           member_id?: string
           platform?: string
           push_token?: string
+          registered_user_id?: string | null
           tenant_id?: string
+          token_revision?: number | null
           updated_at?: string
         }
         Relationships: [
@@ -1635,6 +1670,165 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "organizations"
             referencedColumns: ["id"]
+          },
+        ]
+      }
+      member_freeze_commands: {
+        Row: {
+          action: string
+          actor_user_id: string
+          command_key: string
+          created_at: string
+          facts: Json
+          id: string
+          request_id: string
+          result: Json
+          tenant_id: string
+        }
+        Insert: {
+          action: string
+          actor_user_id: string
+          command_key: string
+          created_at?: string
+          facts: Json
+          id?: string
+          request_id: string
+          result: Json
+          tenant_id: string
+        }
+        Update: {
+          action?: string
+          actor_user_id?: string
+          command_key?: string
+          created_at?: string
+          facts?: Json
+          id?: string
+          request_id?: string
+          result?: Json
+          tenant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "member_freeze_commands_tenant_id_request_id_fkey"
+            columns: ["tenant_id", "request_id"]
+            isOneToOne: false
+            referencedRelation: "member_freeze_requests"
+            referencedColumns: ["tenant_id", "id"]
+          },
+        ]
+      }
+      member_freeze_requests: {
+        Row: {
+          adopted_at: string | null
+          adopted_by_staff_id: string | null
+          cancelled_by_user_id: string | null
+          closed_at: string | null
+          created_at: string
+          decided_at: string | null
+          decided_by_staff_id: string | null
+          decision_reason: string | null
+          ends_on: string
+          id: string
+          member_id: string
+          membership_id: string
+          reason: string
+          request_key: string
+          requested_by_user_id: string
+          revision: number
+          source_pause_id: string | null
+          starts_on: string
+          status: Database["public"]["Enums"]["member_freeze_request_status"]
+          tenant_id: string
+          updated_at: string
+        }
+        Insert: {
+          adopted_at?: string | null
+          adopted_by_staff_id?: string | null
+          cancelled_by_user_id?: string | null
+          closed_at?: string | null
+          created_at?: string
+          decided_at?: string | null
+          decided_by_staff_id?: string | null
+          decision_reason?: string | null
+          ends_on: string
+          id?: string
+          member_id: string
+          membership_id: string
+          reason: string
+          request_key: string
+          requested_by_user_id: string
+          revision?: number
+          source_pause_id?: string | null
+          starts_on: string
+          status?: Database["public"]["Enums"]["member_freeze_request_status"]
+          tenant_id: string
+          updated_at?: string
+        }
+        Update: {
+          adopted_at?: string | null
+          adopted_by_staff_id?: string | null
+          cancelled_by_user_id?: string | null
+          closed_at?: string | null
+          created_at?: string
+          decided_at?: string | null
+          decided_by_staff_id?: string | null
+          decision_reason?: string | null
+          ends_on?: string
+          id?: string
+          member_id?: string
+          membership_id?: string
+          reason?: string
+          request_key?: string
+          requested_by_user_id?: string
+          revision?: number
+          source_pause_id?: string | null
+          starts_on?: string
+          status?: Database["public"]["Enums"]["member_freeze_request_status"]
+          tenant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "member_freeze_requests_tenant_id_adopted_by_staff_id_fkey"
+            columns: ["tenant_id", "adopted_by_staff_id"]
+            isOneToOne: false
+            referencedRelation: "staff"
+            referencedColumns: ["tenant_id", "id"]
+          },
+          {
+            foreignKeyName: "member_freeze_requests_tenant_id_decided_by_staff_id_fkey"
+            columns: ["tenant_id", "decided_by_staff_id"]
+            isOneToOne: false
+            referencedRelation: "staff"
+            referencedColumns: ["tenant_id", "id"]
+          },
+          {
+            foreignKeyName: "member_freeze_requests_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "member_freeze_requests_tenant_id_member_id_fkey"
+            columns: ["tenant_id", "member_id"]
+            isOneToOne: false
+            referencedRelation: "members"
+            referencedColumns: ["tenant_id", "id"]
+          },
+          {
+            foreignKeyName: "member_freeze_requests_tenant_id_membership_id_fkey"
+            columns: ["tenant_id", "membership_id"]
+            isOneToOne: false
+            referencedRelation: "memberships"
+            referencedColumns: ["tenant_id", "id"]
+          },
+          {
+            foreignKeyName: "member_freeze_requests_tenant_id_source_pause_id_fkey"
+            columns: ["tenant_id", "source_pause_id"]
+            isOneToOne: false
+            referencedRelation: "membership_pauses"
+            referencedColumns: ["tenant_id", "id"]
           },
         ]
       }
@@ -1803,6 +1997,41 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "organizations"
             referencedColumns: ["id"]
+          },
+        ]
+      }
+      member_notification_preferences: {
+        Row: {
+          category: Database["public"]["Enums"]["message_category"]
+          created_at: string
+          enabled: boolean
+          member_id: string
+          tenant_id: string
+          updated_at: string
+        }
+        Insert: {
+          category: Database["public"]["Enums"]["message_category"]
+          created_at?: string
+          enabled?: boolean
+          member_id: string
+          tenant_id: string
+          updated_at?: string
+        }
+        Update: {
+          category?: Database["public"]["Enums"]["message_category"]
+          created_at?: string
+          enabled?: boolean
+          member_id?: string
+          tenant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "member_notification_preferences_tenant_id_member_id_fkey"
+            columns: ["tenant_id", "member_id"]
+            isOneToOne: false
+            referencedRelation: "members"
+            referencedColumns: ["tenant_id", "id"]
           },
         ]
       }
@@ -2136,33 +2365,54 @@ export type Database = {
       }
       messaging_wallet_ledger: {
         Row: {
-          balance_after_credits: number | null
+          balance_after_paise: number | null
+          conversion_approval_ref: string | null
+          conversion_currency: string | null
+          conversion_paise_per_credit: number | null
+          converted_at: string | null
           created_at: string
-          delta_credits: number
+          currency: string
+          delta_paise: number
           id: string
           notification_id: string | null
+          original_balance_after_credits: number | null
+          original_delta_credits: number | null
           reason: string
           recorded_by_user_id: string | null
           request_key: string | null
           tenant_id: string
         }
         Insert: {
-          balance_after_credits?: number | null
+          balance_after_paise?: number | null
+          conversion_approval_ref?: string | null
+          conversion_currency?: string | null
+          conversion_paise_per_credit?: number | null
+          converted_at?: string | null
           created_at?: string
-          delta_credits: number
+          currency?: string
+          delta_paise: number
           id?: string
           notification_id?: string | null
+          original_balance_after_credits?: number | null
+          original_delta_credits?: number | null
           reason: string
           recorded_by_user_id?: string | null
           request_key?: string | null
           tenant_id: string
         }
         Update: {
-          balance_after_credits?: number | null
+          balance_after_paise?: number | null
+          conversion_approval_ref?: string | null
+          conversion_currency?: string | null
+          conversion_paise_per_credit?: number | null
+          converted_at?: string | null
           created_at?: string
-          delta_credits?: number
+          currency?: string
+          delta_paise?: number
           id?: string
           notification_id?: string | null
+          original_balance_after_credits?: number | null
+          original_delta_credits?: number | null
           reason?: string
           recorded_by_user_id?: string | null
           request_key?: string | null
@@ -2194,20 +2444,38 @@ export type Database = {
       }
       messaging_wallets: {
         Row: {
-          balance_credits: number
+          balance_paise: number
+          conversion_approval_ref: string | null
+          conversion_currency: string | null
+          conversion_paise_per_credit: number | null
+          converted_at: string | null
           created_at: string
+          currency: string
+          original_balance_credits: number | null
           tenant_id: string
           updated_at: string
         }
         Insert: {
-          balance_credits?: number
+          balance_paise?: number
+          conversion_approval_ref?: string | null
+          conversion_currency?: string | null
+          conversion_paise_per_credit?: number | null
+          converted_at?: string | null
           created_at?: string
+          currency?: string
+          original_balance_credits?: number | null
           tenant_id: string
           updated_at?: string
         }
         Update: {
-          balance_credits?: number
+          balance_paise?: number
+          conversion_approval_ref?: string | null
+          conversion_currency?: string | null
+          conversion_paise_per_credit?: number | null
+          converted_at?: string | null
           created_at?: string
+          currency?: string
+          original_balance_credits?: number | null
           tenant_id?: string
           updated_at?: string
         }
@@ -2294,6 +2562,343 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "organizations"
             referencedColumns: ["id"]
+          },
+        ]
+      }
+      notification_push_attempts: {
+        Row: {
+          completed_at: string | null
+          device_id: string
+          failure_code: string | null
+          id: string
+          member_id: string
+          notification_id: string
+          provider_message_id: string | null
+          registered_user_id: string
+          reservation_id: string | null
+          started_at: string | null
+          tenant_id: string
+          token_revision: number
+          uncertain_at: string | null
+        }
+        Insert: {
+          completed_at?: string | null
+          device_id: string
+          failure_code?: string | null
+          id?: string
+          member_id: string
+          notification_id: string
+          provider_message_id?: string | null
+          registered_user_id: string
+          reservation_id?: string | null
+          started_at?: string | null
+          tenant_id: string
+          token_revision: number
+          uncertain_at?: string | null
+        }
+        Update: {
+          completed_at?: string | null
+          device_id?: string
+          failure_code?: string | null
+          id?: string
+          member_id?: string
+          notification_id?: string
+          provider_message_id?: string | null
+          registered_user_id?: string
+          reservation_id?: string | null
+          started_at?: string | null
+          tenant_id?: string
+          token_revision?: number
+          uncertain_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "notification_push_attempts_tenant_id_device_id_fkey"
+            columns: ["tenant_id", "device_id"]
+            isOneToOne: false
+            referencedRelation: "member_devices"
+            referencedColumns: ["tenant_id", "id"]
+          },
+          {
+            foreignKeyName: "notification_push_attempts_tenant_id_member_id_fkey"
+            columns: ["tenant_id", "member_id"]
+            isOneToOne: false
+            referencedRelation: "members"
+            referencedColumns: ["tenant_id", "id"]
+          },
+          {
+            foreignKeyName: "notification_push_attempts_tenant_id_notification_id_fkey"
+            columns: ["tenant_id", "notification_id"]
+            isOneToOne: false
+            referencedRelation: "notifications"
+            referencedColumns: ["tenant_id", "id"]
+          },
+        ]
+      }
+      notification_push_campaigns: {
+        Row: {
+          announcement_id: string
+          cancelled_at: string | null
+          created_at: string
+          created_by_staff_id: string
+          id: string
+          request_key: string
+          reviewed_at: string
+          reviewed_by_staff_id: string
+          tenant_id: string
+          updated_at: string
+          version_no: number
+        }
+        Insert: {
+          announcement_id: string
+          cancelled_at?: string | null
+          created_at?: string
+          created_by_staff_id: string
+          id?: string
+          request_key: string
+          reviewed_at?: string
+          reviewed_by_staff_id: string
+          tenant_id: string
+          updated_at?: string
+          version_no: number
+        }
+        Update: {
+          announcement_id?: string
+          cancelled_at?: string | null
+          created_at?: string
+          created_by_staff_id?: string
+          id?: string
+          request_key?: string
+          reviewed_at?: string
+          reviewed_by_staff_id?: string
+          tenant_id?: string
+          updated_at?: string
+          version_no?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "notification_push_campaigns_tenant_id_announcement_id_fkey"
+            columns: ["tenant_id", "announcement_id"]
+            isOneToOne: false
+            referencedRelation: "announcements"
+            referencedColumns: ["tenant_id", "id"]
+          },
+          {
+            foreignKeyName: "notification_push_campaigns_tenant_id_created_by_staff_id_fkey"
+            columns: ["tenant_id", "created_by_staff_id"]
+            isOneToOne: false
+            referencedRelation: "staff"
+            referencedColumns: ["tenant_id", "id"]
+          },
+          {
+            foreignKeyName: "notification_push_campaigns_tenant_id_reviewed_by_staff_id_fkey"
+            columns: ["tenant_id", "reviewed_by_staff_id"]
+            isOneToOne: false
+            referencedRelation: "staff"
+            referencedColumns: ["tenant_id", "id"]
+          },
+        ]
+      }
+      notification_whatsapp_attempts: {
+        Row: {
+          accepted_at: string | null
+          authorized_at: string | null
+          channel_consent_id: string
+          charged_ledger_id: string | null
+          completed_at: string | null
+          consent_id: string | null
+          created_at: string
+          currency: string
+          failure_code: string | null
+          hold_currency: string
+          hold_max_paise: number
+          id: string
+          io_started_at: string | null
+          lease_expires_at: string
+          lease_ticket: string
+          member_id: string
+          notification_id: string
+          provider_message_id: string | null
+          provider_read_at: string | null
+          rate_version_id: string
+          recipient_contact_revision: string
+          released_at: string | null
+          request_key: string
+          sender_account_id: string
+          template_revision_id: string
+          tenant_id: string
+          uncertain_at: string | null
+          updated_at: string
+        }
+        Insert: {
+          accepted_at?: string | null
+          authorized_at?: string | null
+          channel_consent_id: string
+          charged_ledger_id?: string | null
+          completed_at?: string | null
+          consent_id?: string | null
+          created_at?: string
+          currency?: string
+          failure_code?: string | null
+          hold_currency: string
+          hold_max_paise: number
+          id?: string
+          io_started_at?: string | null
+          lease_expires_at: string
+          lease_ticket: string
+          member_id: string
+          notification_id: string
+          provider_message_id?: string | null
+          provider_read_at?: string | null
+          rate_version_id: string
+          recipient_contact_revision: string
+          released_at?: string | null
+          request_key: string
+          sender_account_id: string
+          template_revision_id: string
+          tenant_id: string
+          uncertain_at?: string | null
+          updated_at?: string
+        }
+        Update: {
+          accepted_at?: string | null
+          authorized_at?: string | null
+          channel_consent_id?: string
+          charged_ledger_id?: string | null
+          completed_at?: string | null
+          consent_id?: string | null
+          created_at?: string
+          currency?: string
+          failure_code?: string | null
+          hold_currency?: string
+          hold_max_paise?: number
+          id?: string
+          io_started_at?: string | null
+          lease_expires_at?: string
+          lease_ticket?: string
+          member_id?: string
+          notification_id?: string
+          provider_message_id?: string | null
+          provider_read_at?: string | null
+          rate_version_id?: string
+          recipient_contact_revision?: string
+          released_at?: string | null
+          request_key?: string
+          sender_account_id?: string
+          template_revision_id?: string
+          tenant_id?: string
+          uncertain_at?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "notification_whatsapp_attempts_channel_consent_id_fkey"
+            columns: ["tenant_id", "member_id", "channel_consent_id"]
+            isOneToOne: false
+            referencedRelation: "whatsapp_channel_consents"
+            referencedColumns: ["tenant_id", "member_id", "id"]
+          },
+          {
+            foreignKeyName: "notification_whatsapp_attempts_consent_id_fkey"
+            columns: ["tenant_id", "consent_id"]
+            isOneToOne: false
+            referencedRelation: "consents"
+            referencedColumns: ["tenant_id", "id"]
+          },
+          {
+            foreignKeyName: "notification_whatsapp_attempts_tenant_id_member_id_fkey"
+            columns: ["tenant_id", "member_id"]
+            isOneToOne: false
+            referencedRelation: "members"
+            referencedColumns: ["tenant_id", "id"]
+          },
+          {
+            foreignKeyName: "notification_whatsapp_attempts_tenant_id_notification_id_fkey"
+            columns: ["tenant_id", "notification_id"]
+            isOneToOne: false
+            referencedRelation: "notifications"
+            referencedColumns: ["tenant_id", "id"]
+          },
+          {
+            foreignKeyName: "notification_whatsapp_attempts_tenant_id_rate_id_fkey"
+            columns: ["tenant_id", "rate_version_id"]
+            isOneToOne: false
+            referencedRelation: "whatsapp_rate_versions"
+            referencedColumns: ["tenant_id", "id"]
+          },
+          {
+            foreignKeyName: "notification_whatsapp_attempts_tenant_id_sender_id_fkey"
+            columns: ["tenant_id", "sender_account_id"]
+            isOneToOne: false
+            referencedRelation: "whatsapp_sender_accounts"
+            referencedColumns: ["tenant_id", "id"]
+          },
+          {
+            foreignKeyName: "notification_whatsapp_attempts_tenant_id_template_id_fkey"
+            columns: ["tenant_id", "template_revision_id"]
+            isOneToOne: false
+            referencedRelation: "whatsapp_template_revisions"
+            referencedColumns: ["tenant_id", "id"]
+          },
+        ]
+      }
+      notification_whatsapp_receipts: {
+        Row: {
+          attempt_id: string
+          billing_category: string | null
+          billing_evidence_ref: string | null
+          created_at: string
+          event_kind: string
+          evidence_digest: string
+          id: string
+          provider_event_at: string
+          receipt_fingerprint: string
+          received_at: string
+          sender_account_id: string
+          tenant_id: string
+        }
+        Insert: {
+          attempt_id: string
+          billing_category?: string | null
+          billing_evidence_ref?: string | null
+          created_at?: string
+          event_kind: string
+          evidence_digest: string
+          id?: string
+          provider_event_at: string
+          receipt_fingerprint: string
+          received_at?: string
+          sender_account_id: string
+          tenant_id: string
+        }
+        Update: {
+          attempt_id?: string
+          billing_category?: string | null
+          billing_evidence_ref?: string | null
+          created_at?: string
+          event_kind?: string
+          evidence_digest?: string
+          id?: string
+          provider_event_at?: string
+          receipt_fingerprint?: string
+          received_at?: string
+          sender_account_id?: string
+          tenant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "notification_whatsapp_receipts_tenant_id_attempt_id_fkey"
+            columns: ["tenant_id", "attempt_id"]
+            isOneToOne: false
+            referencedRelation: "notification_whatsapp_attempts"
+            referencedColumns: ["tenant_id", "id"]
+          },
+          {
+            foreignKeyName: "notification_whatsapp_receipts_tenant_id_sender_id_fkey"
+            columns: ["tenant_id", "sender_account_id"]
+            isOneToOne: false
+            referencedRelation: "whatsapp_sender_accounts"
+            referencedColumns: ["tenant_id", "id"]
           },
         ]
       }
@@ -2605,6 +3210,89 @@ export type Database = {
           updated_at?: string
         }
         Relationships: []
+      }
+      payment_proofs: {
+        Row: {
+          asset_id: string
+          bound_at: string | null
+          bound_payment_id: string | null
+          created_at: string
+          created_by_user_id: string
+          decided_at: string | null
+          decided_by_staff_id: string | null
+          decided_by_user_id: string | null
+          decision_reason: string | null
+          disposition: Database["public"]["Enums"]["payment_proof_status"]
+          hold_until: string | null
+          id: string
+          object_purge_after: string | null
+          request_id: string
+          tenant_id: string
+        }
+        Insert: {
+          asset_id: string
+          bound_at?: string | null
+          bound_payment_id?: string | null
+          created_at?: string
+          created_by_user_id: string
+          decided_at?: string | null
+          decided_by_staff_id?: string | null
+          decided_by_user_id?: string | null
+          decision_reason?: string | null
+          disposition?: Database["public"]["Enums"]["payment_proof_status"]
+          hold_until?: string | null
+          id?: string
+          object_purge_after?: string | null
+          request_id: string
+          tenant_id: string
+        }
+        Update: {
+          asset_id?: string
+          bound_at?: string | null
+          bound_payment_id?: string | null
+          created_at?: string
+          created_by_user_id?: string
+          decided_at?: string | null
+          decided_by_staff_id?: string | null
+          decided_by_user_id?: string | null
+          decision_reason?: string | null
+          disposition?: Database["public"]["Enums"]["payment_proof_status"]
+          hold_until?: string | null
+          id?: string
+          object_purge_after?: string | null
+          request_id?: string
+          tenant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "payment_proofs_tenant_id_asset_id_fkey"
+            columns: ["tenant_id", "asset_id"]
+            isOneToOne: true
+            referencedRelation: "media_assets"
+            referencedColumns: ["tenant_id", "id"]
+          },
+          {
+            foreignKeyName: "payment_proofs_tenant_id_bound_payment_fkey"
+            columns: ["tenant_id", "bound_payment_id"]
+            isOneToOne: false
+            referencedRelation: "payments"
+            referencedColumns: ["tenant_id", "id"]
+          },
+          {
+            foreignKeyName: "payment_proofs_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payment_proofs_tenant_id_request_id_fkey"
+            columns: ["tenant_id", "request_id"]
+            isOneToOne: false
+            referencedRelation: "purchase_requests"
+            referencedColumns: ["tenant_id", "id"]
+          },
+        ]
       }
       payments: {
         Row: {
@@ -2994,6 +3682,194 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "staff"
             referencedColumns: ["tenant_id", "id"]
+          },
+        ]
+      }
+      purchase_requests: {
+        Row: {
+          accepted_at: string | null
+          accepted_by_staff_id: string | null
+          accepted_by_user_id: string | null
+          accepted_revision: string | null
+          active_proof_asset_id: string | null
+          cancelled_at: string | null
+          cancelled_by_user_id: string | null
+          created_at: string
+          created_by_user_id: string
+          currency: string
+          expired_at: string | null
+          expires_at: string
+          hold_consumed_at: string | null
+          id: string
+          kind: Database["public"]["Enums"]["purchase_request_kind"]
+          member_id: string
+          quantity: number
+          quote_revision: string | null
+          reconfirmed_revision: string | null
+          recorded_amount_paise: number | null
+          recorded_at: string | null
+          recorded_by_staff_id: string | null
+          recorded_by_user_id: string | null
+          recorded_currency: string | null
+          recorded_membership_id: string | null
+          recorded_order_id: string | null
+          recorded_payment_id: string | null
+          reject_reason: string | null
+          rejected_at: string | null
+          rejected_by_staff_id: string | null
+          rejected_by_user_id: string | null
+          request_key: string
+          snapshot: Json
+          status: Database["public"]["Enums"]["purchase_request_status"]
+          target_id: string
+          tenant_id: string
+          updated_at: string
+        }
+        Insert: {
+          accepted_at?: string | null
+          accepted_by_staff_id?: string | null
+          accepted_by_user_id?: string | null
+          accepted_revision?: string | null
+          active_proof_asset_id?: string | null
+          cancelled_at?: string | null
+          cancelled_by_user_id?: string | null
+          created_at?: string
+          created_by_user_id: string
+          currency?: string
+          expired_at?: string | null
+          expires_at: string
+          hold_consumed_at?: string | null
+          id?: string
+          kind: Database["public"]["Enums"]["purchase_request_kind"]
+          member_id: string
+          quantity: number
+          quote_revision?: string | null
+          reconfirmed_revision?: string | null
+          recorded_amount_paise?: number | null
+          recorded_at?: string | null
+          recorded_by_staff_id?: string | null
+          recorded_by_user_id?: string | null
+          recorded_currency?: string | null
+          recorded_membership_id?: string | null
+          recorded_order_id?: string | null
+          recorded_payment_id?: string | null
+          reject_reason?: string | null
+          rejected_at?: string | null
+          rejected_by_staff_id?: string | null
+          rejected_by_user_id?: string | null
+          request_key: string
+          snapshot: Json
+          status?: Database["public"]["Enums"]["purchase_request_status"]
+          target_id: string
+          tenant_id: string
+          updated_at?: string
+        }
+        Update: {
+          accepted_at?: string | null
+          accepted_by_staff_id?: string | null
+          accepted_by_user_id?: string | null
+          accepted_revision?: string | null
+          active_proof_asset_id?: string | null
+          cancelled_at?: string | null
+          cancelled_by_user_id?: string | null
+          created_at?: string
+          created_by_user_id?: string
+          currency?: string
+          expired_at?: string | null
+          expires_at?: string
+          hold_consumed_at?: string | null
+          id?: string
+          kind?: Database["public"]["Enums"]["purchase_request_kind"]
+          member_id?: string
+          quantity?: number
+          quote_revision?: string | null
+          reconfirmed_revision?: string | null
+          recorded_amount_paise?: number | null
+          recorded_at?: string | null
+          recorded_by_staff_id?: string | null
+          recorded_by_user_id?: string | null
+          recorded_currency?: string | null
+          recorded_membership_id?: string | null
+          recorded_order_id?: string | null
+          recorded_payment_id?: string | null
+          reject_reason?: string | null
+          rejected_at?: string | null
+          rejected_by_staff_id?: string | null
+          rejected_by_user_id?: string | null
+          request_key?: string
+          snapshot?: Json
+          status?: Database["public"]["Enums"]["purchase_request_status"]
+          target_id?: string
+          tenant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "purchase_requests_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "purchase_requests_tenant_id_member_id_fkey"
+            columns: ["tenant_id", "member_id"]
+            isOneToOne: false
+            referencedRelation: "members"
+            referencedColumns: ["tenant_id", "id"]
+          },
+          {
+            foreignKeyName: "purchase_requests_tenant_id_recorded_membership_fkey"
+            columns: ["tenant_id", "recorded_membership_id"]
+            isOneToOne: false
+            referencedRelation: "memberships"
+            referencedColumns: ["tenant_id", "id"]
+          },
+          {
+            foreignKeyName: "purchase_requests_tenant_id_recorded_order_fkey"
+            columns: ["tenant_id", "recorded_order_id"]
+            isOneToOne: false
+            referencedRelation: "addon_orders"
+            referencedColumns: ["tenant_id", "id"]
+          },
+          {
+            foreignKeyName: "purchase_requests_tenant_id_recorded_payment_fkey"
+            columns: ["tenant_id", "recorded_payment_id"]
+            isOneToOne: false
+            referencedRelation: "payments"
+            referencedColumns: ["tenant_id", "id"]
+          },
+        ]
+      }
+      push_provider_configurations: {
+        Row: {
+          activated_at: string | null
+          created_at: string
+          firebase_project_id: string | null
+          tenant_id: string
+          updated_at: string
+        }
+        Insert: {
+          activated_at?: string | null
+          created_at?: string
+          firebase_project_id?: string | null
+          tenant_id: string
+          updated_at?: string
+        }
+        Update: {
+          activated_at?: string | null
+          created_at?: string
+          firebase_project_id?: string | null
+          tenant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "push_provider_configurations_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: true
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
           },
         ]
       }
@@ -3805,6 +4681,354 @@ export type Database = {
           },
         ]
       }
+      whatsapp_channel_consents: {
+        Row: {
+          contact_version_ref: string
+          created_at: string
+          granted: boolean
+          id: string
+          member_id: string
+          notice_version: string
+          purpose: Database["public"]["Enums"]["consent_purpose"]
+          recipient_basis: string
+          recipient_phone_digest: string
+          recorded_at: string
+          recorded_by_staff_id: string | null
+          source: string
+          tenant_id: string
+        }
+        Insert: {
+          contact_version_ref: string
+          created_at?: string
+          granted: boolean
+          id?: string
+          member_id: string
+          notice_version: string
+          purpose: Database["public"]["Enums"]["consent_purpose"]
+          recipient_basis: string
+          recipient_phone_digest: string
+          recorded_at?: string
+          recorded_by_staff_id?: string | null
+          source: string
+          tenant_id: string
+        }
+        Update: {
+          contact_version_ref?: string
+          created_at?: string
+          granted?: boolean
+          id?: string
+          member_id?: string
+          notice_version?: string
+          purpose?: Database["public"]["Enums"]["consent_purpose"]
+          recipient_basis?: string
+          recipient_phone_digest?: string
+          recorded_at?: string
+          recorded_by_staff_id?: string | null
+          source?: string
+          tenant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "whatsapp_channel_consents_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "whatsapp_channel_consents_tenant_id_member_id_fkey"
+            columns: ["tenant_id", "member_id"]
+            isOneToOne: false
+            referencedRelation: "members"
+            referencedColumns: ["tenant_id", "id"]
+          },
+          {
+            foreignKeyName: "whatsapp_channel_consents_tenant_id_staff_id_fkey"
+            columns: ["tenant_id", "recorded_by_staff_id"]
+            isOneToOne: false
+            referencedRelation: "staff"
+            referencedColumns: ["tenant_id", "id"]
+          },
+        ]
+      }
+      whatsapp_command_keys: {
+        Row: {
+          created_at: string
+          domain: string
+          facts_digest: string
+          request_key: string
+          result_ref: string
+          tenant_id: string
+        }
+        Insert: {
+          created_at?: string
+          domain: string
+          facts_digest: string
+          request_key: string
+          result_ref: string
+          tenant_id: string
+        }
+        Update: {
+          created_at?: string
+          domain?: string
+          facts_digest?: string
+          request_key?: string
+          result_ref?: string
+          tenant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "whatsapp_command_keys_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      whatsapp_dispatch_requests: {
+        Row: {
+          closed_at: string | null
+          id: string
+          notification_id: string
+          request_key: string
+          requested_at: string
+          requested_by_staff_id: string
+          tenant_id: string
+        }
+        Insert: {
+          closed_at?: string | null
+          id?: string
+          notification_id: string
+          request_key: string
+          requested_at?: string
+          requested_by_staff_id: string
+          tenant_id: string
+        }
+        Update: {
+          closed_at?: string | null
+          id?: string
+          notification_id?: string
+          request_key?: string
+          requested_at?: string
+          requested_by_staff_id?: string
+          tenant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "whatsapp_dispatch_requests_tenant_id_notification_id_fkey"
+            columns: ["tenant_id", "notification_id"]
+            isOneToOne: true
+            referencedRelation: "notifications"
+            referencedColumns: ["tenant_id", "id"]
+          },
+          {
+            foreignKeyName: "whatsapp_dispatch_requests_tenant_id_staff_id_fkey"
+            columns: ["tenant_id", "requested_by_staff_id"]
+            isOneToOne: false
+            referencedRelation: "staff"
+            referencedColumns: ["tenant_id", "id"]
+          },
+        ]
+      }
+      whatsapp_rate_versions: {
+        Row: {
+          amount_paise: number
+          created_at: string
+          currency: string
+          destination_market: string
+          effective_from: string
+          effective_to: string | null
+          evidence_digest: string
+          id: string
+          max_amount_paise: number
+          provider_category: string
+          rounding_revision: string
+          sender_account_id: string
+          tenant_id: string
+        }
+        Insert: {
+          amount_paise: number
+          created_at?: string
+          currency: string
+          destination_market: string
+          effective_from: string
+          effective_to?: string | null
+          evidence_digest: string
+          id?: string
+          max_amount_paise: number
+          provider_category: string
+          rounding_revision?: string
+          sender_account_id: string
+          tenant_id: string
+        }
+        Update: {
+          amount_paise?: number
+          created_at?: string
+          currency?: string
+          destination_market?: string
+          effective_from?: string
+          effective_to?: string | null
+          evidence_digest?: string
+          id?: string
+          max_amount_paise?: number
+          provider_category?: string
+          rounding_revision?: string
+          sender_account_id?: string
+          tenant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "whatsapp_rate_versions_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "whatsapp_rate_versions_tenant_id_sender_id_fkey"
+            columns: ["tenant_id", "sender_account_id"]
+            isOneToOne: false
+            referencedRelation: "whatsapp_sender_accounts"
+            referencedColumns: ["tenant_id", "id"]
+          },
+        ]
+      }
+      whatsapp_sender_accounts: {
+        Row: {
+          compliance_approved_at: string | null
+          config_revision: string
+          created_at: string
+          enabled: boolean
+          id: string
+          provider: string
+          secret_reference: string
+          sender_id: string
+          template_ready_at: string | null
+          tenant_id: string
+          updated_at: string
+          waba_id: string
+        }
+        Insert: {
+          compliance_approved_at?: string | null
+          config_revision?: string
+          created_at?: string
+          enabled?: boolean
+          id?: string
+          provider: string
+          secret_reference: string
+          sender_id: string
+          template_ready_at?: string | null
+          tenant_id: string
+          updated_at?: string
+          waba_id: string
+        }
+        Update: {
+          compliance_approved_at?: string | null
+          config_revision?: string
+          created_at?: string
+          enabled?: boolean
+          id?: string
+          provider?: string
+          secret_reference?: string
+          sender_id?: string
+          template_ready_at?: string | null
+          tenant_id?: string
+          updated_at?: string
+          waba_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "whatsapp_sender_accounts_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      whatsapp_template_revisions: {
+        Row: {
+          approval_evidence_digest: string | null
+          approved_at: string | null
+          body_hash: string
+          category: string
+          checked_at: string
+          created_at: string
+          disabled_at: string | null
+          id: string
+          locale: string
+          parameter_schema_hash: string
+          paused_at: string | null
+          provider_template_id: string | null
+          provider_template_name: string
+          sender_account_id: string
+          template_id: string
+          tenant_id: string
+          updated_at: string
+        }
+        Insert: {
+          approval_evidence_digest?: string | null
+          approved_at?: string | null
+          body_hash: string
+          category: string
+          checked_at?: string
+          created_at?: string
+          disabled_at?: string | null
+          id?: string
+          locale?: string
+          parameter_schema_hash: string
+          paused_at?: string | null
+          provider_template_id?: string | null
+          provider_template_name: string
+          sender_account_id: string
+          template_id: string
+          tenant_id: string
+          updated_at?: string
+        }
+        Update: {
+          approval_evidence_digest?: string | null
+          approved_at?: string | null
+          body_hash?: string
+          category?: string
+          checked_at?: string
+          created_at?: string
+          disabled_at?: string | null
+          id?: string
+          locale?: string
+          parameter_schema_hash?: string
+          paused_at?: string | null
+          provider_template_id?: string | null
+          provider_template_name?: string
+          sender_account_id?: string
+          template_id?: string
+          tenant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "whatsapp_template_revisions_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "whatsapp_template_revisions_tenant_id_sender_id_fkey"
+            columns: ["tenant_id", "sender_account_id"]
+            isOneToOne: false
+            referencedRelation: "whatsapp_sender_accounts"
+            referencedColumns: ["tenant_id", "id"]
+          },
+          {
+            foreignKeyName: "whatsapp_template_revisions_tenant_id_template_id_fkey"
+            columns: ["tenant_id", "template_id"]
+            isOneToOne: true
+            referencedRelation: "message_templates"
+            referencedColumns: ["tenant_id", "id"]
+          },
+        ]
+      }
     }
     Views: {
       red_list_cases: {
@@ -3858,6 +5082,23 @@ export type Database = {
       }
     }
     Functions: {
+      accept_purchase_request: {
+        Args: {
+          p_command_key: string
+          p_expected_revision: string
+          p_request_id: string
+        }
+        Returns: Json
+      }
+      acknowledge_member_push: {
+        Args: {
+          p_device_id: string
+          p_event: string
+          p_notification_id: string
+          p_token_revision: number
+        }
+        Returns: Json
+      }
       acknowledge_notification: {
         Args: { p_notification_id: string }
         Returns: Json
@@ -3880,12 +5121,59 @@ export type Database = {
         }
         Returns: Json
       }
+      adjust_messaging_wallet_paise: {
+        Args: {
+          p_currency: string
+          p_delta_paise: number
+          p_reason: string
+          p_request_key: string
+          p_tenant_id: string
+        }
+        Returns: Json
+      }
+      adopt_member_freeze_request: {
+        Args: {
+          p_command_key: string
+          p_expected_revision: number
+          p_request_id: string
+        }
+        Returns: Json
+      }
+      append_report_export_event: {
+        Args: { p_details: Json; p_event: string; p_export_id: string }
+        Returns: undefined
+      }
+      approve_member_freeze_request: {
+        Args: {
+          p_command_key: string
+          p_expected_revision: number
+          p_request_id: string
+        }
+        Returns: Json
+      }
+      attach_payment_proof: {
+        Args: {
+          p_asset_id: string
+          p_command_key: string
+          p_expected_revision: string
+          p_request_id: string
+        }
+        Returns: Json
+      }
       attest_members_without_dob_adult: {
         Args: never
         Returns: {
           changed: boolean
           members_without_dob_attested_adult_at: string
         }[]
+      }
+      authorize_push_attempt: {
+        Args: { p_attempt_id: string; p_reservation_id: string }
+        Returns: Json
+      }
+      authorize_whatsapp_dispatch: {
+        Args: { p_attempt_id: string; p_ticket: string }
+        Returns: Json
       }
       book_class_session: {
         Args: { p_session_id: string }
@@ -3907,6 +5195,10 @@ export type Database = {
           status: Database["public"]["Enums"]["booking_status"]
         }[]
       }
+      cancel_announcement_push: {
+        Args: { p_campaign_id: string }
+        Returns: Json
+      }
       cancel_class_booking: {
         Args: { p_booking_id: string }
         Returns: {
@@ -3922,6 +5214,10 @@ export type Database = {
           notices_withheld: number
           notices_written: number
         }[]
+      }
+      cancel_member_freeze_request: {
+        Args: { p_command_key: string; p_request_id: string }
+        Returns: Json
       }
       cancel_pt_booking: {
         Args: { p_session_id: string }
@@ -3942,10 +5238,15 @@ export type Database = {
           status: Database["public"]["Enums"]["booking_status"]
         }[]
       }
+      cancel_purchase_request: {
+        Args: { p_command_key: string; p_request_id: string }
+        Returns: Json
+      }
       cancel_shop_reservation: {
         Args: { p_reason: string; p_reservation_id: string }
         Returns: undefined
       }
+      claim_whatsapp_dispatch: { Args: { p_batch_size: number }; Returns: Json }
       commit_member_import: {
         Args: { p_file_sha256: string; p_import_id: string; p_rows: Json }
         Returns: Json
@@ -4041,6 +5342,16 @@ export type Database = {
         }
         Returns: Json
       }
+      create_purchase_request: {
+        Args: {
+          p_expected_revision: string
+          p_kind: Database["public"]["Enums"]["purchase_request_kind"]
+          p_quantity: number
+          p_request_key: string
+          p_target_id: string
+        }
+        Returns: Json
+      }
       create_service: {
         Args: {
           p_default_capacity: number
@@ -4106,6 +5417,24 @@ export type Database = {
         }[]
       }
       end_expired_gym_preview: { Args: { p_session_id: string }; Returns: Json }
+      expire_member_freeze_request: {
+        Args: {
+          p_command_key: string
+          p_expected_revision: number
+          p_request_id: string
+        }
+        Returns: Json
+      }
+      export_report_snapshot: {
+        Args: {
+          p_branch_id: string
+          p_dataset: string
+          p_from: string
+          p_row_cap: number
+          p_through: string
+        }
+        Returns: Json
+      }
       finalize_media_asset: {
         Args: {
           p_actor_role: Database["public"]["Enums"]["app_role"]
@@ -4135,6 +5464,25 @@ export type Database = {
           session_id: string
           session_status: Database["public"]["Enums"]["pt_session_status"]
         }[]
+      }
+      finish_push_attempt: {
+        Args: {
+          p_attempt_id: string
+          p_failure_code: string
+          p_provider_message_id: string
+          p_reservation_id: string
+          p_uncertain: boolean
+        }
+        Returns: Json
+      }
+      finish_whatsapp_rejection: {
+        Args: {
+          p_attempt_id: string
+          p_failure_code: string
+          p_outcome_known: boolean
+          p_ticket: string
+        }
+        Returns: Json
       }
       fleet_metrics: { Args: never; Returns: Json }
       fulfil_shop_reservation: {
@@ -4287,6 +5635,17 @@ export type Database = {
         Args: { p_from?: string; p_through?: string }
         Returns: Json
       }
+      owner_occupancy_analytics:
+        | { Args: { p_from: string; p_through: string }; Returns: Json }
+        | {
+            Args: {
+              p_branch_id: string
+              p_exclude_holidays: boolean
+              p_from: string
+              p_through: string
+            }
+            Returns: Json
+          }
       peek_member_invite: {
         Args: { p_token_hash: string }
         Returns: {
@@ -4441,6 +5800,18 @@ export type Database = {
           trainer_name: string
         }[]
       }
+      read_member_freeze_request: {
+        Args: { p_request_id: string }
+        Returns: Json
+      }
+      read_member_freeze_requests: {
+        Args: {
+          p_after_created_at: string
+          p_after_id: string
+          p_limit: number
+        }
+        Returns: Json
+      }
       read_member_guardian: {
         Args: { p_member_id: string }
         Returns: {
@@ -4519,6 +5890,13 @@ export type Database = {
           trainer_name: string
         }[]
       }
+      read_member_pt_policy: {
+        Args: never
+        Returns: {
+          cancel_window_hours: number
+          late_cancel_consumes_session: boolean
+        }[]
+      }
       read_member_pt_sessions: {
         Args: {
           p_after_id?: string
@@ -4552,6 +5930,15 @@ export type Database = {
           timezone: string
         }[]
       }
+      read_member_purchase_requests: {
+        Args: {
+          p_after_created_at: string
+          p_after_id: string
+          p_limit: number
+        }
+        Returns: Json
+      }
+      read_member_push_settings: { Args: never; Returns: Json }
       read_member_shop: {
         Args: never
         Returns: {
@@ -4605,6 +5992,7 @@ export type Database = {
           trainer_key: string
         }[]
       }
+      read_member_whatsapp_settings: { Args: never; Returns: Json }
       read_pt_bookings: {
         Args: {
           p_after_id?: string
@@ -4660,6 +6048,20 @@ export type Database = {
           trainer_staff_id: string
         }[]
       }
+      read_purchase_proof_url: { Args: { p_request_id: string }; Returns: Json }
+      read_purchase_request: { Args: { p_request_id: string }; Returns: Json }
+      read_purchase_requests: {
+        Args: {
+          p_after_created_at: string
+          p_after_id: string
+          p_limit: number
+        }
+        Returns: Json
+      }
+      read_push_campaigns: {
+        Args: { p_before?: string; p_before_id?: string }
+        Returns: Json
+      }
       read_shop_product_holds: {
         Args: never
         Returns: {
@@ -4677,6 +6079,22 @@ export type Database = {
           state: string
         }[]
       }
+      read_staff_freeze_requests: {
+        Args: {
+          p_after_created_at: string
+          p_after_id: string
+          p_limit: number
+        }
+        Returns: Json
+      }
+      read_whatsapp_operations: {
+        Args: {
+          p_after_created_at?: string
+          p_after_id?: string
+          p_limit?: number
+        }
+        Returns: Json
+      }
       reassign_pt_packs: {
         Args: {
           p_from_staff_id: string
@@ -4689,6 +6107,14 @@ export type Database = {
           changed: boolean
           order_id: string
         }[]
+      }
+      reconfirm_purchase_quote: {
+        Args: {
+          p_command_key: string
+          p_expected_revision: string
+          p_request_id: string
+        }
+        Returns: Json
       }
       record_addon_sale: {
         Args: {
@@ -4734,6 +6160,32 @@ export type Database = {
           recorded_at: string
         }[]
       }
+      record_purchase_request:
+        | {
+            Args: {
+              p_actual_amount: string
+              p_command_key: string
+              p_currency: string
+              p_expected_revision: string
+              p_payment_method: string
+              p_request_id: string
+            }
+            Returns: Json
+          }
+        | {
+            Args: {
+              p_actual_amount: string
+              p_command_key: string
+              p_currency: string
+              p_expected_revision: string
+              p_initial_slot?: Json
+              p_payment_method: string
+              p_request_id: string
+              p_viewed_asset?: string
+              p_viewed_proof_revision?: string
+            }
+            Returns: Json
+          }
       record_refund: {
         Args: {
           p_amount_paise: number
@@ -4761,6 +6213,37 @@ export type Database = {
           source: Database["public"]["Enums"]["attendance_source"]
         }[]
       }
+      record_whatsapp_acceptance: {
+        Args: {
+          p_attempt_id: string
+          p_evidence_digest: string
+          p_provider_message_id: string
+          p_ticket: string
+        }
+        Returns: Json
+      }
+      record_whatsapp_consent: {
+        Args: {
+          p_granted: boolean
+          p_member_id: string
+          p_notice_version: string
+          p_purpose: Database["public"]["Enums"]["consent_purpose"]
+          p_request_key: string
+          p_source: string
+        }
+        Returns: Json
+      }
+      record_whatsapp_receipt: {
+        Args: {
+          p_event_kind: string
+          p_evidence_digest: string
+          p_provider_at: string
+          p_provider_message_id: string
+          p_receipt_fingerprint: string
+          p_sender_account_id: string
+        }
+        Returns: Json
+      }
       redeem_member_invite: {
         Args: { p_token_hash: string }
         Returns: {
@@ -4785,6 +6268,56 @@ export type Database = {
         }
         Returns: string
       }
+      register_member_push_device: {
+        Args: {
+          p_installation_id: string
+          p_platform: string
+          p_push_token: string
+        }
+        Returns: Json
+      }
+      register_payment_proof:
+        | {
+            Args: { p_bytes: number; p_mime: string; p_request_id: string }
+            Returns: Json
+          }
+        | {
+            Args: {
+              p_bytes: number
+              p_command_key: string
+              p_mime: string
+              p_request_id: string
+            }
+            Returns: Json
+          }
+      reject_member_freeze_request: {
+        Args: {
+          p_command_key: string
+          p_expected_revision: number
+          p_reason: string
+          p_request_id: string
+        }
+        Returns: Json
+      }
+      reject_payment_proof: {
+        Args: {
+          p_asset_id: string
+          p_command_key: string
+          p_expected_revision: string
+          p_reason: string
+          p_request_id: string
+        }
+        Returns: Json
+      }
+      reject_purchase_request: {
+        Args: {
+          p_command_key: string
+          p_expected_revision: string
+          p_reason: string
+          p_request_id: string
+        }
+        Returns: Json
+      }
       remove_trainer_time_off: {
         Args: { p_time_off_id: string }
         Returns: undefined
@@ -4800,6 +6333,29 @@ export type Database = {
           p_token_hash: string
         }
         Returns: string
+      }
+      request_member_freeze: {
+        Args: {
+          p_ends_on: string
+          p_membership_id: string
+          p_reason: string
+          p_request_key: string
+          p_starts_on: string
+        }
+        Returns: Json
+      }
+      request_whatsapp_dispatch: {
+        Args: { p_notification_id: string; p_request_key: string }
+        Returns: Json
+      }
+      reserve_push_attempts: { Args: { p_limit: number }; Returns: Json }
+      review_announcement_push: {
+        Args: {
+          p_announcement_id: string
+          p_request_key: string
+          p_version_no: number
+        }
+        Returns: Json
       }
       revoke_member_invite: { Args: { p_invite_id: string }; Returns: string }
       revoke_staff_invite: { Args: { p_invite_id: string }; Returns: string }
@@ -4879,6 +6435,21 @@ export type Database = {
         }
         Returns: undefined
       }
+      set_member_push_preference: {
+        Args: {
+          p_category: Database["public"]["Enums"]["message_category"]
+          p_enabled: boolean
+        }
+        Returns: Json
+      }
+      set_member_whatsapp_consent: {
+        Args: {
+          p_granted: boolean
+          p_notice_version: string
+          p_purpose: Database["public"]["Enums"]["consent_purpose"]
+        }
+        Returns: Json
+      }
       set_own_trainer_profile: {
         Args: { p_bio: string; p_specialities: string[] }
         Returns: string
@@ -4947,6 +6518,10 @@ export type Database = {
       unpublish_announcement: {
         Args: { p_announcement_id: string }
         Returns: undefined
+      }
+      unregister_member_push_device: {
+        Args: { p_installation_id: string }
+        Returns: Json
       }
       update_announcement_draft: {
         Args: {
@@ -5099,6 +6674,13 @@ export type Database = {
         | "cancelled"
         | "completed"
         | "expired"
+      member_freeze_request_status:
+        | "requested"
+        | "desk_submitted"
+        | "approved"
+        | "rejected"
+        | "cancelled"
+        | "expired"
       member_invite_status: "pending" | "redeemed" | "revoked" | "superseded"
       member_status: "active" | "paused" | "expired" | "cancelled" | "blocked"
       membership_status:
@@ -5142,6 +6724,7 @@ export type Database = {
         | "suspended"
         | "closed"
       payment_method: "razorpay" | "cash" | "upi" | "card" | "bank_transfer"
+      payment_proof_status: "active" | "superseded" | "rejected" | "bound"
       payment_status:
         | "created"
         | "pending"
@@ -5152,6 +6735,16 @@ export type Database = {
       plan_tier: "basic" | "growth" | "pro"
       pt_pack_state: "live" | "fully_booked" | "spent" | "expired" | "closed"
       pt_session_status: "scheduled" | "completed" | "cancelled" | "no_show"
+      purchase_request_kind: "shop" | "pt" | "renewal"
+      purchase_request_status:
+        | "requested"
+        | "owner_accepted"
+        | "payment_proof_uploaded"
+        | "recorded"
+        | "mismatch_recorded"
+        | "rejected"
+        | "cancelled"
+        | "expired"
       refund_kind: "refund" | "reversal"
       refund_status: "requested" | "processing" | "completed" | "failed"
       shop_reservation_status:
@@ -5373,6 +6966,14 @@ export const Constants = {
         "completed",
         "expired",
       ],
+      member_freeze_request_status: [
+        "requested",
+        "desk_submitted",
+        "approved",
+        "rejected",
+        "cancelled",
+        "expired",
+      ],
       member_invite_status: ["pending", "redeemed", "revoked", "superseded"],
       member_status: ["active", "paused", "expired", "cancelled", "blocked"],
       membership_status: [
@@ -5416,6 +7017,7 @@ export const Constants = {
         "closed",
       ],
       payment_method: ["razorpay", "cash", "upi", "card", "bank_transfer"],
+      payment_proof_status: ["active", "superseded", "rejected", "bound"],
       payment_status: [
         "created",
         "pending",
@@ -5427,6 +7029,17 @@ export const Constants = {
       plan_tier: ["basic", "growth", "pro"],
       pt_pack_state: ["live", "fully_booked", "spent", "expired", "closed"],
       pt_session_status: ["scheduled", "completed", "cancelled", "no_show"],
+      purchase_request_kind: ["shop", "pt", "renewal"],
+      purchase_request_status: [
+        "requested",
+        "owner_accepted",
+        "payment_proof_uploaded",
+        "recorded",
+        "mismatch_recorded",
+        "rejected",
+        "cancelled",
+        "expired",
+      ],
       refund_kind: ["refund", "reversal"],
       refund_status: ["requested", "processing", "completed", "failed"],
       shop_reservation_status: [
