@@ -38,7 +38,6 @@ vi.mock('@aws-sdk/client-s3', () => ({
 vi.mock('@aws-sdk/s3-request-presigner', () => ({ getSignedUrl: state.signer }));
 vi.mock('@gymloop/shared', async original => ({ ...(await original<Record<string, unknown>>()), serverEnv: () => ({ R2_ENDPOINT: 'https://r2.test', R2_BUCKET: 'gymloop-media', R2_ACCESS_KEY_ID: 'test', R2_SECRET_ACCESS_KEY: 'test', NEXT_PUBLIC_SUPABASE_URL: 'https://supabase.test', NEXT_PUBLIC_SUPABASE_ANON_KEY: 'anon-test' }) }));
 const member = { role: 'authenticated', sub: id, app_role: 'member', tenant_id: id, member_id: id };
-const owner = { role: 'authenticated', sub: id, app_role: 'gym_owner', tenant_id: id, staff_id: id };
 
 const readerResult = (expiresAt: string) => ({ requestId: id, proofId, assetId, url: `/api/purchase-requests/${id}/proof-asset`, expiresAt });
 

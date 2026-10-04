@@ -21,10 +21,6 @@ function generic(): Response {
   return noStore(new Response(JSON.stringify(GENERIC_REFUSAL.body), { status: GENERIC_REFUSAL.status, headers: { 'content-type': 'application/json' } }));
 }
 
-type ProofSupabase = {
-  auth?: { getSession?: () => Promise<{ data: { session?: { access_token?: string } | null } | null }> };
-};
-
 export async function GET(request: Request, context: { params: Promise<Record<string, string>> }): Promise<Response> {
   const resolved = await readRequestIdentity(request);
   if (!resolved) return generic();
