@@ -597,3 +597,26 @@ SQL NOT executed here.
   change; helper and capture are fixture plumbing). Rollback guard green
   (159 files). SQL NOT executed here.
 - New sha256: `b0567f9c3cab17f35ff0d8d17696b03e8cbc23c44b587998622a4144ffcb7ee6`.
+
+## Round 22 — grant ordering fix
+
+- The early grant block referenced `pg_temp.zone76()` before its definition
+  (GRANT requires the function to exist at that point). The zone76 grant
+  moved out of the preamble block to immediately after the function's
+  creation in section J. plan(79) unchanged; rollback guard green (159
+  files). SQL NOT executed here.
+- New sha256: `82692e26739008e61e1dfcc1748ee1212f0eea4a3b30cf4b85c1aa7404a5784c`.
+
+## Round 23 — capture-table ordering removed by inlining
+
+- Runtime refused with `missing FROM-clause entry for table "zone76_capture"`:
+  in the compiled execution order the capture-table creation did not precede
+  the assertion reading it. Removed the ordering dependency entirely: the
+  `create temp table zone76_capture` statement is gone and every assertion
+  reference is now a direct `pg_temp.zone76()` call — each call sets the
+  tenant-2 owner claims and runs the analytics RPC inside its own single
+  invocation (ctxTenant and snapshot from the same function body). The
+  ctxTenant conjunct and all six snapshot references inline; the label no
+  longer names the removed table. plan(79) unchanged; rollback guard green
+  (159 files). SQL NOT executed here.
+- New sha256: `72292ec1238ceb881fcc4991e168eb4e89c2964e8c12fb9454e57fdcf8585776`.
