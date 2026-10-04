@@ -720,8 +720,18 @@ select ok(exists(select 1 from pg_constraint c where c.contype='f'
 select ok(exists(select 1 from pg_constraint c where c.contype='f'
  and c.conrelid=to_regclass('public.notification_whatsapp_attempts')
  and c.confrelid=to_regclass('public.whatsapp_channel_consents')
- and (select array_agg(a.attname::text order by x.ord) from unnest(c.conkey) with ordinality x(num,ord) join pg_attribute a on a.attrelid=c.conrelid and a.attnum=x.num)=array['tenant_id','consent_id']
- and (select array_agg(a.attname::text order by x.ord) from unnest(c.confkey) with ordinality x(num,ord) join pg_attribute a on a.attrelid=c.confrelid and a.attnum=x.num)=array['tenant_id','id']),
+ -- A stronger tenant/member/consent FK also meets the contract: verify paired
+ -- operands instead of rejecting an additional member-identity operand.
+ and (select array_agg(a.attname::text||'='||b.attname::text order by x.ord)
+      from unnest(c.conkey,c.confkey) with ordinality x(num,refnum,ord)
+      join pg_attribute a on a.attrelid=c.conrelid and a.attnum=x.num
+      join pg_attribute b on b.attrelid=c.confrelid and b.attnum=x.refnum)
+     @> array['tenant_id=tenant_id','consent_id=id']
+ and (select array_agg(a.attname::text||'='||b.attname::text order by x.ord)
+      from unnest(c.conkey,c.confkey) with ordinality x(num,refnum,ord)
+      join pg_attribute a on a.attrelid=c.conrelid and a.attnum=x.num
+      join pg_attribute b on b.attrelid=c.confrelid and b.attnum=x.refnum)
+     <@ array['tenant_id=tenant_id','consent_id=id','member_id=member_id']),
  'WSP ADR-052: attempt consent reference enforces the matching tenant');
 
 
@@ -730,9 +740,10 @@ select ok(exists(select 1 from pg_constraint c where c.contype='f'
 set local role postgres;
 select set_config('request.jwt.claims','',true);
 insert into public.message_templates(id,tenant_id,key,channel,locale,category,body,is_active)
-values(pg_temp.aid(8451),pg_temp.aid(2),'wsp_fk_probe','whatsapp_link','en','renewal','Renewal {{1}}',true);
+values(pg_temp.aid(8450),pg_temp.aid(1),'wsp_fk_probe_own','whatsapp_link','en','renewal','Renewal {{1}}',true),
+(pg_temp.aid(8451),pg_temp.aid(2),'wsp_fk_probe','whatsapp_link','en','renewal','Renewal {{1}}',true);
 select lives_ok($q$insert into public.whatsapp_template_revisions(id,tenant_id,sender_account_id,template_id,body_hash,parameter_schema_hash,provider_template_name,provider_template_id,locale,category,approved_at,checked_at)
-values(pg_temp.aid(8502),pg_temp.aid(1),pg_temp.aid(501),pg_temp.aid(451),'bh-fk','psh-fk','renewal_fk','tpl-fk','en','renewal',now(),now())$q$,'WSP ADR-052: valid same-tenant template reference accepted');
+values(pg_temp.aid(8502),pg_temp.aid(1),pg_temp.aid(501),pg_temp.aid(8450),'bh-fk','psh-fk','renewal_fk','tpl-fk','en','renewal',now(),now())$q$,'WSP ADR-052: valid same-tenant template reference accepted');
 select throws_ok($q$insert into public.whatsapp_template_revisions(id,tenant_id,sender_account_id,template_id,body_hash,parameter_schema_hash,provider_template_name,provider_template_id,locale,category,approved_at,checked_at)
 values(pg_temp.aid(8503),pg_temp.aid(1),pg_temp.aid(501),pg_temp.aid(8451),'bh-foreign','psh-foreign','foreign_fk','tpl-foreign','en','renewal',now(),now())$q$,'23503',null,'WSP ADR-052: existing foreign-tenant template reference refused');
 
@@ -741,10 +752,13 @@ values(pg_temp.aid(8503),pg_temp.aid(1),pg_temp.aid(501),pg_temp.aid(8451),'bh-f
 -- revision and grant remain the same; only the referenced consent's tenant differs.
 insert into public.whatsapp_channel_consents(id,tenant_id,member_id,purpose,granted,notice_version,source,recipient_phone_digest,contact_version_ref,recipient_basis,recorded_at)
 values(pg_temp.aid(8461),pg_temp.aid(2),pg_temp.aid(107),'service',true,'wsp-notice-v1','signup',repeat('0',64),'cv-fk','self',now());
+-- Renewal children require a real front-office actor even for trusted fixture DML.
+select pg_temp.claim('gym_owner',21,null,901,1);
 insert into public.notifications(id,tenant_id,member_id,channel,status,category,dedupe_key,scheduled_for,payload,source_notification_id)
 values
 (pg_temp.aid(8601),pg_temp.aid(1),pg_temp.aid(101),'whatsapp_link','scheduled','renewal','wsp-fk-consent-own',now(),'{"body":"Consent reference fixture"}',(select id from wsp_ids where k='src_101')),
 (pg_temp.aid(8602),pg_temp.aid(1),pg_temp.aid(101),'whatsapp_link','scheduled','renewal','wsp-fk-consent-foreign',now(),'{"body":"Consent reference fixture"}',(select id from wsp_ids where k='src_101'));
+select set_config('request.jwt.claims','',true);
 select lives_ok($q$insert into public.notification_whatsapp_attempts(id,tenant_id,member_id,notification_id,sender_account_id,template_revision_id,rate_version_id,consent_id,request_key,lease_ticket,lease_expires_at,recipient_contact_revision,hold_max_paise,hold_currency)
 values(pg_temp.aid(8701),pg_temp.aid(1),pg_temp.aid(101),pg_temp.aid(8601),pg_temp.aid(501),pg_temp.aid(502),pg_temp.aid(503),pg_temp.aid(461),pg_temp.aid(8801),pg_temp.aid(8901),now()+interval '120 seconds','cv-1',100,'INR')$q$,
 'WSP ADR-052: valid fresh same-tenant consent reference accepted');

@@ -100,11 +100,12 @@ insert into public.notifications (id, tenant_id, member_id, channel, status, tem
    'b0000000-0000-4000-8000-000000000004'::uuid, 'push', 'scheduled', 'plan_renewal_notice', 'renewal',
    'renewal:b:expiry_minus_7', transaction_timestamp(), '{"body":"Gym B copy"}'::jsonb);
 
-insert into public.member_devices (id, tenant_id, member_id, platform, push_token) values
+-- NTF provenance-null legacy devices are inactive; refusal must preserve that baseline.
+insert into public.member_devices (id, tenant_id, member_id, platform, push_token, is_active) values
   ('a0000000-0000-4000-8000-000000000007'::uuid, 'a0000000-0000-4000-8000-000000000001'::uuid,
-   'a0000000-0000-4000-8000-000000000004'::uuid, 'android', 'tok-comms-rls-a1'),
+   'a0000000-0000-4000-8000-000000000004'::uuid, 'android', 'tok-comms-rls-a1', false),
   ('b0000000-0000-4000-8000-000000000007'::uuid, 'b0000000-0000-4000-8000-000000000001'::uuid,
-   'b0000000-0000-4000-8000-000000000004'::uuid, 'ios', 'tok-comms-rls-b1');
+   'b0000000-0000-4000-8000-000000000004'::uuid, 'ios', 'tok-comms-rls-b1', false);
 
 insert into public.consents (id, tenant_id, member_id, purpose, granted, version, source, recorded_by_staff_id) values
   ('a0000000-0000-4000-8000-000000000008'::uuid, 'a0000000-0000-4000-8000-000000000001'::uuid,
@@ -186,7 +187,7 @@ with u as (
 )
 select is(count(*), 0::bigint, 'gate 7: gym A updating gym B notifications by pk affects zero rows') from u;
 
-select throws_ok($q$ update public.member_devices set is_active=false where id='b0000000-0000-4000-8000-000000000007'::uuid $q$, '42501'::text, null::text, 'NTF: direct device UPDATE refused including cross-tenant attempts');
+select throws_ok($q$ update public.member_devices set is_active=true where id='b0000000-0000-4000-8000-000000000007'::uuid $q$, '42501'::text, null::text, 'NTF: direct device UPDATE refused including cross-tenant attempts');
 
 -- The move outward. The lifecycle invariant and RLS WITH CHECK are both
 -- required defenses; PostgreSQL may report either first, so do not make their
@@ -493,7 +494,7 @@ select is(
   'gate 7: gym B notifications row is unchanged and still present');
 select is(
   (select is_active from public.member_devices where id = 'b0000000-0000-4000-8000-000000000007'::uuid),
-  true,
+  false,
   'gate 7: gym B member_devices row is unchanged and still present');
 select is(
   (select balance_paise from public.messaging_wallets where tenant_id = 'b0000000-0000-4000-8000-000000000001'::uuid),

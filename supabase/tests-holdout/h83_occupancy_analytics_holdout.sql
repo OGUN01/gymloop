@@ -404,7 +404,7 @@ select is((select prosecdef::text from pg_proc where oid = to_regprocedure('publ
 select ok(has_function_privilege('authenticated','public.owner_occupancy_analytics(date,date,uuid,boolean)','EXECUTE'),'authenticated may execute the real operation');
 select ok(not has_function_privilege('anon','public.owner_occupancy_analytics(date,date,uuid,boolean)','EXECUTE'),'anon may not execute');
 select ok(not has_function_privilege('service_role','public.owner_occupancy_analytics(date,date,uuid,boolean)','EXECUTE'),'service_role may not execute');
-select ok(not has_function_privilege('PUBLIC','public.owner_occupancy_analytics(date,date,uuid,boolean)','EXECUTE'),'PUBLIC revocation is explicit');
+select ok(not exists (select 1 from pg_proc p cross join lateral aclexplode(coalesce(p.proacl,acldefault('f',p.proowner))) a where p.oid=to_regprocedure('public.owner_occupancy_analytics(date,date,uuid,boolean)') and a.grantee=0 and a.privilege_type='EXECUTE'),'PUBLIC revocation is explicit');
 
 -- ---------------------------------------------------------------------------
 -- Section B: actor matrix (OCC-001)
@@ -457,7 +457,7 @@ select ok((select count(*) from jsonb_array_elements(holdout_occ.occ_call(curren
              and (v->>'visits')::int = 2) = 1,'lower-bound midnight arrival included; same-hour visits from two members sum to two raw arrivals');
 select ok((select count(*) from jsonb_array_elements(holdout_occ.occ_call(current_date - 1, current_date, '83900000-0000-4000-8000-000000000011')::jsonb -> 'arrivals') v
            where (v->>'localDate') = (current_date + 1)::text) = 0,'arrival exactly at the after-through local midnight is excluded');
-select ok((select count(*) from jsonb_array_elements(holdout_occ.occ_call(current_date - 1, current_date, '83900000-0000-4000-8000-000000000011')::jsonb -> 'arrivals') v
+select ok((select count(*) from jsonb_array_elements(holdout_occ.occ_call(current_date - 1, current_date, '83900000-0000-4000-8000-000000000012')::jsonb -> 'arrivals') v
            where (v->>'branchId') = '83900000-0000-4000-8000-000000000012') >= 1,'Auckland branch arrival bucketed in its own zone');
 select ok((select count(*) from jsonb_array_elements(holdout_occ.occ_call(current_date - 1, current_date, '83900000-0000-4000-8000-000000000011')::jsonb -> 'arrivals') v
            where (v->>'localDate') = current_date::text and (v->>'branchId') = '83900000-0000-4000-8000-000000000011') = 0,'holiday-date arrival is excluded from the arrival series');
@@ -477,7 +477,8 @@ select ok((select count(*) from jsonb_array_elements(holdout_occ.occ_call(curren
 -- ---------------------------------------------------------------------------
 select is((select v->>'collectedPaise' from jsonb_array_elements(holdout_occ.occ_call(current_date - 1, current_date, null)::jsonb -> 'collection') v
            where v->>'currency' = 'INR' and (v->>'month') = to_char((now() at time zone 'Asia/Kolkata'),'YYYY-MM')),
-          '9007199254776993','INR current-month collection is exact canonical decimal text beyond the safe integer');
+          -- Dated arrived INR: 150000 + 100000 + 9007199254740993.
+          '9007199254990993','INR current-month collection is exact canonical decimal text beyond the safe integer');
 select is((select v->>'collectedPaise' from jsonb_array_elements(holdout_occ.occ_call(current_date - 1, current_date, null)::jsonb -> 'collection') v
            where v->>'currency' = 'USD' and (v->>'month') = to_char((now() at time zone 'Asia/Kolkata'),'YYYY-MM')),
           '25000','USD collection is its own per-currency group, never merged into INR');

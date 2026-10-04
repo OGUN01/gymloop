@@ -46,7 +46,10 @@ insert into proof select 'read_before',jsonb_build_object(
  'classes',(select jsonb_agg(to_jsonb(x) order by id) from public.class_bookings x where tenant_id=pg_temp.u(1)),
  'audits',(select count(*) from public.audit_log where tenant_id in(pg_temp.u(1),pg_temp.u(2))),
  'notices',(select count(*) from public.notifications where tenant_id in(pg_temp.u(1),pg_temp.u(2))));
-insert into proof select 'locks_before',coalesce(jsonb_agg(jsonb_build_object('relation',relation,'schema',(select n.nspname from pg_class c join pg_namespace n on n.oid=c.relnamespace where c.oid=relation),'name',(select c.relname from pg_class c where c.oid=relation),'mode',mode,'type',locktype) order by relation,mode,locktype),'[]') from pg_locks where pid=pg_backend_pid() and mode<>'AccessShareLock' and relation is not null;
+-- Writing this large JSON baseline adds locks on proof's own TOAST table/index.
+-- Exclude only those catalogue-resolved harness dependencies in both snapshots;
+-- every business, other temporary, catalogue, write and row relation lock remains.
+insert into proof select 'locks_before',coalesce(jsonb_agg(jsonb_build_object('relation',relation,'schema',(select n.nspname from pg_class c join pg_namespace n on n.oid=c.relnamespace where c.oid=relation),'name',(select c.relname from pg_class c where c.oid=relation),'mode',mode,'type',locktype) order by relation,mode,locktype),'[]') from pg_locks where pid=pg_backend_pid() and mode<>'AccessShareLock' and relation is not null and relation not in (select reltoastrelid from pg_class where oid='pg_temp.proof'::regclass union all select indexrelid from pg_index where indrelid=(select reltoastrelid from pg_class where oid='pg_temp.proof'::regclass));
 set local role authenticated;
 select pg_temp.claim();
 select is((select jsonb_agg(to_jsonb(x)) from public.read_member_pt_policy()x),'[{"cancel_window_hours":37,"late_cancel_consumes_session":true}]'::jsonb,'PT: current exact same-tenant policy');
@@ -108,7 +111,7 @@ select is(jsonb_build_object(
  'audits',(select count(*) from public.audit_log where tenant_id in(pg_temp.u(1),pg_temp.u(2))),
  'notices',(select count(*) from public.notifications where tenant_id in(pg_temp.u(1),pg_temp.u(2)))),
  (select v from proof where k='read_before'),'Reads/refusals preserve settings, bookings, audit and notifications');
-select is((select coalesce(jsonb_agg(jsonb_build_object('relation',relation,'schema',(select n.nspname from pg_class c join pg_namespace n on n.oid=c.relnamespace where c.oid=relation),'name',(select c.relname from pg_class c where c.oid=relation),'mode',mode,'type',locktype) order by relation,mode,locktype),'[]') from pg_locks where pid=pg_backend_pid() and mode<>'AccessShareLock' and relation is not null),(select v from proof where k='locks_before'),'Reads/refusals add no write or row relation locks');
+select is((select coalesce(jsonb_agg(jsonb_build_object('relation',relation,'schema',(select n.nspname from pg_class c join pg_namespace n on n.oid=c.relnamespace where c.oid=relation),'name',(select c.relname from pg_class c where c.oid=relation),'mode',mode,'type',locktype) order by relation,mode,locktype),'[]') from pg_locks where pid=pg_backend_pid() and mode<>'AccessShareLock' and relation is not null and relation not in (select reltoastrelid from pg_class where oid='pg_temp.proof'::regclass union all select indexrelid from pg_index where indrelid=(select reltoastrelid from pg_class where oid='pg_temp.proof'::regclass))),(select v from proof where k='locks_before'),'Reads/refusals add no write or row relation locks');
 select set_config('request.jwt.claims',jsonb_build_object('sub',pg_temp.u(928),'role','authenticated','app_role','super_admin')::text,true);
 -- Active -> trial is deliberately not a legal commercial transition. This
 -- isolated actor-read fixture needs that historical state; restore the exact

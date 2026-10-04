@@ -39,7 +39,7 @@ select is((select (select case when setting in ('search_path=', 'search_path=""'
 select is((select (select case when setting in ('search_path=', 'search_path=""') then '' else substring(setting from length('search_path=')+1) end from unnest(proconfig) setting where setting like 'search_path=%') from pg_proc where oid = to_regprocedure('public.append_report_export_event(text,uuid,jsonb)')),'','audit helper runs an empty search path');
 select ok(has_function_privilege('authenticated','public.export_report_snapshot(text,date,date,uuid,integer)','EXECUTE'),'authenticated holds EXECUTE on the snapshot operation');
 select ok(not has_function_privilege('anon','public.export_report_snapshot(text,date,date,uuid,integer)','EXECUTE'),'anon holds no EXECUTE on the snapshot operation');
-select ok(not has_function_privilege('PUBLIC','public.export_report_snapshot(text,date,date,uuid,integer)','EXECUTE'),'PUBLIC holds no EXECUTE on the snapshot operation');
+select ok(not exists (select 1 from pg_proc p cross join lateral aclexplode(coalesce(p.proacl,acldefault('f',p.proowner))) a where p.oid=to_regprocedure('public.export_report_snapshot(text,date,date,uuid,integer)') and a.grantee=0 and a.privilege_type='EXECUTE'),'PUBLIC holds no EXECUTE on the snapshot operation');
 select ok(has_function_privilege('authenticated','public.append_report_export_event(text,uuid,jsonb)','EXECUTE'),'authenticated holds EXECUTE on the audit helper');
 select ok(not has_function_privilege('anon','public.append_report_export_event(text,uuid,jsonb)','EXECUTE'),'anon holds no EXECUTE on the audit helper');
 select ok(not has_table_privilege('authenticated','public.audit_log','INSERT'),'authenticated cannot INSERT audit rows directly');

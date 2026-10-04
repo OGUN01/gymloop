@@ -10,7 +10,7 @@ begin;
 -- the owner role is assumed explicitly, never inherited from the connection.
 set local role postgres;
 
-select plan(163);
+select plan(164);
 
 -- ============================================================
 -- 1. The eleven tables the cluster promises
@@ -854,7 +854,7 @@ select throws_ok($$ insert into public.membership_pauses (id, tenant_id, members
   'membership_pauses: a freeze carries a stated reason');
 
 -- Independent supplement, 2026-10-04: frozen PAY canonical-currency
--- declaration b556f349. All earlier global currency assertions are unchanged.
+-- declaration clarified by 6d6a6a4a. All earlier global currency assertions are unchanged.
 -- Evaluate real catalogue expressions over synthetic typed records; no guessed
 -- purchase INSERT, legacy money rewrite, Cloud call or implementation read.
 set local role postgres;
@@ -871,14 +871,17 @@ begin
   return v_result;
 exception when others then return null;
 end $f$;
-create function pg_temp.h05_currency_check_refuses(p_table text,p_source_column text) returns boolean
+create function pg_temp.h05_currency_check_refuses(p_table text,p_source_column text,p_currency text default 'USD') returns boolean
 language plpgsql as $f$
-declare v_check record; v_pass boolean; v_facts jsonb;
+declare v_check record; v_pass boolean; v_facts jsonb; v_checked integer:=0;
 begin
   if to_regclass(p_table) is null then return null; end if;
-  v_facts:=jsonb_build_object(p_source_column,'USD','currency','USD',
-    'recorded_amount_paise',100,'hold_maximum_paise',100,'status','recorded',
-    'snapshot',jsonb_build_object('currency','USD','amountPaise','100'));
+  v_facts:=jsonb_build_object(p_source_column,p_currency,'currency',p_currency,
+    'recorded_amount_paise',100,'hold_maximum_paise',100,
+    'snapshot',jsonb_build_object('currency','INR','amountPaise','100'));
+  if p_table='public.purchase_requests' then
+    v_facts:=v_facts || jsonb_build_object('status','mismatch_recorded','kind','shop');
+  end if;
   for v_check in
     select pg_get_expr(k.conbin,k.conrelid) as expression
     from pg_constraint k join pg_attribute a on a.attrelid=k.conrelid
@@ -886,10 +889,12 @@ begin
     where k.conrelid=to_regclass(p_table) and k.contype='c'
       and a.attname=p_source_column
   loop
+    v_checked:=v_checked+1;
     execute 'select ('||v_check.expression||') from jsonb_populate_record(null::'||p_table||',$1) currency_facts'
       into v_pass using v_facts;
     if v_pass is false then return true; end if;
   end loop;
+  if v_checked=0 then return null; end if;
   return false;
 exception when others then return null;
 end $f$;
@@ -904,7 +909,7 @@ select is(pg_temp.h05_generated_currency('public.purchase_requests',null),'INR',
 select is(pg_temp.h05_generated_currency('public.purchase_requests','INR'),'INR',
   'H05 recorded purchase canonical currency agrees with its factual recorded INR');
 select is(pg_temp.h05_generated_currency('public.purchase_requests','USD'),'USD',
-  'H05 canonical generation preserves the factual input rather than silently converting it; checks must refuse USD');
+  'H05 canonical generation retains the actual USD mismatch fact without conversion');
 select is(pg_temp.h05_generated_currency('public.notification_whatsapp_attempts','INR'),'INR',
   'H05 WSP currency agrees with held INR');
 select is(pg_temp.h05_generated_currency('public.notification_whatsapp_attempts','USD'),'USD',
@@ -913,8 +918,10 @@ select throws_ok($q$update public.purchase_requests set currency='USD' where fal
   '428C9'::char(5),null,'H05 canonical purchase currency cannot be supplied directly');
 select throws_ok($q$update public.notification_whatsapp_attempts set currency='USD' where false$q$,
   '428C9'::char(5),null,'H05 canonical WSP currency cannot be supplied directly');
-select is(pg_temp.h05_currency_check_refuses('public.purchase_requests','recorded_currency'),true,
-  'H05 retained purchase checks refuse recorded non-INR facts instead of converting them');
+select is(pg_temp.h05_currency_check_refuses('public.purchase_requests','recorded_currency'),false,
+  'H05 currency CHECKs retain BUY-014 factual USD mismatch against an INR Shop quote');
+select is(pg_temp.h05_currency_check_refuses('public.purchase_requests','recorded_currency','Rupees'),true,
+  'H05 recorded factual currency still refuses a malformed currency code');
 select is(pg_temp.h05_currency_check_refuses('public.notification_whatsapp_attempts','hold_currency'),true,
   'H05 retained WSP checks refuse non-INR hold facts instead of converting them');
 

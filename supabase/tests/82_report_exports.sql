@@ -63,11 +63,11 @@ insert into public.members(id,tenant_id,branch_id,full_name,phone,status,erased_
 (pg_temp.u(102),pg_temp.u(1),pg_temp.u(13),'PRIVATE_MEMBER_102','+918200000102','active',null,'RPE102',date '2026-01-06'),
 (pg_temp.u(103),pg_temp.u(1),pg_temp.u(11),'PRIVATE_ERASED_103','+918200000103','active',statement_timestamp(),'RPE103',date '2026-01-07'),
 (pg_temp.u(105),pg_temp.u(2),pg_temp.u(12),'PRIVATE_FOREIGN_105','+918200000105','active',null,'RPE105',date '2026-02-01');
-insert into public.payments(id,tenant_id,member_id,amount_paise,currency,status,method,receipt_number,paid_at,created_at) values
-(pg_temp.u(401),pg_temp.u(1),pg_temp.u(101),12345,'INR','paid','upi','RPE-0001',timestamptz '2026-01-10 09:05:00+00',timestamptz '2026-01-10 09:00:00+00'),
-(pg_temp.u(402),pg_temp.u(1),pg_temp.u(102),6789,'INR','created','cash',null,null,timestamptz '2026-01-11 10:00:00+00'),
-(pg_temp.u(403),pg_temp.u(1),pg_temp.u(103),555,'INR','refunded','cash','RPE-0003',timestamptz '2026-01-12 11:00:00+00',timestamptz '2026-01-12 10:30:00+00'),
-(pg_temp.u(404),pg_temp.u(1),pg_temp.u(101),2500,'USD','paid','card',null,timestamptz '2026-01-13 12:00:00+00',timestamptz '2026-01-13 11:45:00+00');
+insert into public.payments(id,tenant_id,member_id,amount_paise,currency,status,method,receipt_number,paid_at,created_at,recorded_by_staff_id) values
+(pg_temp.u(401),pg_temp.u(1),pg_temp.u(101),12345,'INR','paid','upi','RPE-0001',timestamptz '2026-01-10 09:05:00+00',timestamptz '2026-01-10 09:00:00+00',pg_temp.u(21)),
+(pg_temp.u(402),pg_temp.u(1),pg_temp.u(102),6789,'INR','created','cash',null,null,timestamptz '2026-01-11 10:00:00+00',pg_temp.u(21)),
+(pg_temp.u(403),pg_temp.u(1),pg_temp.u(103),555,'INR','refunded','cash','RPE-0003',timestamptz '2026-01-12 11:00:00+00',timestamptz '2026-01-12 10:30:00+00',pg_temp.u(21)),
+(pg_temp.u(404),pg_temp.u(1),pg_temp.u(101),2500,'USD','paid','card',null,timestamptz '2026-01-13 12:00:00+00',timestamptz '2026-01-13 11:45:00+00',null);
 insert into public.attendance(id,tenant_id,branch_id,member_id,source,checked_in_at,checked_out_at,offline_recorded_at,replayed_at) values
 (pg_temp.u(421),pg_temp.u(1),pg_temp.u(11),pg_temp.u(101),'qr',timestamptz '2026-01-05 02:00:00+00',null,null,null),
 (pg_temp.u(422),pg_temp.u(1),pg_temp.u(13),pg_temp.u(102),'front_desk',timestamptz '2026-01-01 02:00:00+00',null,null,null),
@@ -81,7 +81,7 @@ select is((select array_to_string(proargtypes::regtype[]::text[],',') from pg_pr
 select is((select array_to_string(proargnames,',') from pg_proc where oid=to_regprocedure('public.export_report_snapshot(text,date,date,uuid,integer)')),'p_dataset,p_from,p_through,p_branch_id,p_row_cap','RPE A3: exact argument names (PostgREST named-arg calling)');
 select is((select prosecdef from pg_proc where oid=to_regprocedure('public.export_report_snapshot(text,date,date,uuid,integer)')),false,'RPE A4: invoker — caller RLS is the read boundary');
 select is((select proname from pg_proc where oid=to_regprocedure('public.export_report_snapshot(text,date,date,uuid,integer)') and pg_get_userbyid(proowner)='postgres'),'export_report_snapshot','RPE A5: postgres-owned');
-select is((select coalesce(proconfig->>'search_path','<unset>') from pg_proc where oid=to_regprocedure('public.export_report_snapshot(text,date,date,uuid,integer)')),'','RPE A6: empty search path');
+select ok((select coalesce(proconfig @> array['search_path=""'],false) from pg_proc where oid=to_regprocedure('public.export_report_snapshot(text,date,date,uuid,integer)')),'RPE A6: empty search path');
 select is((select provolatile in ('v','s') from pg_proc where oid=to_regprocedure('public.export_report_snapshot(text,date,date,uuid,integer)')),true,'RPE A7: stable or volatile, never immutable');
 select is((select prorettype::regtype::text from pg_proc where oid=to_regprocedure('public.export_report_snapshot(text,date,date,uuid,integer)')),'jsonb','RPE A8: returns jsonb (payload with rows/has_more/timezone)');
 select is(has_function_privilege('anon','public.export_report_snapshot(text,date,date,uuid,integer)','execute'),false,'RPE A9: anon holds no EXECUTE');
@@ -97,7 +97,7 @@ select is((select array_to_string(proargtypes::regtype[]::text[],',') from pg_pr
 select is((select array_to_string(proargnames,',') from pg_proc where oid=to_regprocedure('public.append_report_export_event(text,uuid,jsonb)')),'p_event,p_export_id,p_details','RPE A14: exact argument names');
 select is((select prosecdef from pg_proc where oid=to_regprocedure('public.append_report_export_event(text,uuid,jsonb)')),true,'RPE A15: definer — the single audit-append elevation');
 select is((select pg_get_userbyid(proowner) from pg_proc where oid=to_regprocedure('public.append_report_export_event(text,uuid,jsonb)')),'postgres','RPE A16: postgres-owned');
-select is((select coalesce(proconfig->>'search_path','<unset>') from pg_proc where oid=to_regprocedure('public.append_report_export_event(text,uuid,jsonb)')),'','RPE A17: empty search path');
+select ok((select coalesce(proconfig @> array['search_path=""'],false) from pg_proc where oid=to_regprocedure('public.append_report_export_event(text,uuid,jsonb)')),'RPE A17: empty search path');
 select is((select prorettype::regtype::text from pg_proc where oid=to_regprocedure('public.append_report_export_event(text,uuid,jsonb)')),'void','RPE A18: returns void');
 select is(has_function_privilege('anon','public.append_report_export_event(text,uuid,jsonb)','execute'),false,'RPE A19: anon holds no EXECUTE');
 select is(has_function_privilege('service_role','public.append_report_export_event(text,uuid,jsonb)','execute'),false,'RPE A20: service_role holds no EXECUTE');

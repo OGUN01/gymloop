@@ -54,9 +54,11 @@ insert into public.notifications (id, tenant_id, member_id, channel, category, d
   ('09c00000-0000-4000-8000-000000000a10'::uuid, '09c00000-0000-4000-8000-000000000a00'::uuid, '09c00000-0000-4000-8000-000000000a02'::uuid, 'push', 'promotion', 'h09:fixture:a10'),
   ('09c00000-0000-4000-8000-000000000b10'::uuid, '09c00000-0000-4000-8000-000000000b00'::uuid, '09c00000-0000-4000-8000-000000000b02'::uuid, 'push', 'promotion', 'h09:fixture:b10');
 
-insert into public.member_devices (id, tenant_id, member_id, platform, push_token) values
-  ('09c00000-0000-4000-8000-000000000a12'::uuid, '09c00000-0000-4000-8000-000000000a00'::uuid, '09c00000-0000-4000-8000-000000000a02'::uuid, 'android', 'h9.comms.holdout.token.a1'),
-  ('09c00000-0000-4000-8000-000000000b12'::uuid, '09c00000-0000-4000-8000-000000000b00'::uuid, '09c00000-0000-4000-8000-000000000b02'::uuid, 'ios', 'h9.comms.holdout.token.b1');
+-- NTF provenance-null legacy devices remain inactive until self-registration.
+-- Seed that lawful state explicitly so the later isolation check proves no change.
+insert into public.member_devices (id, tenant_id, member_id, platform, push_token, is_active) values
+  ('09c00000-0000-4000-8000-000000000a12'::uuid, '09c00000-0000-4000-8000-000000000a00'::uuid, '09c00000-0000-4000-8000-000000000a02'::uuid, 'android', 'h9.comms.holdout.token.a1', false),
+  ('09c00000-0000-4000-8000-000000000b12'::uuid, '09c00000-0000-4000-8000-000000000b00'::uuid, '09c00000-0000-4000-8000-000000000b02'::uuid, 'ios', 'h9.comms.holdout.token.b1', false);
 
 -- recorded_at is deliberately backdated: it is the domain timestamp (when the
 -- member decided), created_at is when the row landed. Backdating also makes the
@@ -154,7 +156,7 @@ select throws_ok(
   'NTF frozen grant matrix: direct device SELECT is refused, including staff/platform'
 );
 select throws_ok(
-  $$ insert into public.member_devices (tenant_id, member_id, platform, push_token) values ('09c00000-0000-4000-8000-000000000b00', '09c00000-0000-4000-8000-000000000b02', 'web', 'h9.comms.holdout.token.x9') $$,
+  $$ insert into public.member_devices (tenant_id, member_id, platform, push_token, is_active) values ('09c00000-0000-4000-8000-000000000b00', '09c00000-0000-4000-8000-000000000b02', 'web', 'h9.comms.holdout.token.x9') $$,
   '42501'::char(5), null,
   'ISO member_devices: Gym A cannot insert a row labelled with Gym B'
 );
@@ -430,16 +432,16 @@ select results_eq(
 set local role postgres;
 
 select lives_ok(
-  $$ insert into public.member_devices (tenant_id, member_id, platform, push_token) values ('09c00000-0000-4000-8000-000000000a00', '09c00000-0000-4000-8000-000000000a02', 'web', 'h9.comms.holdout.token.a2') $$,
+  $$ insert into public.member_devices (tenant_id, member_id, platform, push_token, is_active) values ('09c00000-0000-4000-8000-000000000a00', '09c00000-0000-4000-8000-000000000a02', 'web', 'h9.comms.holdout.token.a2') $$,
   'ADR-016: a member may register a second device with a different push token'
 );
 select throws_ok(
-  $$ insert into public.member_devices (tenant_id, member_id, platform, push_token) values ('09c00000-0000-4000-8000-000000000a00', '09c00000-0000-4000-8000-000000000a02', 'android', 'h9.comms.holdout.token.a1') $$,
+  $$ insert into public.member_devices (tenant_id, member_id, platform, push_token, is_active) values ('09c00000-0000-4000-8000-000000000a00', '09c00000-0000-4000-8000-000000000a02', 'android', 'h9.comms.holdout.token.a1', false) $$,
   '23505'::char(5), null,
   'ADR-016: a push token already registered at this gym is rejected, the uniqueness is (tenant_id, push_token)'
 );
 select throws_ok(
-  $$ insert into public.member_devices (tenant_id, member_id, platform, push_token) values ('09c00000-0000-4000-8000-000000000a00', '09c00000-0000-4000-8000-000000000a02', 'windows', 'h9.comms.holdout.token.a3') $$,
+  $$ insert into public.member_devices (tenant_id, member_id, platform, push_token, is_active) values ('09c00000-0000-4000-8000-000000000a00', '09c00000-0000-4000-8000-000000000a02', 'windows', 'h9.comms.holdout.token.a3') $$,
   '23514'::char(5), null,
   'ADR-016: a device platform outside (ios, android, web) is rejected'
 );
@@ -527,7 +529,7 @@ set local role postgres;
 -- ===========================================================================
 
 select lives_ok(
-  $$ insert into public.member_devices (tenant_id, member_id, platform, push_token) values ('09c00000-0000-4000-8000-000000000b00', '09c00000-0000-4000-8000-000000000b02', 'ios', 'h9.comms.holdout.token.a1') $$,
+  $$ insert into public.member_devices (tenant_id, member_id, platform, push_token, is_active) values ('09c00000-0000-4000-8000-000000000b00', '09c00000-0000-4000-8000-000000000b02', 'ios', 'h9.comms.holdout.token.a1', false) $$,
   'ADR-016/ADR-047: the same push token registered at a second gym is accepted, push_token is unique per gym - a member may belong to two gyms and each needs its own delivery target for the one handset'
 );
 select lives_ok(

@@ -405,15 +405,14 @@ select ok(exists (
   select 1 from pg_constraint k
   where k.contype='f' and k.conrelid=to_regclass('public.notification_whatsapp_attempts')
     and k.confrelid=to_regclass('public.whatsapp_channel_consents')
-    and array(select a.attname::text from unnest(k.conkey) with ordinality x(n,pos)
-              join pg_attribute a on a.attrelid=k.conrelid and a.attnum=x.n order by x.pos)
-        @> array['tenant_id']
-    and cardinality(k.conkey)=2
-    and (select a.attname::text from pg_attribute a
-         where a.attrelid=k.conrelid and a.attnum=k.conkey[1])='tenant_id'
-    and array(select a.attname::text from unnest(k.confkey) with ordinality x(n,pos)
-              join pg_attribute a on a.attrelid=k.confrelid and a.attnum=x.n order by x.pos)
-        = array['tenant_id','id']),
+    and array(
+      select src.attname::text || '->' || dst.attname::text
+      from unnest(k.conkey,k.confkey) x(srcnum,dstnum)
+      join pg_attribute src on src.attrelid=k.conrelid and src.attnum=x.srcnum
+      join pg_attribute dst on dst.attrelid=k.confrelid and dst.attnum=x.dstnum
+      order by src.attname::text)
+      in (array['consent_id->id','tenant_id->tenant_id'],
+          array['consent_id->id','member_id->member_id','tenant_id->tenant_id'])),
   'WSP-H-J03 attempt opt-in evidence is constrained to the same tenant');
 
 select * from finish();

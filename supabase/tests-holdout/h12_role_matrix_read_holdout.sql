@@ -121,6 +121,7 @@ insert into approved_batch2_tables (tbl) values
   ('whatsapp_sender_accounts'), ('whatsapp_template_revisions'),
   ('whatsapp_rate_versions'), ('whatsapp_channel_consents'),
   ('notification_whatsapp_attempts'), ('notification_whatsapp_receipts'),
+  ('whatsapp_dispatch_requests'), ('whatsapp_command_keys'),
   ('purchase_requests'), ('payment_proofs'),
   ('member_freeze_requests'), ('member_freeze_commands');
 
