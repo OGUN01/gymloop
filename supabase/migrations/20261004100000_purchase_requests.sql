@@ -792,9 +792,15 @@ begin
   perform app.pay_grant_capability('command_note', v_actor.tenant_id, p_request_id, 'member');
   v_existing := app.pay_command_lookup(v_actor.tenant_id, p_request_id, p_command_key, 'register');
   if v_existing is not null then
-    if v_existing->'facts' = v_facts and v_existing->>'actor_user_id' = v_actor.user_id::text then
+    -- Replay compares the CALLER-comparable facts only (frozen decision 5):
+    -- the stored facts additionally carry the mint's own assetId output,
+    -- which no caller can know at replay time, so the equality test
+    -- normalizes to requestId (the lookup keys on it) + mime + bytes + actor.
+    if (v_existing->'facts'->>'mime') = p_mime
+      and (v_existing->'facts'->>'bytes')::integer = p_bytes
+      and v_existing->>'actor_user_id' = v_actor.user_id::text then
       -- Read-only replay of the original registration result: same asset, same
-      -- staging facts, no new candidate, counter use or deadline.
+      -- staging facts, no second counter use or deadline.
       select a.* into v_asset from public.media_assets a
        where a.tenant_id = v_actor.tenant_id and a.id = (v_existing->>'facts'->>'assetId')::uuid;
       if not found then
