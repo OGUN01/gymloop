@@ -796,13 +796,17 @@ begin
     -- the stored facts additionally carry the mint's own assetId output,
     -- which no caller can know at replay time, so the equality test
     -- normalizes to requestId (the lookup keys on it) + mime + bytes + actor.
-    if (v_existing->'facts'->>'mime') = p_mime
-      and (v_existing->'facts'->>'bytes')::integer = p_bytes
-      and v_existing->>'actor_user_id' = v_actor.user_id::text then
+    -- Every accessor below pins the jsonb type explicitly: the runtime
+    -- capture showed `text ->> unknown` when the seam's return/row value
+    -- resolved as text, and a text left-operand must never reach `->>`.
+    if ((v_existing::jsonb)->'facts'->>'mime') = p_mime
+      and ((v_existing::jsonb)->'facts'->>'bytes')::integer = p_bytes
+      and (v_existing::jsonb)->>'actor_user_id' = v_actor.user_id::text then
       -- Read-only replay of the original registration result: same asset, same
       -- staging facts, no second counter use or deadline.
       select a.* into v_asset from public.media_assets a
-       where a.tenant_id = v_actor.tenant_id and a.id = (v_existing->>'facts'->>'assetId')::uuid;
+       where a.tenant_id = v_actor.tenant_id
+         and a.id = ((v_existing::jsonb)->'facts'->>'assetId')::uuid;
       if not found then
         raise exception 'Proof registration key already named different facts'
           using errcode = 'GL068', detail = 'idempotency_conflict';
