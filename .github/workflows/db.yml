@@ -1,5 +1,7 @@
 name: DB
 
+# The one final pgTAP per the owner's batched-verification directive.
+
 # **Path-filtered, for billing.** The `pgtap` job runs 47 files against Cloud
 # and takes about twenty minutes; a push that touches only docs or the web app
 # cannot change what it measures, and paying twenty minutes to prove that is
