@@ -918,9 +918,9 @@ select throws_ok($q$update public.purchase_requests set currency='USD' where fal
   '428C9'::char(5),null,'H05 canonical purchase currency cannot be supplied directly');
 select throws_ok($q$update public.notification_whatsapp_attempts set currency='USD' where false$q$,
   '428C9'::char(5),null,'H05 canonical WSP currency cannot be supplied directly');
-select is(pg_temp.h05_currency_check_refuses('public.purchase_requests','recorded_currency'),false,
+select is(pg_temp.h05_currency_check_refuses('public.purchase_requests','currency'),false,
   'H05 currency CHECKs retain BUY-014 factual USD mismatch against an INR Shop quote');
-select is(pg_temp.h05_currency_check_refuses('public.purchase_requests','recorded_currency','Rupees'),true,
+select is(pg_temp.h05_currency_check_refuses('public.purchase_requests','currency','Rupees'),true,
   'H05 recorded factual currency still refuses a malformed currency code');
 select is(pg_temp.h05_currency_check_refuses('public.notification_whatsapp_attempts','hold_currency'),true,
   'H05 retained WSP checks refuse non-INR hold facts instead of converting them');
