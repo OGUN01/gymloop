@@ -83,6 +83,10 @@ async function mount() {
 }
 
 describe('independent actual native Training current cancellation', () => {
+  // The fixture session starts 2026-10-05T05:30:00Z; pin the clock inside its
+  // free-cancel window so the suite cannot go stale at the date rollover.
+  // Tests that pin their own moment below still override this.
+  beforeEach(() => { vi.useFakeTimers(); vi.setSystemTime(new Date('2026-10-04T00:00:00Z')); });
   it.each([
     ['2026-10-05T05:29:59.999Z', true],
     ['2026-10-05T05:30:00.000Z', false],

@@ -201,6 +201,9 @@ describe('PTF independent web member caller-bound reads', () => {
 });
 
 describe('PTF independent existing-session cancellation', () => {
+  // The fixture session starts 2026-10-05T05:30:00Z; pin the clock inside its
+  // free-cancel window so the suite cannot go stale at the date rollover.
+  beforeEach(() => { vi.useFakeTimers(); vi.setSystemTime(new Date('2026-10-04T00:00:00Z')); });
   it('successful accepted envelope refreshes once after fresh confirming read', async () => {
     fetchMock.mockResolvedValue(new Response(JSON.stringify({ ok: true, data: { sessionId: session.sessionId,
       status: 'cancelled_by_member', late: false, consumed: false, sessionsRemaining: 7, replayed: true } })));
