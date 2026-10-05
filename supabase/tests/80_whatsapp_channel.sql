@@ -466,13 +466,23 @@ create function pg_temp.visible_tap_block_6() returns setof text language plpgsq
   perform set_config('request.jwt.claims',jsonb_build_object('sub',pg_temp.aid(917),'role','authenticated','app_role','super_admin')::text,true);
   perform public.adjust_messaging_wallet_paise(pg_temp.aid(1),500::bigint,'INR','wsp-suite-funding',pg_temp.aid(630));
   perform set_config('request.jwt.claims','',true);
-  declare c jsonb; a jsonb; begin
+  declare c jsonb; a jsonb; v_claim_clock timestamptz; begin
+    -- The lease is stamped with clock_timestamp() at the claim (the moving
+    -- clock, migration line ~1530), so bounding it against now() — frozen at
+    -- THIS transaction's start, dozens of statements behind the claim —
+    -- reads a contract-true 120-second ticket as already expired on any
+    -- run longer than ten seconds. The pin therefore carries its own
+    -- pre-claim clock_timestamp() and bounds the lease against the claim's
+    -- own moment: the frozen 120-second pre-I/O authorization ticket
+    -- (whatsapp-channel proposal, frozen mechanical defaults) lands inside
+    -- (119s, 130s] of that moment, whichever statement the claim is.
+    v_claim_clock := clock_timestamp();
     c := public.claim_whatsapp_dispatch(10);
     return next is(jsonb_array_length(CASE WHEN jsonb_typeof(c->'attempts')='array' THEN c->'attempts' ELSE '[]'::jsonb END),1,
       'WSP: funded claim reserves exactly one attempt');
     a := c->'attempts'->0;
     return next ok(a->>'ticket' is not null and a->>'attemptId' is not null,'WSP: claim returns attempt and ticket identifiers only');
-    return next ok(a->>'expiresAt' is not null and (a->>'expiresAt')::timestamptz <= now()+interval '130 seconds','WSP: authorization ticket is ~120 seconds');
+    return next ok(a->>'expiresAt' is not null and (a->>'expiresAt')::timestamptz > v_claim_clock + interval '119 seconds' and (a->>'expiresAt')::timestamptz <= v_claim_clock + interval '130 seconds','WSP: authorization ticket is ~120 seconds');
   end;
   return next is(pg_temp.refusal($q$select public.claim_whatsapp_dispatch(0)$q$),'22023','WSP: batch below 1 refused');
   return next is(pg_temp.refusal($q$select public.claim_whatsapp_dispatch(51)$q$),'22023','WSP: batch above 50 refused');

@@ -59,9 +59,15 @@
 -- Either outcome is a lawful pin; the declaration/implementation
 -- reconciliation is a builder/critic decision, not a silent test edit.
 --
--- Assertion count basis: plan(149) counts EMITTED assertions (141 top-level
--- plus eight from adaptive blocks: duplicate Vault entry one, blank Vault
--- entry one, cyclic wrap exclusion one, lock-overlap branch five).
+-- Assertion count basis: plan(149) counts EMITTED assertions (141 plain
+-- top-level plus eight adaptive: duplicate Vault entry one, blank Vault
+-- entry one, cyclic wrap exclusion one, lock-overlap five). The eight
+-- adaptive assertions EMIT through top-level CASE statements whose taken arm
+-- calls the pgTAP function — never through perform inside plpgsql, which
+-- executes the assertion (advancing the counter) while its verdict line
+-- never reaches the TAP stream (the CI run of 2026-10-05 proved the class on
+-- the h84 holdout: 94 planned, 81 emitted, exactly the 13 perform-ed ones
+-- missing).
 begin;
 set local role postgres;
 set local search_path=extensions,public;
@@ -169,24 +175,31 @@ select is(coalesce(has_schema_privilege('authenticated','net','CREATE')::text,'u
 savepoint d0;
 select is(pg_temp.probe($q$select vault.create_secret('synthetic-dispatch-secret-A','gymloop_push_dispatch_secret')$q$),'OK','PSD-005: a single nonblank Vault entry can be staged under the production name');
 select is(pg_temp.val($q$select app.read_push_dispatch_secret()$q$),'synthetic-dispatch-secret-A','PSD-005: exactly one nonblank Vault entry resolves to its value');
-do $$ begin
-  if pg_temp.probe($q$select vault.create_secret('synthetic-dispatch-secret-D','gymloop_push_dispatch_secret')$q$) = 'OK' then
-    perform is(pg_temp.err('select app.read_push_dispatch_secret()') is not null and position('synthetic-dispatch-secret-A' in coalesce(pg_temp.err('select app.read_push_dispatch_secret()')->>'msg',''))=0 and coalesce(pg_temp.err('select app.read_push_dispatch_secret()')->>'msg','x') not like '%does not exist%',true,'PSD-005: a duplicate Vault entry refuses wakeup with a value-free operational error');
-  else
-    perform is(pg_temp.probe($q$select vault.create_secret('synthetic-dispatch-secret-D','gymloop_push_dispatch_secret')$q$) <> 'OK',true,'PSD-005: the Vault schema itself refuses a duplicate production-named entry');
-  end if;
-end $$;
+-- EMISSION: the branch fact is staged first and the assertion emits at top
+-- level. A perform-ed pgTAP assertion executes (its counter advances) but
+-- its verdict line never reaches the TAP stream — the CI run of 2026-10-05
+-- proved the class on the h84 holdout (94 planned, 81 emitted, exactly the
+-- 13 perform-ed ones missing; the next emitted assertion carried number 67
+-- after 59). Each adaptive statement below emits exactly one assertion per
+-- run in either branch, so every assertion plan(149) counts is EMITTED.
+create temp table d0_dup_staged as
+  select pg_temp.probe($q$select vault.create_secret('synthetic-dispatch-secret-D','gymloop_push_dispatch_secret')$q$) = 'OK' as staged;
+select case
+  when (select staged from d0_dup_staged)
+    then is(pg_temp.err('select app.read_push_dispatch_secret()') is not null and position('synthetic-dispatch-secret-A' in coalesce(pg_temp.err('select app.read_push_dispatch_secret()')->>'msg',''))=0 and coalesce(pg_temp.err('select app.read_push_dispatch_secret()')->>'msg','x') not like '%does not exist%',true,'PSD-005: a duplicate Vault entry refuses wakeup with a value-free operational error')
+  else is(pg_temp.probe($q$select vault.create_secret('synthetic-dispatch-secret-D','gymloop_push_dispatch_secret')$q$) <> 'OK',true,'PSD-005: the Vault schema itself refuses a duplicate production-named entry')
+end;
 select is(pg_temp.probe($q$delete from vault.secrets where name='gymloop_push_dispatch_secret'$q$),'OK','PSD-005: Vault fixture entries are removable for the missing-entry case');
 select is(pg_temp.err('select app.read_push_dispatch_secret()') is not null,true,'PSD-005: a missing Vault entry refuses wakeup');
 select is(position('synthetic-dispatch-secret-A' in coalesce(pg_temp.err('select app.read_push_dispatch_secret()')->>'msg',''))=0,true,'PSD-005: the missing-entry refusal is value-free');
 select is(coalesce(pg_temp.err('select app.read_push_dispatch_secret()')->>'msg','x') not like '%does not exist%',true,'PSD-005: the missing-entry refusal is an operational error, not a catalog error');
-do $$ begin
-  if pg_temp.probe($q$select vault.create_secret('','gymloop_push_dispatch_secret')$q$) = 'OK' then
-    perform is(pg_temp.err('select app.read_push_dispatch_secret()') is not null and coalesce(pg_temp.err('select app.read_push_dispatch_secret()')->>'msg','x') not like '%does not exist%',true,'PSD-005: a blank Vault entry refuses wakeup with an operational error');
-  else
-    perform is(pg_temp.probe($q$select vault.create_secret('','gymloop_push_dispatch_secret')$q$) <> 'OK',true,'PSD-005: the Vault schema itself refuses a blank production-named entry');
-  end if;
-end $$;
+create temp table d0_blank_staged as
+  select pg_temp.probe($q$select vault.create_secret('','gymloop_push_dispatch_secret')$q$) = 'OK' as staged;
+select case
+  when (select staged from d0_blank_staged)
+    then is(pg_temp.err('select app.read_push_dispatch_secret()') is not null and coalesce(pg_temp.err('select app.read_push_dispatch_secret()')->>'msg','x') not like '%does not exist%',true,'PSD-005: a blank Vault entry refuses wakeup with an operational error')
+  else is(pg_temp.probe($q$select vault.create_secret('','gymloop_push_dispatch_secret')$q$) <> 'OK',true,'PSD-005: the Vault schema itself refuses a blank production-named entry')
+end;
 create temp table d0_qpre as select count(*)::integer c from net.http_request;
 select is(pg_temp.probe($q$select app.enqueue_push_dispatch_wakeup('synthetic-dispatch-secret-B')$q$),'OK','PSD-005: the real wakeup helper accepts a secret');
 select is((select count(*)::integer from net.http_request),(select c+1 from d0_qpre),'PSD-005: the real helper enqueues exactly one wakeup row');
@@ -269,15 +282,16 @@ create temp table d3_excl as
   select e.rnk from elig e
    where not exists (select 1 from public.notifications x
                       where x.tenant_id=e.tid and x.dedupe_key like 'announcement:%');
-do $$ declare nx integer; r1 integer; r2 integer; r3 integer; begin
-  select count(*), min(rnk), max(rnk) into nx, r1, r3 from pg_temp.d3_excl;
-  select rnk into r2 from pg_temp.d3_excl order by rnk offset 1 limit 1;
-  if nx = 3 and r2 is not null then
-    perform is((r2-r1=1 and r3-r2=1) or (r1=1 and r3=103 and (r2=2 or r2=102)),true,'PSD-004: the excluded tenants are consecutive in the cyclic ascending order');
-  else
-    perform is(false,true,'PSD-004: the excluded tenants are consecutive in the cyclic ascending order');
-  end if;
-end $$;
+create temp table d3_ranks as
+  select (select count(*) from pg_temp.d3_excl) as nx,
+         (select min(rnk) from pg_temp.d3_excl) as r1,
+         (select max(rnk) from pg_temp.d3_excl) as r3,
+         (select rnk from pg_temp.d3_excl order by rnk offset 1 limit 1) as r2;
+select case
+  when (select nx = 3 and r2 is not null from d3_ranks)
+    then is((select (r2-r1=1 and r3-r2=1) or (r1=1 and r3=103 and (r2=2 or r2=102)) from d3_ranks),true,'PSD-004: the excluded tenants are consecutive in the cyclic ascending order')
+  else is(false,true,'PSD-004: the excluded tenants are consecutive in the cyclic ascending order')
+end;
 
 -- ============ D5. event failure rolls the tick back without enqueueing ============
 savepoint d5;
@@ -293,30 +307,49 @@ rollback to savepoint d5;
 select is((select count(*)::integer from public.notifications n where n.tenant_id between pg_temp.aid(200) and pg_temp.aid(302) and n.dedupe_key like 'announcement:%'),100,'PSD-004: the failed tick wrote no surviving event rows');
 
 -- ============ D4. lock overlap, adaptive to the frozen lock semantics ============
-do $$ declare r2 jsonb; sends_before integer; reads_before integer; begin
-  sends_before := pg_temp.sends_now();
-  reads_before := pg_temp.reads_now();
-  begin execute 'select app.run_push_dispatch_tick()' into r2; exception when others then r2 := null; end;
-  if r2 is null then
-    perform is(false,true,'PSD-002: a back-to-back tick either skips inertly or reprocesses within bounds');
-    perform is(false,true,'PSD-002: the overlap branch result is a JSON object');
-    perform is(false,true,'PSD-002: the overlap branch queues no wakeup');
-    perform is(false,true,'PSD-002: the overlap branch reads no secret');
-    perform is(false,true,'PSD-002: the overlap branch leaves the seams unchanged');
-  elsif coalesce((r2->>'skipped')::boolean,false) then
-    perform is(r2->>'skipped','true','PSD-002: a contended tick is an inert skipped tick');
-    perform is((r2->>'tenantsProcessed')::integer,0,'PSD-002: a skipped tick processes zero tenants');
-    perform is((r2->>'wakeupsQueued')::integer,0,'PSD-002: a skipped tick queues no wakeup');
-    perform is(pg_temp.sends_now(),sends_before,'PSD-002: a skipped tick enqueues nothing');
-    perform is(pg_temp.reads_now(),reads_before,'PSD-002: a skipped tick reads no secret');
-  else
-    perform is(r2->>'skipped','false','PSD-002: with the lock released per tick a back-to-back tick is real work');
-    perform is((r2->>'tenantsProcessed')::integer,100,'PSD-004: the reprocessed tick stays bounded to 100 tenants');
-    perform is((r2->>'announcementEvents')::integer,0,'PSD-006: the reprocessed tick dedupes every existing event to zero new rows');
-    perform is((r2->>'wakeupsQueued')::integer,1,'PSD-004: the reprocessed tick still queues exactly one wakeup');
-    perform is(pg_temp.sends_now(),sends_before+1,'PSD-005: the reprocessed tick enqueued exactly one wakeup');
-  end if;
-end $$;
+-- The tick result and the pre-tick seam counts are staged first; the five
+-- branch assertions then EMIT at top level (a perform-ed assertion never
+-- reaches the TAP stream; see the D0 emission note). Each CASE emits exactly
+-- one assertion per run, in whichever of the three branches holds — the same
+-- labels and expectations the original carried, so plan(149)'s five
+-- lock-overlap assertions are EMITTED, not merely executed.
+create temp table d4_pre as select pg_temp.sends_now() s, pg_temp.reads_now() r;
+create temp table d4_tick as select pg_temp.tickj() r2;
+select case
+  when (select r2 is null from d4_tick)
+    then is(false,true,'PSD-002: a back-to-back tick either skips inertly or reprocesses within bounds')
+  when (select coalesce((r2->>'skipped')::boolean,false) from d4_tick)
+    then is((select r2->>'skipped' from d4_tick),'true','PSD-002: a contended tick is an inert skipped tick')
+  else is((select r2->>'skipped' from d4_tick),'false','PSD-002: with the lock released per tick a back-to-back tick is real work')
+end;
+select case
+  when (select r2 is null from d4_tick)
+    then is(false,true,'PSD-002: the overlap branch result is a JSON object')
+  when (select coalesce((r2->>'skipped')::boolean,false) from d4_tick)
+    then is((select (r2->>'tenantsProcessed')::integer from d4_tick),0,'PSD-002: a skipped tick processes zero tenants')
+  else is((select (r2->>'tenantsProcessed')::integer from d4_tick),100,'PSD-004: the reprocessed tick stays bounded to 100 tenants')
+end;
+select case
+  when (select r2 is null from d4_tick)
+    then is(false,true,'PSD-002: the overlap branch queues no wakeup')
+  when (select coalesce((r2->>'skipped')::boolean,false) from d4_tick)
+    then is((select (r2->>'wakeupsQueued')::integer from d4_tick),0,'PSD-002: a skipped tick queues no wakeup')
+  else is((select (r2->>'announcementEvents')::integer from d4_tick),0,'PSD-006: the reprocessed tick dedupes every existing event to zero new rows')
+end;
+select case
+  when (select r2 is null from d4_tick)
+    then is(false,true,'PSD-002: the overlap branch reads no secret')
+  when (select coalesce((r2->>'skipped')::boolean,false) from d4_tick)
+    then is(pg_temp.sends_now(),(select s from d4_pre),'PSD-002: a skipped tick enqueues nothing')
+  else is((select (r2->>'wakeupsQueued')::integer from d4_tick),1,'PSD-004: the reprocessed tick still queues exactly one wakeup')
+end;
+select case
+  when (select r2 is null from d4_tick)
+    then is(false,true,'PSD-002: the overlap branch leaves the seams unchanged')
+  when (select coalesce((r2->>'skipped')::boolean,false) from d4_tick)
+    then is(pg_temp.reads_now(),(select r from d4_pre),'PSD-002: a skipped tick reads no secret')
+  else is(pg_temp.sends_now(),(select s+1 from d4_pre),'PSD-005: the reprocessed tick enqueued exactly one wakeup')
+end;
 
 -- ============ E. activation ground facts for the protected operator flow ============
 insert into public.organizations(id,name,gym_code,status) values (pg_temp.aid(21),'PUSH Activate A','PS0021','active'),(pg_temp.aid(22),'PUSH Activate B','PS0022','active');

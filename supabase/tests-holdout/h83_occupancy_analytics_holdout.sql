@@ -178,13 +178,15 @@ insert into public.payments(id, tenant_id, member_id, membership_id, amount_pais
    (date_trunc('month',now() at time zone 'Asia/Kolkata')::timestamp at time zone 'Asia/Kolkata')-interval '2 months',
    (date_trunc('month',now() at time zone 'Asia/Kolkata')::timestamp at time zone 'Asia/Kolkata')-interval '2 months');
 
--- f4's add-on classification requires a lawful real add-on order linked to the
--- payment; this blind author must not guess the full order shape, so a minimal
--- guarded attempt stages it and any shape mismatch lands in h83_seed_errors
--- (surfaced by the staging-health assertion) — the disclosed-category
--- assertions below then fail loudly instead of silently passing.
-create temp table h83_addon_links(payment_id uuid primary key);
-insert into h83_addon_links(payment_id) values ('83900000-0000-4000-8000-0000000000f4');
+-- f4 (the USD payment) keeps its per-currency adjudication: a USD add-on
+-- order is unachievable (the offer guard is INR-only), so f4 classifies
+-- 'unallocated' with no membership evidence. The INR add-on money the
+-- collection pins exercise comes from the PRODUCTION command below: the
+-- sale runs through public.record_addon_sale under the lawful front-desk
+-- claim (BUY-013), so the command generates and returns the order and
+-- payment ids; they are captured here for the component pins.
+create temp table h83_addon_sale(order_id uuid, payment_id uuid, initial_session_id uuid, replayed boolean);
+grant select, insert on pg_temp.h83_addon_sale to authenticated;
 
 insert into public.refunds(id, tenant_id, payment_id, kind, amount_paise, currency, status, reason, initiated_by_staff_id, processed_at, created_at) values
   -- r101 completed in-range return of f2 (newMember receipt).
@@ -270,90 +272,56 @@ begin
   exception when others then
     insert into h83_seed_errors values ('class_bookings: ' || SQLERRM);
   end;
-  -- Direction (b), coordinator-approved: the addon staging runs in ONE
-  -- transaction with no inner begin/exception wrapper — an addon trigger
-  -- error aborts the run loudly (never swallowed into h83_seed_errors),
-  -- and the payment IS visible to the addon trigger's invoker read at the
-  -- acceptance UPDATE, so the exact-buy guard sees what it needs.
+  -- Direction (b), coordinator-approved: the addon staging runs with no
+  -- exception wrapper around the sale itself — a trigger or command refusal
+  -- aborts the run loudly (never swallowed into h83_seed_errors), so a
+  -- broken chain can never fail silently green.
   begin
     -- Role re-set immediately before the offer staging: the fixtures run as
     -- postgres (row_security_active false), so RLS-gated guard clauses skip;
     -- unconditional offer-match conjuncts are satisfied by exact mirroring.
-    set local role postgres;
-    -- Lawful exact-buy staging per the phase6 ownsale guard: the order
-    -- mirrors a dedicated on-clock payment (same member, exact total, same
-    -- currency INR, paid with paid_at, no membership/mandate/coupon/
-    -- provider, recorded_by = sold_by) and the payment's idempotency key is
-    -- exactly 'addon-sale:' || the order's key. The USD payment …f4 keeps
-    -- its per-currency pin and is NOT the order's payment.
+    -- The offer itself stays a guarded fixture insert (a real-table shape
+    -- this blind author does not guess): any mismatch lands in
+    -- h83_seed_errors and the staging-health assertion fails loudly.
     -- A listable product offer carries complete disclosed terms: non-blank
     -- description and cancellation_terms and validity_days > 0 (the same
-    -- completeness checks record_addon_sale applies to active offers).
+    -- completeness checks record_addon_sale applies to active offers), INR
+    -- (the offer guard is INR-only), stock tracked, no PT fields.
     insert into public.addon_products(id, tenant_id, kind, name, description, price_paise, currency, gst_rate_bp, stock_quantity, validity_days, cancellation_terms, quote_version, is_active)
       values ('83900000-0000-4000-8000-0000000000ae','83900000-0000-4000-8000-000000000001','product','H83 Towel Pass','H83 towel service for the analytics cohort',25000,'INR',0,10,30,'Non-refundable; usable for 30 days from sale.','83900000-0000-4000-8000-0000000000af',true);
-    insert into public.payments(id, tenant_id, member_id, membership_id, amount_paise, currency, status, method, receipt_number, recorded_by_staff_id, idempotency_key, notes, paid_at, created_at)
-      values ('83900000-0000-4000-8000-0000000000ac','83900000-0000-4000-8000-000000000001','83900000-0000-4000-8000-0000000000b3',null,25000,'INR','paid','cash','H83-RAC','83900000-0000-4000-8000-0000000000a3','addon-sale:83900000-0000-4000-8000-0000000000b0','H83 analytics staging', now() - interval '40 minutes', now() - interval '40 minutes');
 
   exception when others then
     declare v_ctx text; v_detail text;
     begin
       get stacked diagnostics v_ctx = pg_exception_context, v_detail = pg_exception_detail;
-      insert into h83_seed_errors values ('addon_offer/payment staging: ' || SQLERRM || ' ctx=' || v_ctx || ' detail=' || v_detail);
+      insert into h83_seed_errors values ('addon_offer staging: ' || SQLERRM || ' ctx=' || v_ctx || ' detail=' || v_detail);
     end;
   end;
-  -- Block 2: the order staging runs in its OWN subtransaction, so a guard
-  -- refusal here can no longer roll the committed offer and payment back.
+  -- Block 2: the sale itself runs through the PRODUCTION command
+  -- public.record_addon_sale under the lawful front-desk claim (BUY-013:
+  -- the real authenticated staff caller records the order, the payment and
+  -- the acceptance in one command, so the exact-buy guard reads the payment
+  -- the command itself created — the pending->paid matrix cannot refuse it).
+  -- The command's payment insert runs under RLS, where app.stamp_payment()
+  -- stamps paid_at on the paying write, so the sale's receipt is a dated,
+  -- in-range arrival exactly the way the desk's production session records
+  -- it. No inner exception wrapper: a refusal aborts the run loudly.
   begin
-    -- A keyed sale begins pending with complete frozen evidence: snapshot
-    -- exactly six keys matching the product (trainerQualification explicit
-    -- jsonb null because the product carries none), request exactly nine keys
-    -- with numeric quantity and the product's quote_version; the uid-shaped
-    -- key satisfies the guard's key regex.
-    -- A pending sale carries NO payment link yet: the frozen-terms guard
-    -- arms once payment_id is set, and the acceptance UPDATE is what links
-    -- the payment while the row is still pending and unpaid.
-    insert into public.addon_orders(id, tenant_id, member_id, addon_product_id, status, quantity, unit_price_paise, total_paise, currency, idempotency_key, sold_by_staff_id, sale_snapshot, sale_request)
-      values ('83900000-0000-4000-8000-0000000000ad','83900000-0000-4000-8000-000000000001','83900000-0000-4000-8000-0000000000b3','83900000-0000-4000-8000-0000000000ae','pending',1,25000,25000,'INR','83900000-0000-4000-8000-0000000000b0','83900000-0000-4000-8000-0000000000a3',
-        -- The snapshot derives FROM the live product row at insert time, so
-        -- it mirrors every guarded field exactly (including trainer_
-        -- qualification as the row actually carries it — jsonb null when the
-        -- column is SQL NULL).
-        (select jsonb_build_object('kind',p.kind,'name',p.name,'description',p.description,'cancellationTerms',p.cancellation_terms,'validityDays',p.validity_days,'trainerQualification',p.trainer_qualification)
-           from public.addon_products p
-          where p.tenant_id = '83900000-0000-4000-8000-000000000001' and p.id = '83900000-0000-4000-8000-0000000000ae'),
-        jsonb_build_object('memberId','83900000-0000-4000-8000-0000000000b3','productId','83900000-0000-4000-8000-0000000000ae','quantity',1,'quoteVersion',(select p.quote_version::text from public.addon_products p where p.tenant_id = '83900000-0000-4000-8000-000000000001' and p.id = '83900000-0000-4000-8000-0000000000ae'),'trainerStaffId',null,'initialStartsAt',null,'initialEndsAt',null,'method','cash','reason','H83 analytics staging'));
-    -- The pending->paid acceptance derives the gym-local validity window from
-    -- the acceptance instant: starts_on = sold date, expires_on = +29 days.
-    -- The acceptance UPDATE carries the acceptance instant and derives the
-    -- gym-local validity window from THAT SAME instant (the guard computes
-    -- v_expected_start := new.sold_at at gym zone ::date and
-    -- v_expected_end := starts_on + validityDays - 1; now() is
-    -- transaction-stable, so the three expressions agree exactly).
-    -- PAYCHECK diagnostic: stage the payment's live values ahead of the
-    -- acceptance UPDATE so the staging-health text names any mismatching
-    -- exact-buy guard column.
-    insert into h83_seed_errors values ('PAYCHECK: member='||(select member_id::text from public.payments where id='83900000-0000-4000-8000-0000000000ac')||' amt='||(select amount_paise::text from public.payments where id='83900000-0000-4000-8000-0000000000ac')||' cur='||(select currency from public.payments where id='83900000-0000-4000-8000-0000000000ac')||' status='||(select status from public.payments where id='83900000-0000-4000-8000-0000000000ac')||' paid_at='||(select coalesce(paid_at::text,'NULL') from public.payments where id='83900000-0000-4000-8000-0000000000ac')||' idemp='||(select coalesce(idempotency_key,'NULL') from public.payments where id='83900000-0000-4000-8000-0000000000ac')||' recby='||(select coalesce(recorded_by_staff_id::text,'NULL') from public.payments where id='83900000-0000-4000-8000-0000000000ac')||' memb_id='||(select coalesce(membership_id::text,'NULL') from public.payments where id='83900000-0000-4000-8000-0000000000ac')||' mandate='||(select coalesce(mandate_id::text,'NULL') from public.payments where id='83900000-0000-4000-8000-0000000000ac')||' coupon='||(select coalesce(coupon_id::text,'NULL') from public.payments where id='83900000-0000-4000-8000-0000000000ac')||' provider='||(select coalesce(provider,'NULL')||'/'||coalesce(provider_order_id,'NULL')||'/'||coalesce(provider_payment_id,'NULL') from public.payments where id='83900000-0000-4000-8000-0000000000ac'));
-    -- The acceptance UPDATE runs as the production desk actor (BUY-013: the
-    -- recording call is the real authenticated staff caller), so the addon
-    -- trigger's invoker read sees the payment under the staff RLS the way
-    -- production's desk session does.
     set local role authenticated;
     perform set_config('request.jwt.claims','{"sub":"83900000-0000-4000-8000-0000000000a3","role":"authenticated","app_role":"front_desk","staff_id":"83900000-0000-4000-8000-0000000000a3","tenant_id":"83900000-0000-4000-8000-000000000001"}',true);
-    update public.addon_orders
-      set status = 'paid',
-          payment_id = '83900000-0000-4000-8000-0000000000ac',
-          sold_at = now(),
-          starts_on = (now() at time zone 'Asia/Kolkata')::date,
-          expires_on = (now() at time zone 'Asia/Kolkata')::date + 29
-      where id = '83900000-0000-4000-8000-0000000000ad';
-    -- Restore the fixture's postgres session for the remaining staging.
+    insert into h83_addon_sale
+      select * from public.record_addon_sale(
+        '83900000-0000-4000-8000-0000000000b3',
+        '83900000-0000-4000-8000-0000000000ae',
+        1,
+        (select quote_version from public.addon_products where id = '83900000-0000-4000-8000-0000000000ae'),
+        null, null, null,
+        'cash',
+        'H83 analytics staging',
+        '83900000-0000-4000-8000-0000000000b0');
     set local role postgres;
     perform set_config('request.jwt.claims','',true);
   end;
-  -- Unconditional post-block probe: reads the payments row's committed
-  -- state after the addon staging (ABSENT if the block rolled back), so the
-  -- staging-health text names any exact-buy divergence directly.
-  insert into h83_seed_errors values ('PAYCHECK-POST '||coalesce((select jsonb_build_object('id',id,'status',status,'amount',amount_paise,'currency',currency,'member',member_id,'paid_at',paid_at::text,'idempotency_key',idempotency_key,'recby',recorded_by_staff_id::text,'memb',membership_id::text,'mandate',mandate_id::text,'coupon',coupon_id::text,'prov',provider,'provoid',provider_order_id,'provpay',provider_payment_id)::text from public.payments where id='83900000-0000-4000-8000-0000000000ac'),'ABSENT'));
 end $seed$;
 
 select ok((select count(*) from h83_seed_errors) = 0,
@@ -542,10 +510,24 @@ select is(pg_temp.cell(pg_temp.branch(pg_temp.snap('hol')->'heatmap'->'branches'
 -- ---------------------------------------------------------------------------
 -- Section F: money, months, classification, warnings (OCC-009..013).
 -- ---------------------------------------------------------------------------
-select is((select count(*) from jsonb_array_elements(pg_temp.snap('main')->'collection'->'components'->'collected'))::bigint,5::bigint,'exactly the five dated in-range arrived receipts are returned');
+-- Pin amendment (repair 2026-10-05, mis-derivation fix): the five-component
+-- count/array below PREDATE the add-on staging rounds (git -S: the
+-- "five dated in-range arrived receipts" text landed in bac847b8, before any
+-- add-on payment existed) and were never reconciled with the amended money
+-- pins (7d08ad45) that require the add-on sale's 25000 INR inside the main
+-- collection. Those money pins can only hold if the sale's payment is a
+-- dated in-range receipt — and the contract (OCC-012, the applied
+-- implementation's pay_cls/receipts, and the visible suite's identical
+-- component pins, where the add-on-linked receipt 703 IS a collected
+-- component) makes every dated in-range receipt a collected component. So
+-- the production-recorded add-on sale must appear here: SIX components, the
+-- command-created payment last (its stamped arrival is the most recent
+-- event instant). The label keeps its contract meaning: exactly the dated
+-- in-range arrived receipts are returned, nothing more.
+select is((select count(*) from jsonb_array_elements(pg_temp.snap('main')->'collection'->'components'->'collected'))::bigint,6::bigint,'exactly the six dated in-range arrived receipts are returned');
 select is((select array_agg(v->>'paymentId' order by ord) from (select v, ord from jsonb_array_elements(pg_temp.snap('main')->'collection'->'components'->'collected') with ordinality as t(v,ord)) s),
-          array['83900000-0000-4000-8000-0000000000fb','83900000-0000-4000-8000-0000000000f1','83900000-0000-4000-8000-0000000000f3','83900000-0000-4000-8000-0000000000f2','83900000-0000-4000-8000-0000000000f4'],
-          'receipt components are sorted by event instant then id');
+          array['83900000-0000-4000-8000-0000000000fb','83900000-0000-4000-8000-0000000000f1','83900000-0000-4000-8000-0000000000f3','83900000-0000-4000-8000-0000000000f2','83900000-0000-4000-8000-0000000000f4',(select payment_id::text from h83_addon_sale)],
+          'receipt components are sorted by event instant then id (the production add-on sale receipt is the most recent arrival)');
 select is(pg_temp.pay(pg_temp.snap('main')->'collection'->'components'->'collected','83900000-0000-4000-8000-0000000000f1')->>'category','renewal','a payment on the member''s later membership row classifies renewal');
 select is(pg_temp.pay(pg_temp.snap('main')->'collection'->'components'->'collected','83900000-0000-4000-8000-0000000000f1')->'membershipEvidence'->>'hasEarlierMembership','true','the renewal receipt discloses its earlier-membership evidence');
 select ok(pg_temp.pay(pg_temp.snap('main')->'collection'->'components'->'collected','83900000-0000-4000-8000-0000000000f2')->>'category' = 'newMember'

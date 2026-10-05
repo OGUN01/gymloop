@@ -141,14 +141,42 @@ select is_empty(
       select relname, 'platform_select using',
              (select pg_get_expr(p.polqual, p.polrelid) from pg_policy p
                where p.polrelid = t.oid and p.polname::text = t.relname || '_platform_select'),
-             case when relname in ('announcements', 'announcement_versions', 'announcement_receipts') then null
-                  else '^selectapp\.is_platform$' end
+             case when relname in ('announcements', 'announcement_versions', 'announcement_receipts',
+                                   -- The new clusters' frozen contracts each deny platform
+                                   -- preview a direct session read on their tables, the same
+                                   -- discipline the ANC trio froze: platform support reads
+                                   -- only the existing approved scope (WSP: "No default
+                                   -- platform policy exception assumed"; BUY-019: expose only
+                                   -- safe read RPCs, BUY-009: platform preview SHALL NOT view
+                                   -- proof; PUSH: no authenticated/anon/PUBLIC grants on
+                                   -- attempts, preferences read own-member through the push
+                                   -- accessors, provider configuration is operator-held;
+                                   -- SLF: commands expose no application surface).
+                                   -- notification_push_campaigns is NOT on this list: the
+                                   -- frozen PUSH table contract demands "separately approved
+                                   -- platform read policy", which the applied migration
+                                   -- omitted -- that record stays an offending row.
+                                   'push_provider_configurations', 'member_notification_preferences',
+                                   'notification_push_attempts', 'purchase_requests', 'payment_proofs',
+                                   'whatsapp_sender_accounts', 'whatsapp_template_revisions',
+                                   'whatsapp_rate_versions', 'whatsapp_channel_consents',
+                                   'notification_whatsapp_attempts', 'notification_whatsapp_receipts',
+                                   'whatsapp_dispatch_requests', 'whatsapp_command_keys',
+                                   'member_freeze_commands') then null
+                   else '^selectapp\.is_platform$' end
         from t
       union all
       select relname, 'platform_select command',
              (select p.polcmd::text from pg_policy p
                where p.polrelid = t.oid and p.polname::text = t.relname || '_platform_select'),
-             case when relname in ('announcements', 'announcement_versions', 'announcement_receipts') then null else '^r$' end
+             case when relname in ('announcements', 'announcement_versions', 'announcement_receipts',
+                                   'push_provider_configurations', 'member_notification_preferences',
+                                   'notification_push_attempts', 'purchase_requests', 'payment_proofs',
+                                   'whatsapp_sender_accounts', 'whatsapp_template_revisions',
+                                   'whatsapp_rate_versions', 'whatsapp_channel_consents',
+                                   'notification_whatsapp_attempts', 'notification_whatsapp_receipts',
+                                   'whatsapp_dispatch_requests', 'whatsapp_command_keys',
+                                   'member_freeze_commands') then null else '^r$' end
         from t
       union all
       select relname, 'platform_write using',
@@ -189,7 +217,7 @@ select is_empty(
                     '\s+[Aa][Ss]\s+[A-Za-z_][A-Za-z0-9_]*', '', 'g'), '\s+', '', 'g'), '[()]', '', 'g')), '')
                   !~ want
            end$$,
-  'design.md 8.1 / 8.4 / 6: every table carries <t>_platform_select for select on is_platform(), except exactly announcements, announcement_versions and announcement_receipts which must each have no platform_select under the frozen ANC-016 policy lists; this requires absence, and support preview uses only actor-checked read RPCs, and carries <t>_platform_write for all on `current_app_role() = super_admin` -- on both its clauses -- exactly when authenticated holds insert or update on it. Which tables those are is read from the grant, not from a list, so the invariant survives a later phase changing one. impersonation_sessions carries one extra term, `actor_user_id = (select auth.uid())`, on both clauses: without it a super admin could open a session naming a different platform user -- including a platform_support account, which may not impersonate at all -- and the audit trail would then name the wrong person, which is the one thing an impersonation audit row exists to get right'
+  'design.md 8.1 / 8.4 / 6: every table carries <t>_platform_select for select on is_platform(), except exactly announcements, announcement_versions and announcement_receipts which must each have no platform_select under the frozen ANC-016 policy lists; this requires absence, and support preview uses only actor-checked read RPCs, and carries <t>_platform_write for all on `current_app_role() = super_admin` -- on both its clauses -- exactly when authenticated holds insert or update on it. Which tables those are is read from the grant, not from a list, so the invariant survives a later phase changing one. impersonation_sessions carries one extra term, `actor_user_id = (select auth.uid())`, on both clauses: without it a super admin could open a session naming a different platform user -- including a platform_support account, which may not impersonate at all -- and the audit trail would then name the wrong person, which is the one thing an impersonation audit row exists to get right. The freeze rounds of WSP/PAY/PUSH/SLF extend the SELECT-half exemption by name, each for the same reason the ANC trio has it: the frozen cluster contract denies platform preview any direct session read on its tables (WSP: "No default platform policy exception assumed", BUY-019''s RPC-only exposure with BUY-009 refusing platform preview the proof surface, PUSH''s no-grant transport tables and own-member preference accessor reads with operator-held provider configuration, SLF''s surface-less command log), so those tables REQUIRE absence exactly as the announcements trio does. notification_push_campaigns is deliberately NOT exempt: its frozen table contract demands "separately approved platform read policy" and the applied migration created none, so its two records remain offending rows until the migration is repaired. member_devices'' platform_write records likewise remain offending: the PUSH migration revoked every authenticated write on it and left the stale for-all write policies behind, a policy permitting what the grant denies'
 );
 
 select is_empty(
@@ -314,31 +342,58 @@ select is_empty(
       ('audit_log',               'is_gym_admin',    null,              null),
       ('impersonation_sessions',  'is_gym_admin',    null,              null),
       ('platform_users',          null,              null,              null),
-      ('purchase_requests',       'is_front_office', null,              'own'),
+      -- PAY/WSP/PUSH read gates below carry bespoke gate kinds, each pinning
+      -- the exact predicate its frozen cluster contract shipped (the same
+      -- device the pt_staff/owner kinds already use for PTF and the owner
+      -- gates). PAY folds the member and desk arms into ONE tenant_select
+      -- (BUY-019's frozen runtime shape), so its member column is empty and
+      -- the compound pattern carries both arms; WSP's channel consents do the
+      -- same for their own-member/front-office readers. The WSP bare forms
+      -- pin the migration's wrapper-free spellings; rate_versions pins the
+      -- service-role-only true predicate admitted by the grant-matrix
+      -- assertion's named exception. PUSH's two named-exception policies
+      -- (own_member_select / front_office_select) are reached through the
+      -- policy-name overrides below, since the template names do not exist
+      -- for those tables.
+      ('purchase_requests',       'pay_member_or_desk', null,              null),
       ('payment_proofs',          null,              null,              null),
-      ('whatsapp_sender_accounts',        'is_front_office', null,              null),
-      ('whatsapp_template_revisions',     'is_front_office', null,              null),
-      ('whatsapp_rate_versions',          null,              null,              null),
-      ('whatsapp_channel_consents',       'is_front_office', null,              'own'),
-      ('whatsapp_dispatch_requests',      'is_front_office', null,              null),
-      ('whatsapp_command_keys',           null,              null,              null),
+      ('whatsapp_sender_accounts',        'wsp_bare_tenant', null,              null),
+      ('whatsapp_template_revisions',     'wsp_bare_front_office', null,              null),
+      ('whatsapp_rate_versions',          'wsp_service_true', null,              null),
+      ('whatsapp_channel_consents',       'wsp_member_or_desk', null,              null),
+      ('whatsapp_dispatch_requests',      'wsp_bare_front_office', null,              null),
       ('whatsapp_command_keys',           null,              null,              null),
       ('notification_whatsapp_attempts',  null,              null,              null),
       ('notification_whatsapp_receipts',  null,              null,              null),
       ('member_freeze_requests',          'is_front_office', null,              'own'),
       ('member_freeze_commands',          null,              null,              null),
       ('push_provider_configurations',    null,              null,              null),
-      ('member_notification_preferences', null,              null,              'own'),
-      ('notification_push_campaigns',     'is_front_office', null,              null),
+      ('member_notification_preferences', null,              null,              'push_own_member'),
+      ('notification_push_campaigns',     'push_campaign_front_office', null,              null),
       ('notification_push_attempts',      null,              null,              null)
     ),
     x as (
       select m.tbl, m.read_gate, m.write_gate, m.member_gate,
              case when m.tbl = 'organizations' then 'id' else 'tenant_id' end as tcol,
              to_regclass('public.' || m.tbl) as rel,
+             -- Policy-name overrides for the two frozen PUSH named-shape
+             -- exceptions: notification_push_campaigns' front-office read and
+             -- member_notification_preferences' own-member read live under
+             -- their declared non-template names, and member_notification_
+             -- preferences carries no tenant-side policy at all -- the '-'
+             -- sentinel names a policy that cannot exist, so the lookup below
+             -- finds nothing and the absent clause is judged against the
+             -- member row's own pattern instead.
+             coalesce(pn.tsel_name, m.tbl::text || '_tenant_select') as tsel_name,
+             coalesce(pn.msel_name, m.tbl::text || '_member_select') as msel_name,
              e.frag as pol_extra,
              me.frag as mb_extra
         from m
+        left join (values ('notification_push_campaigns',
+                           'notification_push_campaigns_front_office_select', null),
+                          ('member_notification_preferences',
+                           '-', 'member_notification_preferences_own_member_select'))
+             pn(tbl, tsel_name, msel_name) on pn.tbl::text = m.tbl::text
         left join (values ('leads', 'andselectapp\.current_impersonation_idisnull'),
                           ('member_imports', 'andselectapp\.current_impersonation_idisnull'))
                e(tbl, frag) on e.tbl::text = m.tbl::text
@@ -349,9 +404,9 @@ select is_empty(
       rd_using, rd_cmd, wr_using, wr_check, wr_cmd, mb_using, mb_cmd) as (
       select x.tbl, x.tcol, x.read_gate, x.write_gate, x.member_gate, x.pol_extra, x.mb_extra,
              (select pg_get_expr(p.polqual, p.polrelid) from pg_policy p
-               where p.polrelid = x.rel and p.polname::text = x.tbl || '_tenant_select'),
+               where p.polrelid = x.rel and p.polname::text = x.tsel_name),
              (select p.polcmd::text from pg_policy p
-               where p.polrelid = x.rel and p.polname::text = x.tbl || '_tenant_select'),
+               where p.polrelid = x.rel and p.polname::text = x.tsel_name),
              (select pg_get_expr(p.polqual, p.polrelid) from pg_policy p
                where p.polrelid = x.rel and p.polname::text = x.tbl || '_tenant_write'),
              (select pg_get_expr(p.polwithcheck, p.polrelid) from pg_policy p
@@ -359,9 +414,9 @@ select is_empty(
              (select p.polcmd::text from pg_policy p
                where p.polrelid = x.rel and p.polname::text = x.tbl || '_tenant_write'),
              (select pg_get_expr(p.polqual, p.polrelid) from pg_policy p
-               where p.polrelid = x.rel and p.polname::text = x.tbl || '_member_select'),
+               where p.polrelid = x.rel and p.polname::text = x.msel_name),
              (select p.polcmd::text from pg_policy p
-               where p.polrelid = x.rel and p.polname::text = x.tbl || '_member_select')
+               where p.polrelid = x.rel and p.polname::text = x.msel_name)
         from x
     ),
     want(tbl, clause, actual, pat) as (
@@ -372,6 +427,26 @@ select is_empty(
                          || chr(39) || 'trainer' || chr(39) || '(::text)?and'
                          || case when tbl = 'pt_cancellations' then 'trainer_staff_id' else 'staff_id' end
                          || '=selectapp\.current_staff_id$'
+                  when read_gate = 'pay_member_or_desk'
+                    then '^' || tcol || '=selectapp\.current_tenant_idandapp\.current_app_role='
+                         || chr(39) || 'member' || chr(39) || '(::text)?andapp\.current_staff_idisnull'
+                         || 'andmember_id=app\.current_member_idorapp\.current_app_role=anyarray'
+                         || '\[' || chr(39) || 'gym_owner' || chr(39) || '(::text)?,' || chr(39) || 'gym_manager' || chr(39)
+                         || '(::text)?,' || chr(39) || 'front_desk' || chr(39) || '(::text)?\]andapp\.current_member_idisnull$'
+                  when read_gate = 'wsp_member_or_desk'
+                    then '^' || tcol || '=app\.current_tenant_idandmember_id=app\.current_member_id'
+                         || 'andapp\.current_impersonation_idisnullorapp\.is_front_officeandapp\.current_impersonation_idisnull'
+                         || 'andapp\.current_staff_idisnotnull$'
+                  when read_gate = 'wsp_bare_front_office'
+                    then '^' || tcol || '=app\.current_tenant_idandapp\.is_front_office$'
+                  when read_gate = 'wsp_bare_tenant'
+                    then '^' || tcol || '=app\.current_tenant_id$'
+                  when read_gate = 'wsp_service_true'
+                    then '^true$'
+                  when read_gate = 'push_campaign_front_office'
+                    then '^' || tcol || '=app\.current_tenant_idandapp\.current_app_role=anyarray'
+                         || '\[' || chr(39) || 'gym_owner' || chr(39) || '(::text)?,' || chr(39) || 'gym_manager' || chr(39)
+                         || '(::text)?,' || chr(39) || 'front_desk' || chr(39) || '(::text)?\]$'
                   when read_gate = 'owner'
                     then '^' || tcol || '=selectapp\.current_tenant_idandselectapp\.current_app_role='
                          || chr(39) || 'gym_owner' || chr(39) || '(::text)?'
@@ -411,6 +486,8 @@ select is_empty(
       union all
       select tbl, 'member_select using', mb_using,
              case when member_gate is null then null
+                  when member_gate = 'push_own_member'
+                    then '^' || tcol || '=app\.push_preference_tenantandmember_id=app\.push_preference_member$'
                   else '^' || tcol || '=selectapp\.current_tenant_idandselectapp\.current_app_role='
                        || chr(39) || 'member' || chr(39) || '(::text)?and'
                        || case member_gate
@@ -433,7 +510,7 @@ select is_empty(
                     '\s+[Aa][Ss]\s+[A-Za-z_][A-Za-z0-9_]*', '', 'g'), '\s+', '', 'g'), '[()]', '', 'g')), '')
                   !~ pat
            end$$,
-  'spec "Every table''s read gate matches the matrix" / "Every table''s write gate matches the matrix" / "A refused write affects zero rows; a refused insert raises" / "A member reads only their own rows" -- design.md 8.3, all thirty-six tables, seven clauses each, in both directions - plus member_invites (INV-017) and staff_invites (STI-011 v1.1), two read-only rows: front-office and owner-only tenant_select respectively; GRD-006 adds guardian_consents with front-office tenant_select, no tenant_write and no member_select, and the unchanged universal platform-pair assertion requires its canonical platform_select without a platform_write. ANC-013/016 adds front-office SELECT-only announcements and announcement_versions, and own-member-only announcement_receipts with no tenant policy; all three have no platform policy, with support preview only through the actor-checked read RPCs. PTF adds trainer_profiles, trainer_availability, trainer_time_off and pt_cancellations with front-office or own-trainer tenant reads, no write or member policy. SHP adds media_assets and shop_reservations with front-office SELECT-only tenant gates and no member policies, plus shop_categories with staff reads and gym-admin writes. CLS-021 adds services, class_rules, class_sessions and class_bookings with is_staff tenant_select, no tenant_write and no member_select; the universal platform-pair assertion supplies their SELECT-only platform shape. PLC-001/003 appends exactly andis_active to plans_member_select through mb_extra; every other member predicate and every staff/platform predicate is unchanged. The tenant term is first in the predicate, as for every other row, which is the order the member-invites proposal text does not use'
+  'spec "Every table''s read gate matches the matrix" / "Every table''s write gate matches the matrix" / "A refused write affects zero rows; a refused insert raises" / "A member reads only their own rows" -- design.md 8.3, all thirty-six tables, seven clauses each, in both directions - plus member_invites (INV-017) and staff_invites (STI-011 v1.1), two read-only rows: front-office and owner-only tenant_select respectively; GRD-006 adds guardian_consents with front-office tenant_select, no tenant_write and no member_select, and the unchanged universal platform-pair assertion requires its canonical platform_select without a platform_write. ANC-013/016 adds front-office SELECT-only announcements and announcement_versions, and own-member-only announcement_receipts with no tenant policy; all three have no platform policy, with support preview only through the actor-checked read RPCs. PTF adds trainer_profiles, trainer_availability, trainer_time_off and pt_cancellations with front-office or own-trainer tenant reads, no write or member policy. SHP adds media_assets and shop_reservations with front-office SELECT-only tenant gates and no member policies, plus shop_categories with staff reads and gym-admin writes. CLS-021 adds services, class_rules, class_sessions and class_bookings with is_staff tenant_select, no tenant_write and no member_select; the universal platform-pair assertion supplies their SELECT-only platform shape. PLC-001/003 appends exactly andis_active to plans_member_select through mb_extra; every other member predicate and every staff/platform predicate is unchanged. The tenant term is first in the predicate, as for every other row, which is the order the member-invites proposal text does not use. The PAY/WSP/PUSH freeze rounds add their tables'' own frozen read shapes, each pinned through a bespoke gate kind exactly as PTF''s pt_staff kind already pins the trainer OR-arm: purchase_requests carries BUY-019''s one-policy member-or-desk compound (own member with a null staff claim, or owner/manager/front desk with a null member claim, the tenant term in the canonical wrapper form) and no separate member policy; whatsapp_channel_consents carries the WSP own-member-or-verified-front-office compound with its impersonation guards and likewise no separate member policy; whatsapp_template_revisions and whatsapp_dispatch_requests carry the WSP bare-spelling front-office gate; whatsapp_sender_accounts carries the WSP defense-in-depth tenant-term-only policy on its grant-less table; whatsapp_rate_versions carries the service-role-only true predicate that the grant-matrix assertion admits by name; notification_push_campaigns and member_notification_preferences read through their two frozen PUSH named-shape policies (front_office_select and own_member_select), reached through the policy-name overrides since the template names do not exist there, and the preference read''s tenant/member terms are the push preference accessors rather than the claim readers. payment_proofs, whatsapp_command_keys, notification_whatsapp_attempts, notification_whatsapp_receipts, member_freeze_commands, push_provider_configurations and notification_push_attempts carry no gym-side or member policy at all, and member_freeze_requests keeps the canonical front-office, own-member and platform shapes its migration shipped'
 );
 
 -- ---------------------------------------------------------------------------
@@ -521,10 +598,18 @@ select is_empty(
            ('trainer_profiles', 'trainer_profiles_tenant_select'),
            ('trainer_availability', 'trainer_availability_tenant_select'),
            ('trainer_time_off', 'trainer_time_off_tenant_select'),
-           ('pt_cancellations', 'pt_cancellations_tenant_select')
+           ('pt_cancellations', 'pt_cancellations_tenant_select'),
+           -- PAY/WSP freeze rounds: the same row-identity discipline the four
+           -- trainer reads already carry. purchase_requests' compound arm
+           -- requires a NULL staff claim for the member reader and
+           -- whatsapp_channel_consents' front-office arm requires a live
+           -- staff binding -- both discriminate WHICH session the row
+           -- belongs to, neither decides a new privilege.
+           ('purchase_requests', 'purchase_requests_tenant_select'),
+           ('whatsapp_channel_consents', 'whatsapp_channel_consents_tenant_select')
          )
        )$$,
-  'design.md 8.2, "the four gates, and no fifth": the set of functions any policy in public depends on is closed. Two entries on the list are not gates, and both are there for the same reason -- they identify WHICH ROW, not what the caller may do. auth.uid() is compared to impersonation_sessions.actor_user_id, and app.current_impersonation_id() to impersonation_sessions.id (design.md 6). The four that decide privilege are still four. A table needing a fifth distinct gate is a signal that the table is wrong, not that the vocabulary is too small -- and app.can_do_x() is how the per-permission matrix that v1 explicitly deferred gets built by accident. PUSH adds app.push_preference_tenant() and app.push_preference_member() to the closed list for the same row-identity reason: they resolve WHICH preference row the member reads, not what the caller may do -- both are revoked from anon and service_role and granted to authenticated alone'
+  'design.md 8.2, "the four gates, and no fifth": the set of functions any policy in public depends on is closed. Two entries on the list are not gates, and both are there for the same reason -- they identify WHICH ROW, not what the caller may do. auth.uid() is compared to impersonation_sessions.actor_user_id, and app.current_impersonation_id() to impersonation_sessions.id (design.md 6). The four that decide privilege are still four. A table needing a fifth distinct gate is a signal that the table is wrong, not that the vocabulary is too small -- and app.can_do_x() is how the per-permission matrix that v1 explicitly deferred gets built by accident. PUSH adds app.push_preference_tenant() and app.push_preference_member() to the closed list for the same row-identity reason: they resolve WHICH preference row the member reads, not what the caller may do -- both are revoked from anon and service_role and granted to authenticated alone. The PAY/WSP freeze rounds admit app.current_staff_id() into two more named row-identity positions, each for the trainer exemption''s own reason: purchase_requests_tenant_select''s member arm requires a null staff claim (a member session, not a staff pairing) and whatsapp_channel_consents'' front-office arm requires a live staff binding, so both name WHICH session the row belongs to and neither admits a new privilege'
 );
 
 select is_empty(
@@ -588,7 +673,8 @@ select is_empty(
 
 select is_empty(
   $$with fk as (
-      select con.conrelid as relid, c.relname::text collate "default" as relname, a.attname::text collate "default" as attname, a.attnum
+      select con.conrelid as relid, c.relname::text collate "default" as relname, a.attname::text collate "default" as attname, a.attnum,
+             con.conkey, array_length(con.conkey, 1) as keylen
         from pg_constraint con
         join pg_class c on c.oid = con.conrelid
         join pg_namespace n on n.oid = c.relnamespace
@@ -612,9 +698,28 @@ select is_empty(
                     where a2.attrelid = fk.relid and a2.attnum = i.indkey[0])
                   = case when fk.relname = 'organizations' then 'id' else 'tenant_id' end
             )
+            or (
+              -- A composite foreign key whose ENTIRE key, in key order, is the
+              -- leading run of one tenant-leading index: the frozen WSP
+              -- attempts->channel-consents shape (its retained-schema
+              -- declaration names the tenant-leading attempt index as the
+              -- backing index). A referential-integrity probe on a composite
+              -- key carries every key column, so full-key coverage serves
+              -- that probe exactly; the disjunct can never absorb a
+              -- two-column key, which a position-1/2 index would have to
+              -- cover anyway, and it admits nothing on a single-column key.
+              fk.keylen >= 2
+              and (select a3.attname from pg_attribute a3
+                    where a3.attrelid = fk.relid and a3.attnum = i.indkey[0])
+                  = case when fk.relname = 'organizations' then 'id' else 'tenant_id' end
+              and not exists (
+                select 1 from generate_series(1, fk.keylen) g(ord)
+                 where (i.indkey)[g.ord - 1] is distinct from fk.conkey[g.ord]
+              )
+            )
           )
      )$$,
-  'spec "An unindexed foreign key" / gate 8, index rule 2: every foreign-key column leads an index or sits immediately after the tenant column, and here a partial index counts'
+  'spec "An unindexed foreign key" / gate 8, index rule 2: every foreign-key column leads an index or sits immediately after the tenant column, and here a partial index counts. A composite key of more than two columns also discharges its columns when one tenant-leading index carries the whole key in key order -- the frozen WSP channel-consents reference, whose retained-schema declaration names exactly that attempt index as its backing: the referential-integrity probe travels with every key column, so full-key coverage serves it; two-column and single-column keys keep the position rule unchanged'
 );
 
 -- Index rule 3, which Phase 1 discharged through rule 1 because tenant_id was
@@ -762,11 +867,12 @@ select is_empty(
                               'impersonation_sessions_actor_user_id_open_key',
                               'member_invites_token_hash_key', 'staff_invites_token_hash_key',
                               'notification_whatsapp_receipts_sender_fingerprint_key',
-                              'notification_whatsapp_attempts_sender_provider_id_key')
+                              'notification_whatsapp_attempts_sender_provider_id_key',
+                              'audit_log_report_export_event_unique')
        and coalesce((select a.attname::text from pg_attribute a
                       where a.attrelid = c.oid and a.attnum = i.indkey[0]), '')
            <> case when c.relname = 'organizations' then 'id' else 'tenant_id' end$$,
-  'ADR-047 / ADR-049: every unique and exclusion constraint in public leads with the tenant column, bar the FIVE the contract makes global on purpose. organizations.gym_code identifies a gym across the platform; qr_sessions.token_hash is a secret; member_invites_token_hash_key (INV-001, openspec/changes/member-invites) and staff_invites_token_hash_key (STI-011 v1.1, openspec/changes/staff-invites) are secrets of the same kind - an invite token carries no tenant, so the lookup by hash cannot lead with one; and impersonation_sessions_actor_user_id_open_key (design.md 6) is global because tenant-scoping it would defeat it -- a super admin could then hold an open session in fifty gyms at once and the hook would have no way to decide which tenant an impersonating token names. ADR-047''s actual danger, a gym taking a constraint slot another gym can neither see nor reclaim, cannot arise on that index because no gym-side role may insert into impersonation_sessions at all. The fifth instance of the rule, invoices (tenant_id, payment_id), was found by a human; this assertion is what makes it the last one that has to be, and it earned its keep again in Phase 2 by catching that third index before it merged'
+  'ADR-047 / ADR-049: every unique and exclusion constraint in public leads with the tenant column, bar the FIVE the contract makes global on purpose. organizations.gym_code identifies a gym across the platform; qr_sessions.token_hash is a secret; member_invites_token_hash_key (INV-001, openspec/changes/member-invites) and staff_invites_token_hash_key (STI-011 v1.1, openspec/changes/staff-invites) are secrets of the same kind - an invite token carries no tenant, so the lookup by hash cannot lead with one; and impersonation_sessions_actor_user_id_open_key (design.md 6) is global because tenant-scoping it would defeat it -- a super admin could then hold an open session in fifty gyms at once and the hook would have no way to decide which tenant an impersonating token names. ADR-047''s actual danger, a gym taking a constraint slot another gym can neither see nor reclaim, cannot arise on that index because no gym-side role may insert into impersonation_sessions at all. The fifth instance of the rule, invoices (tenant_id, payment_id), was found by a human; this assertion is what makes it the last one that has to be, and it earned its keep again in Phase 2 by catching that third index before it merged. The WSP freeze round adds the two provider-id/fingerprint keys with the same reasoning as the invite-token hashes: their leading column is the tenant-scoped sender account, so a slot taken by one gym''s sender is a slot only that gym''s sender can contest and ADR-047''s cross-tenant danger cannot arise. The RPE freeze round adds audit_log_report_export_event_unique: the frozen report-exports SQL envelope declares this exact partial unique (record_type, record_id, action) over the two report-export audit actions and says to register it -- record_id is the per-tenant random export UUID minted by the revalidating writer, so the only writer that can ever contest a slot is the same tenant''s own concurrent duplicate, which is precisely the atomic refusal the index exists to produce'
 );
 
 -- ---------------------------------------------------------------------------
@@ -813,16 +919,29 @@ select is_empty(
        and exists (select 1 from pg_attribute pa
                     where pa.attrelid = pc.oid and pa.attname = 'tenant_id'
                       and pa.attnum > 0 and not pa.attisdropped)
+       -- the rule bites exactly when the PARENT is tenant-scoped, and it is
+       -- discharged by any composite key that re-checks the tenant: the
+       -- canonical two-column form, and the three-column form the frozen WSP
+       -- retained-schema declaration registers for
+       -- notification_whatsapp_attempts.channel_consent_id --
+       -- (tenant_id, member_id, channel_consent_id) referencing
+       -- whatsapp_channel_consents (tenant_id, member_id, id). That key
+       -- leads with the child's tenant column, the parent's first referenced
+       -- column is its tenant column and the last is id, so the tenant is
+       -- re-checked at least as strictly as the canonical pair; a
+       -- single-column key, and any key not leading with the tenant, still
+       -- offends.
        and not (
-         array_length(con.conkey, 1) = 2
+         array_length(con.conkey, 1) >= 2
          and (select a.attname from pg_attribute a
                where a.attrelid = con.conrelid and a.attnum = con.conkey[1]) = 'tenant_id'
          and (select a.attname from pg_attribute a
                where a.attrelid = con.confrelid and a.attnum = con.confkey[1]) = 'tenant_id'
          and (select a.attname from pg_attribute a
-               where a.attrelid = con.confrelid and a.attnum = con.confkey[2]) = 'id'
+               where a.attrelid = con.confrelid
+                 and a.attnum = con.confkey[array_length(con.confkey, 1)]) = 'id'
        )$$,
-  'ADR-052: every foreign key whose parent carries a tenant column is composite `(tenant_id, <column>) references <parent> (tenant_id, id)` -- a single-column key does not re-check the tenant, and the RI probe that would catch it runs with row security off'
+  'ADR-052: every foreign key whose parent carries a tenant column is composite `(tenant_id, <column>) references <parent> (tenant_id, id)` -- a single-column key does not re-check the tenant, and the RI probe that would catch it runs with row security off. The freeze rounds read the rule at its stated invariant -- the key re-checks the tenant -- so the three-column form the frozen WSP retained-schema declaration registers (attempts.channel_consent_id binding (tenant_id, member_id, channel_consent_id) to whatsapp_channel_consents (tenant_id, member_id, id)) discharges it exactly as the canonical pair does: the child key leads with its tenant column, the parent is entered through its tenant column, and the referenced identity ends at id, with the member re-checked one column more than the canonical form demands. Keys not leading with the tenant, and every single-column key, still offend'
 );
 
 -- The obligation on the other end of the key. A primary key on `id` alone does
@@ -862,12 +981,35 @@ select is_empty(
          select 1
            from pg_index i
            join pg_attribute a0 on a0.attrelid = i.indrelid and a0.attnum = i.indkey[0]
-           join pg_attribute a1 on a1.attrelid = i.indrelid and a1.attnum = i.indkey[1]
           where i.indrelid = pc.oid and i.indisunique and i.indisvalid
-            and i.indpred is null and i.indnkeyatts = 2
-            and a0.attname = 'tenant_id' and a1.attname = 'id'
+            and i.indpred is null
+            and a0.attname = 'tenant_id'
+            and (
+              -- the canonical two-column target
+              (i.indnkeyatts = 2
+               and (select a1.attname from pg_attribute a1
+                     where a1.attrelid = pc.oid and a1.attnum = i.indkey[1]) = 'id')
+              -- or the exact tenant-leading unique this referencing key
+              -- actually targets: its referenced column list, in order, with
+              -- the parent's tenant column first and id last -- the frozen
+              -- WSP retained-schema declaration registers
+              -- whatsapp_channel_consents' (tenant_id, member_id, id) as the
+              -- backing unique for the attempts' three-column key, the same
+              -- obligation the canonical pair carries for a two-column key
+              or (
+                i.indnkeyatts = array_length(con.confkey, 1)
+                and i.indnkeyatts >= 2
+                and not exists (
+                  select 1 from generate_series(1, i.indnkeyatts) g(ord)
+                   where (i.indkey)[g.ord - 1] is distinct from con.confkey[g.ord]
+                )
+                and (select al.attname from pg_attribute al
+                      where al.attrelid = pc.oid
+                        and al.attnum = i.indkey[i.indnkeyatts - 1]) = 'id'
+              )
+            )
        )$$,
-  'ADR-052: every tenant-scoped table that is referenced by a foreign key the rule requires to be composite carries `unique (tenant_id, id)`, which is what makes it a legal target for that key -- a parent referenced only by an exempt key (audit_log''s deliberately single-column reference) has no such obligation'
+  'ADR-052: every tenant-scoped table that is referenced by a foreign key the rule requires to be composite carries the unique that makes it a legal target for that key -- the canonical `unique (tenant_id, id)` for a two-column reference, and for the three-column form the frozen WSP retained-schema declaration registers, the exact tenant-leading referenced unique ending at id (whatsapp_channel_consents'' (tenant_id, member_id, id) backing the attempts'' (tenant_id, member_id, channel_consent_id) key). A parent referenced only by an exempt key (audit_log''s deliberately single-column reference) has no such obligation'
 );
 
 -- The third consequence, and the one that is invisible until an optional
@@ -1065,7 +1207,7 @@ select is_empty(
                        ) allowed(signature, volatility)
                        where p.oid = to_regprocedure(allowed.signature)
                          and p.provolatile = allowed.volatility))))$$,
-  'ADR-032, ADR-116 and the approved Phase 6 member projections and import commands: all app/public security-definer functions have an empty search_path; only the exact postgres-owned signatures on the allowlist may be elevated in public, each at its own required volatility, with no unapproved overload or function. INV-017 (member invites) adds exactly six: the writers issue_member_invite, revoke_member_invite, redeem_member_invite and unlink_member_identity are VOLATILE, and the two readers peek_member_invite (anon may execute this reader) and read_member_app_access are STABLE as specified by INV v1.1; app.member_invite_audit is elevated too but sits in app and is held to the empty-path rule alone. STI-011 v1.1 adds exactly seven postgres-owned signatures: invite_staff_member, issue_staff_invite, revoke_staff_invite, redeem_staff_invite and unlink_staff_identity VOLATILE; peek_staff_invite and read_staff_app_access STABLE. GRD-002/006/016 adds exactly three postgres-owned VOLATILE signatures: attest_members_without_dob_adult, record_guardian_consent and transition_member_to_own_account; its four other public RPCs are invokers. BIZ-003/005 adds only the exact postgres-owned VOLATILE signatures set_business_type(public.business_type) and set_gym_business_type(uuid, public.business_type, public.business_type, uuid); the amended commercial guard keeps its existing invoker posture. CLS adds exactly its thirteen VOLATILE command signatures and the STABLE read_member_class_schedule(date, date); read_class_timetable, read_class_roster and run_class_generation_all remain invokers. The CLS-owned booking_lock and member_has_live_membership primitives are invokers in app and add no elevated public allowance. SHP adds exactly eight public definers: two STABLE member readers and six VOLATILE writers, with the exact twelve-argument finalizer restricted to service_role by the separate named posture assertion; confirm_media_asset remains a denied invoker. PTF adds exactly seven STABLE reader signatures and eleven VOLATILE writer signatures at the frozen postgres-owned definer posture. ANC adds exactly ten postgres-owned definers: three STABLE reads and seven VOLATILE commands; each is authenticated-only as separately asserted. WSP adds exactly eight public definers: read_member_whatsapp_settings and read_whatsapp_operations STABLE, and set_member_whatsapp_consent, record_whatsapp_consent, request_whatsapp_dispatch, claim_whatsapp_dispatch, authorize_whatsapp_dispatch and record_whatsapp_receipt VOLATILE. SLF adds exactly six postgres-owned definers: request_member_freeze, cancel_member_freeze_request and expire_member_freeze_request VOLATILE, and read_member_freeze_request, read_member_freeze_requests and read_staff_freeze_requests STABLE; adopt/approve/reject_member_freeze_request are invokers and add no elevated allowance. RPE adds exactly one postgres-owned VOLATILE definer, append_report_export_event; export_report_snapshot remains an invoker'
+  'ADR-032, ADR-116 and the approved Phase 6 member projections and import commands: all app/public security-definer functions have an empty search_path; only the exact postgres-owned signatures on the allowlist may be elevated in public, each at its own required volatility, with no unapproved overload or function. INV-017 (member invites) adds exactly six: the writers issue_member_invite, revoke_member_invite, redeem_member_invite and unlink_member_identity are VOLATILE, and the two readers peek_member_invite (anon may execute this reader) and read_member_app_access are STABLE as specified by INV v1.1; app.member_invite_audit is elevated too but sits in app and is held to the empty-path rule alone. STI-011 v1.1 adds exactly seven postgres-owned signatures: invite_staff_member, issue_staff_invite, revoke_staff_invite, redeem_staff_invite and unlink_staff_identity VOLATILE; peek_staff_invite and read_staff_app_access STABLE. GRD-002/006/016 adds exactly three postgres-owned VOLATILE signatures: attest_members_without_dob_adult, record_guardian_consent and transition_member_to_own_account; its four other public RPCs are invokers. BIZ-003/005 adds only the exact postgres-owned VOLATILE signatures set_business_type(public.business_type) and set_gym_business_type(uuid, public.business_type, public.business_type, uuid); the amended commercial guard keeps its existing invoker posture. CLS adds exactly its thirteen VOLATILE command signatures and the STABLE read_member_class_schedule(date, date); read_class_timetable, read_class_roster and run_class_generation_all remain invokers. The CLS-owned booking_lock and member_has_live_membership primitives are invokers in app and add no elevated public allowance. SHP adds exactly eight public definers: two STABLE member readers and six VOLATILE writers, with the exact twelve-argument finalizer restricted to service_role by the separate named posture assertion; confirm_media_asset remains a denied invoker. PTF adds exactly seven STABLE reader signatures and eleven VOLATILE writer signatures at the frozen postgres-owned definer posture. ANC adds exactly ten postgres-owned definers: three STABLE reads and seven VOLATILE commands; each is authenticated-only as separately asserted. WSP adds exactly eight public definers: read_member_whatsapp_settings and read_whatsapp_operations STABLE, and set_member_whatsapp_consent, record_whatsapp_consent, request_whatsapp_dispatch, claim_whatsapp_dispatch, authorize_whatsapp_dispatch and record_whatsapp_receipt VOLATILE. SLF adds exactly six postgres-owned definers: request_member_freeze, cancel_member_freeze_request and expire_member_freeze_request VOLATILE, and read_member_freeze_request, read_member_freeze_requests and read_staff_freeze_requests STABLE; adopt/approve/reject_member_freeze_request are invokers and add no elevated allowance. RPE adds exactly one postgres-owned VOLATILE definer, append_report_export_event; export_report_snapshot remains an invoker. PAY adds exactly thirteen new postgres-owned public definers: the ten VOLATILE commands create_purchase_request, accept_purchase_request, reconfirm_purchase_quote, cancel_purchase_request, reject_purchase_request, attach_payment_proof, reject_payment_proof and both register_payment_proof overloads, and the three STABLE readers read_member_purchase_requests, read_purchase_requests and read_purchase_request; it re-owns finalize_media_asset, create_shop_reservation and read_member_shop at their frozen SHP signatures, and record_purchase_request, record_addon_sale and read_purchase_proof_url remain invokers. PUSH adds exactly eight postgres-owned public definers: register_member_push_device, unregister_member_push_device, set_member_push_preference, acknowledge_member_push, review_announcement_push and cancel_announcement_push VOLATILE, and read_member_push_settings and read_push_campaigns STABLE; reserve_push_attempts, authorize_push_attempt and finish_push_attempt are service-only invokers and send_notification keeps its invoker posture'
 );
 
 -- Phase 4 (20260909130000_red_list_view.sql) added public.red_list_cases,
@@ -1188,16 +1330,34 @@ select is_empty(
       -- INV-001/017, STI-011 v1.1 and GRD-002/006 give their SELECT-only tables the standard
       -- row preview_read_only trigger, which this assertion would otherwise reject because
       -- preview_tables above is derived from INSERT/UPDATE/DELETE grants and these tables hold none.
-      -- Named only on member_invites, staff_invites, guardian_consents, media_assets and shop_reservations (tgtype 31).
+      -- Named only on member_invites, staff_invites, guardian_consents, media_assets, shop_reservations,
+      -- the four PTF tables and member_devices (tgtype 31). member_devices' guard predates the PUSH
+      -- cluster's full revoke and stays as defense in depth on a table no session role may touch.
       select t.oid, t.tgrelid from pg_trigger t
       join pg_class c on c.oid = t.tgrelid
       join pg_namespace cn on cn.oid = c.relnamespace
       join pg_proc p on p.oid = t.tgfoid
       join pg_namespace n on n.oid = p.pronamespace
-      where cn.nspname = 'public' and c.relname in ('member_invites', 'staff_invites', 'guardian_consents', 'media_assets', 'shop_reservations', 'trainer_profiles', 'trainer_availability', 'trainer_time_off', 'pt_cancellations')
+      where cn.nspname = 'public' and c.relname in ('member_invites', 'staff_invites', 'guardian_consents', 'media_assets', 'shop_reservations', 'trainer_profiles', 'trainer_availability', 'trainer_time_off', 'pt_cancellations', 'member_devices')
         and t.tgname = c.relname || '_preview_read_only'
         and not t.tgisinternal and t.tgtype = 31 and t.tgenabled = 'O'
         and n.nspname = 'app' and p.proname = 'enforce_preview_read_only'
+        and p.pronargs = 0 and p.prorettype = 'trigger'::regtype
+        and not p.prosecdef
+    ), push_device_guard_triggers as (
+      -- PUSH: the frozen member_devices invariant guard -- a provenance-null
+      -- device can never carry is_active (the legacy-inactive coercion the
+      -- cluster's table contract declares). Exact named shape, invoker, the
+      -- same discipline the SHP/WSP/PAY/SLF invariant guards are held to.
+      select t.oid, t.tgrelid from pg_trigger t
+      join pg_class c on c.oid = t.tgrelid
+      join pg_namespace cn on cn.oid = c.relnamespace
+      join pg_proc p on p.oid = t.tgfoid
+      join pg_namespace n on n.oid = p.pronamespace
+      where cn.nspname = 'public' and c.relname = 'member_devices'
+        and t.tgname = 'member_devices_legacy_inactive'
+        and not t.tgisinternal and t.tgtype = 23 and t.tgenabled = 'O'
+        and n.nspname = 'app' and p.proname = 'enforce_push_device_legacy'
         and p.pronargs = 0 and p.prorettype = 'trigger'::regtype
         and not p.prosecdef
     ), shop_invariant_triggers as (
@@ -1388,6 +1548,7 @@ select is_empty(
        and t.oid not in (select oid from valid_preview_triggers)
        and t.oid not in (select oid from gate_guard_triggers)
        and t.oid not in (select oid from invite_preview_triggers)
+       and t.oid not in (select oid from push_device_guard_triggers)
        and t.oid not in (select oid from shop_invariant_triggers)
        and t.oid not in (select oid from pt_policy_guard_triggers)
        and t.oid not in (select oid from pt_completion_guard_triggers)
@@ -1408,7 +1569,7 @@ select is_empty(
     select c.relname || '.missing_or_invalid_preview_read_only'
       from preview_tables c
      where not exists (select 1 from valid_preview_triggers t where t.tgrelid = c.oid)$$,
-  'docs/data-model.md "What a cluster agent must not do", narrowed by design.md 6 and 7, ADR-066, NAV-003 and the frozen Phase 6 add-on and member-import contracts: every authenticated-writable public table requires its exact enabled ROW BEFORE INSERT/UPDATE/DELETE preview_read_only trigger calling private invoker app.enforce_preview_read_only(). Only that named, correctly shaped trigger and touch_updated_at are admitted universally, plus one exact sibling shape: <table>_preview_write_guard, the enabled STATEMENT BEFORE INSERT/UPDATE/DELETE trigger (tgtype 30 = BEFORE 2 + INSERT 4 + UPDATE 16 + DELETE 8, no ROW bit) calling the same private invoker. Phase 6 leads needs that sibling because a preview UPDATE matches no row through the tenant policies, so the row guard never fires for one and the statement guard answers before any row resolution (ADR-118). Member imports carries its v1 run invariant (docs/planning/phase6-import-contract.md, "Schema, generated types and test split") inside the touch_updated_at slot itself, the same fusion leads uses for app.enforce_lead_discipline() -- a table gets exactly one substantive row trigger beyond the preview guard, under one of these two universal names, never a third. Fourteen named table exemptions remain; every other unexplained trigger still fails this exact catalogue assertion, and a missing or malformed preview guard fails even on an exempt table. The original eleven exemptions retain their recorded identity, attribution, financial-integrity, monotonic-counter and membership-period reasons. Phase 6 adds exactly three table exemptions because their rules require OLD/NEW or cross-row state that a CHECK, index, policy or Route Handler cannot enforce for every writer. organizations is instead admitted only through its exact named commercial-invariant and status-session-revoke trigger shapes. addon_products owns database-stamped quote_version rotation across the complete offer-term set while preserving the version for stock and presentation edits, plus kind-specific disclosure and stock shape. addon_orders owns the ordered GL053-GL057 lifecycle and immutable sale record, validates linked member/payment/catalogue/session facts, serializes stock and returned-money effects, and invokes app.audit_money_change() for every accepted insert/update. pt_sessions owns immutable order/member/trainer/slot identity, validates BOTH trainer assignments and the parent order validity/reservation budget, serializes scheduled-to-terminal effects, and advances only the parent order usage/status. These exemptions permit those contract-required trigger families on the three named tables; they do not widen the predicate for any other table or excuse a missing preview guard. WSP-103 admits only the two declared messaging wallet conversion evidence triggers on their exact respective tables: enabled tgtype 31, zero-argument postgres-owned VOLATILE empty-path invoker app.enforce_wallet_conversion_evidence(), without direct session or PUBLIC execution; both guards are required and no table exemption is added. SHP admits only media_assets_verified_immutable (tgtype 31, private invoker enforce_media_asset_verification) and shop_reservations_enforce (tgtype 23, invoker enforce_shop_reservation), each enabled, postgres-owned, VOLATILE and empty-path; media_assets and shop_reservations also carry the exact SELECT-only row preview guard. No table exemption is added. PTF admits the exact organization_settings_guard_pt_policy ROW BEFORE UPDATE guard and pt_cancellations_completed_order_immutable ROW BEFORE UPDATE OF completed_order guard, both invokers; the completion guard additionally requires no WHEN, postgres ownership, VOLATILE, empty path and execution denied to every session role. Immutable marker behavior and the narrow command-keyed completed-pack waiver, including its all-status refund boundary, are behavioral requirements and are not inferred from this catalogue. GRD-002 admits only organization_settings_legacy_adult_attestation_guard: enabled ROW BEFORE INSERT/UPDATE (tgtype 23), calling the zero-argument invoker app.guard_legacy_adult_attestation trigger function. GRD-006 admits guardian_consents_preview_read_only only in the same enabled invoker tgtype 31 shape as the invite tables. Member invites (INV-001, INV-013, INV-017) and STI-011 v1.1 add exactly two named shapes, the row preview_read_only triggers the proposals give the SELECT-only tables member_invites and staff_invites (which preview_tables, being grant-derived, would not otherwise admit), and the members_auth_binding_invariant trigger rides on members, which is already on the exemption list.'
+  'docs/data-model.md "What a cluster agent must not do", narrowed by design.md 6 and 7, ADR-066, NAV-003 and the frozen Phase 6 add-on and member-import contracts: every authenticated-writable public table requires its exact enabled ROW BEFORE INSERT/UPDATE/DELETE preview_read_only trigger calling private invoker app.enforce_preview_read_only(). Only that named, correctly shaped trigger and touch_updated_at are admitted universally, plus one exact sibling shape: <table>_preview_write_guard, the enabled STATEMENT BEFORE INSERT/UPDATE/DELETE trigger (tgtype 30 = BEFORE 2 + INSERT 4 + UPDATE 16 + DELETE 8, no ROW bit) calling the same private invoker. Phase 6 leads needs that sibling because a preview UPDATE matches no row through the tenant policies, so the row guard never fires for one and the statement guard answers before any row resolution (ADR-118). Member imports carries its v1 run invariant (docs/planning/phase6-import-contract.md, "Schema, generated types and test split") inside the touch_updated_at slot itself, the same fusion leads uses for app.enforce_lead_discipline() -- a table gets exactly one substantive row trigger beyond the preview guard, under one of these two universal names, never a third. Fourteen named table exemptions remain; every other unexplained trigger still fails this exact catalogue assertion, and a missing or malformed preview guard fails even on an exempt table. The original eleven exemptions retain their recorded identity, attribution, financial-integrity, monotonic-counter and membership-period reasons. Phase 6 adds exactly three table exemptions because their rules require OLD/NEW or cross-row state that a CHECK, index, policy or Route Handler cannot enforce for every writer. organizations is instead admitted only through its exact named commercial-invariant and status-session-revoke trigger shapes. addon_products owns database-stamped quote_version rotation across the complete offer-term set while preserving the version for stock and presentation edits, plus kind-specific disclosure and stock shape. addon_orders owns the ordered GL053-GL057 lifecycle and immutable sale record, validates linked member/payment/catalogue/session facts, serializes stock and returned-money effects, and invokes app.audit_money_change() for every accepted insert/update. pt_sessions owns immutable order/member/trainer/slot identity, validates BOTH trainer assignments and the parent order validity/reservation budget, serializes scheduled-to-terminal effects, and advances only the parent order usage/status. These exemptions permit those contract-required trigger families on the three named tables; they do not widen the predicate for any other table or excuse a missing preview guard. WSP-103 admits only the two declared messaging wallet conversion evidence triggers on their exact respective tables: enabled tgtype 31, zero-argument postgres-owned VOLATILE empty-path invoker app.enforce_wallet_conversion_evidence(), without direct session or PUBLIC execution; both guards are required and no table exemption is added. SHP admits only media_assets_verified_immutable (tgtype 31, private invoker enforce_media_asset_verification) and shop_reservations_enforce (tgtype 23, invoker enforce_shop_reservation), each enabled, postgres-owned, VOLATILE and empty-path; media_assets and shop_reservations also carry the exact SELECT-only row preview guard. No table exemption is added. PTF admits the exact organization_settings_guard_pt_policy ROW BEFORE UPDATE guard and pt_cancellations_completed_order_immutable ROW BEFORE UPDATE OF completed_order guard, both invokers; the completion guard additionally requires no WHEN, postgres ownership, VOLATILE, empty path and execution denied to every session role. Immutable marker behavior and the narrow command-keyed completed-pack waiver, including its all-status refund boundary, are behavioral requirements and are not inferred from this catalogue. GRD-002 admits only organization_settings_legacy_adult_attestation_guard: enabled ROW BEFORE INSERT/UPDATE (tgtype 23), calling the zero-argument invoker app.guard_legacy_adult_attestation trigger function. GRD-006 admits guardian_consents_preview_read_only only in the same enabled invoker tgtype 31 shape as the invite tables. Member invites (INV-001, INV-013, INV-017) and STI-011 v1.1 add exactly two named shapes, the row preview_read_only triggers the proposals give the SELECT-only tables member_invites and staff_invites (which preview_tables, being grant-derived, would not otherwise admit), and the members_auth_binding_invariant trigger rides on members, which is already on the exemption list. The PUSH freeze round adds two named member_devices shapes: its preview_read_only guard joins the grant-less tables'' named admission (it predates the cluster''s full revoke and stays as defense in depth), and member_devices_legacy_inactive -- the frozen provenance-null-device is_active coercion -- is admitted at its exact BEFORE ROW INSERT/UPDATE shape, the same named-guard discipline the SHP/WSP/PAY/SLF invariant triggers are held to'
 );
 
 select is(

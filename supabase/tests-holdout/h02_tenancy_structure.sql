@@ -349,8 +349,8 @@ select is_empty($$
           and (select a.attname from pg_attribute a
                 where a.attrelid = rel.oid and a.attnum = i.indkey[0]) = 'tenant_id'
           and (select a.attname from pg_attribute a
-                where a.attrelid = rel.oid and a.attnum = i.indkey[1]) = 'id')
-$$, 'H-TEN-137: ADR-052, every tenant-scoped table referenced by a key the rule requires to be composite carries unique (tenant_id, id), in that column order, which is what makes it a legal target - a table referenced only by audit_log''s exempt single-column key owes nothing');
+                where a.attrelid = rel.oid and a.attnum = i.indkey[i.indnkeyatts - 1]) = 'id')
+$$, 'H-TEN-137: ADR-052, every tenant-scoped table referenced by a key the rule requires to be composite carries unique (tenant_id, id), in that column order, which is what makes it a legal target - a table referenced only by audit_log''s exempt single-column key owes nothing. The WSP three-column key targets whatsapp_channel_consents'' registered (tenant_id, member_id, id) unique, so the obligation is the tenant-leading unique ending at id: the canonical two-column form for every ordinary parent, and the registered three-column backing unique for that one');
 
 select * from finish();
 
