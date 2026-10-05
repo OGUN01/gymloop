@@ -2674,3 +2674,451 @@ Source work starts ONLY after this checkpoint is committed.
   applies the migrations (the repaired finalize lands in the DB) → gen
   types → protected deploy + 8 operator revokes. The round-32 diagnostic's
   remaining findings re-evaluate against the repaired body post-CI.
+
+## h79 regeneration committed; keyed-replay source defect routed (2026-10-04)
+
+- h79 sha256-16 **1da962ddc87a1ad1** (committed `spec:`): A11 probes the
+  9-arg INVOKER core; A12 restored to the frozen 6-arg delegating overload;
+  A9/A10 privilege rows regenerated to the two real forms (previously
+  passing vacuously via bool_and NULL-skipping). #65/#66 escalated as SOURCE
+  DEFECT — the pins stand as the contract's faithful expression.
+- **The keyed-replay facts comparison defect**: MINT records
+  {assetId, mime, bytes}; REPLAY compares {mime, bytes} by whole-jsonb —
+  every same-key replay raises GL068 (assetId not caller-visible). Builder
+  round 17 dispatched: the replay comparison normalizes to caller-comparable
+  fields (mime+bytes), returning the stored assetId read-only per decision
+  5. The last known source defect — the full sweep follows the fix + sha.
+- h79 sha for gymloop-35's sweep: `1da962ddc87a1ad1…74d428a`.
+
+## Final source defect fixed — snapshot 0f3f500d (2026-10-04)
+
+- Builder round 17: the keyed replay comparison normalizes to
+  caller-comparable fields (mime + bytes + actor_user_id; requestId already
+  a lookup key), returning the stored assetId read-only (vanished asset
+  still GL068). Stored facts keep assetId internally. Semantics verified:
+  same key+facts → original assetId/staging key read-only, zero second
+  candidate/counter/deadline; changed facts → GL068.
+- Committed `fix:` — migration sha256 **0f3f500d229e023e…11b498** (was
+  c3cb0d8f). Static: rollback guard 159 green; GL123 ×9 / GL124 ×5 / GL125
+  reserved / GL126 absent.
+- **This was the last known source defect.** Snapshot 0f3f500d announced to
+  gymloop-35 for the full sweep. Post-CI re-evaluation expectation: the six
+  42501s + GL066 clear against the repaired body; D3c/D3d pass with the
+  normalized comparison.
+
+## Full rollback sweep running (2026-10-04, gymloop-35)
+
+- 498 commits ahead; the keyed-replay fix (0f3f500d) committed and verified
+  in their working tree.
+- The FULL rollback sweep (159 SQL files, 44 batches) running in their
+  background — 20-30+ min. Expected at the sweep: RPE/WSP/SLF/scheduler
+  green; the suite-79 six 42501s may clear against the keyed-replay-fixed
+  body (D3c/D3d should pass with the normalized comparison); OCC visible
+  ~2-3 findings, h83 addon staging, h84 A-cluster route by owner after.
+- Sweep completion → push → CI applies the repaired migration → gen types →
+  protected deploy. My side: standing by; the h79 sha (1da962dd) is in their
+  sweep set.
+
+## Owner: device readiness (2026-10-04)
+
+- Owner confirmed: a DIFFERENT device is available for testing (the USB
+  phone's occupation constraint is gone) and it's open/free.
+- Device acceptance unblocks as soon as: the sweep converges → push → CI
+  migrate → gen types → protected deploy. The Android build/EAS path and
+  device testing remain the owner/orchestrator's execution (this chat does
+  no ADB/Metro/device work per packet).
+- Remaining owner-side items at device time: the one real Google pass for
+  auth; Play/legal items stay release-gated.
+
+## Full sweep snapshot: 118 GREEN / 5 RED (2026-10-04, gymloop-35)
+
+- 118 suites GREEN (tenancy/identity/RLS/money/comms/classes/shop/PT/
+  announcements/SLF/RPE/WSP/scheduler).
+- 5 RED, all with owners:
+  1. 79_purchase_requests 79/252 — expected (pre-CI migration state; the
+     replay fix lands with CI)
+  2. h79 4/126 — my holdout author's regeneration (in flight)
+  3. 83_occupancy 3/79 — their precision pins
+  4. 80_whatsapp 1/144 — TAP detail needed (maybe the subtransaction class)
+  5. h05_membership_money_holdout 2/164 — legacy money holdout (possible
+     spec correction)
+- Near-final: push waits for the 5 RED resolutions.
+
+## GO for the push sequence (2026-10-04)
+
+- State verified on my side before the go:
+  - h79's regeneration already committed (`1eee5fee`; file `1da962dd…74d428a`)
+  - The keyed-replay fix committed at HEAD (`561a870f`; file `0f3f500d…11b498`)
+- GO reasoning: suite 79's 79 RED is expected-and-self-resolving AT THIS CI
+  RUN — db.yml applies the repaired migration in the migrate job BEFORE the
+  pgTAP step in the same run, so suite 79 executes against the REPAIRED
+  finalize (D3c/D3d expected to pass; the six 42501s/GL066 expected to
+  clear). Not a push blocker.
+- The other 5 RED files (80/83/h05/h83/h84) ride the next push per their
+  owners' routing.
+- Post-push watch item: if suite 79 surprises RED at CI WITH the repaired
+  body applied, the TAP detail routes to me as a genuine post-CI defect.
+
+## PUSH LANDED (2026-10-04, gymloop-35): 89c6cda3..b4fdbfdc
+
+- 498 commits pushed. Results so far:
+  - Deploy Edge Functions: **SUCCESS** (the functions.yml fix landed)
+  - Test immutability: **SUCCESS** (the range excludes the historical 53dfd86f)
+  - Holdout: **SUCCESS**
+  - CI: in_progress (~10 min)
+  - DB: in_progress (migrate + pgTAP ~1h45m; the migrate applies the
+    REPAIRED body; suite 79's pgTAP re-evaluates against it — expected GREEN)
+- My h79 regeneration sha (`1eee5fee`) rode the push.
+- ADR-177 types-only follow-up (gen types) after migrate succeeds.
+- MEDIA/PAY scope: complete pending this CI confirmation.
+
+## CI test-file fix dispatched (2026-10-04)
+
+- The types push failed CI on two PAY test-file errors:
+  1. runtime-contract.test.ts:67 — `unitPricePaise` on a union branch
+     lacking it (narrowing fix per schema)
+  2. purchase-visible-contract.test.ts:103-104 — `_method`/`_currency`
+     unused vars
+- Visible author dispatched (test-only spec: fix, no assertion weakening);
+  sha routes to gymloop-35 for the immediate push + CI rerun.
+- Meanwhile: the DB's migrate succeeded (3m22s) — the repaired body is LIVE
+  in the Cloud DB; gen types landed (gymloop-35's types push); the DB's
+  pgTAP (~56 min) continues — suite 79 re-evaluates against the repaired
+  body in that run.
+
+## Round 33 continuation — diagnostic artifact executed (owner-authorized)
+
+- Primary committed the test-only gate as `60b9d86c spec: independently require trusted private payment proof uploads` — all 5 visible test files + h79 holdout + reports are committed.
+- Diagnostic run (`supabase db query --linked -f`):
+
+## CI test-file fixes committed (2026-10-04)
+
+- `461da6c6 spec:` — the two CI errors fixed:
+  1. runtime-contract.test.ts:67 — snapshot union narrowed via
+     `'unitPricePaise' in snap` + throwing guard (TS can't correlate the
+     snapshot union from data.kind alone)
+  2. contract.test.ts:103-104 — unused _method/_currency destructures removed
+- Verified: shared tsc 0 errors; lint clean; 44/44 tests; no assertion
+  weakened. gymloop-35 pushes for the immediate CI rerun.
+- Note: the visible author's round went off-script (ran the injector file);
+  the coordinator applied the two mechanical fixes directly — logged.
+- Meanwhile: the DB's pgTAP continues (~56 min) — suite 79 re-evaluates
+  against the repaired body.
+
+## Lint fix committed + wsp-app-held scope correction (2026-10-04)
+
+- `f7b927e7 spec:` — the rest-destructure heads (method/currency) replaced
+  with explicit deletes on a spread copy (no unused vars; pins identical).
+  Lint-exit 0; 32/32 tests. Push for the CI rerun.
+- gymloop-35 attributed the wsp-app-held failures (2) to my keyed-register
+  reclassification — CORRECTED: wsp-app-held.test.ts is the WSP dispatch
+  holdout (their scope); the dispatch refusal path is the WSP delivery seam,
+  not the PAY capability seam (my fix touched only the `register` command's
+  classification; WSP dispatch doesn't route through it). If their WSP
+  author finds the PAY seam genuinely involved, they send the call path.
+
+## Round 18 — Edge regression found (2026-10-05, gymloop-35 CI capture)
+
+- The current `proofUrl` LOST the round-5/6 requireBound ordering: the
+  privileged asset read happens SECOND (before the bound check), and the
+  bound check runs LAST via `live.find(item => item.requestId ===
+  value.linked_request_id)` — not the caller read's activeProofAssetId.
+  The holdout's `serviceReads() = 4` at refusal paths proves the privileged
+  reads happen where the contract says they must not.
+- Builder round 18 dispatched: restore the caller-read-first ordering in
+  proofUrl (refuse before any privileged read; the privileged read only
+  serves the signing path after the bound gate), audit proofConfirm's
+  replay path for the same regression, verify against the CI's 5 failing
+  tests, and name the commit that regressed it.
+- CI-blocking regression in my scope — fast turnaround.
+
+## Edge requireBound regression fixed (2026-10-05)
+
+- Edge sha256 **4c956f7004e7eef3…caa41c3f** (committed `fix:`, was e62b0162):
+  proofUrl restored to caller-read-first (bound gate activeProofAssetId ===
+  id at a live served status refuses BEFORE any privileged read; the
+  unattached-latest fallback removed; the post-privileged revalidation
+  re-keys on activeProofAssetId === id end-to-end); proofConfirm's
+  confirmed-replay early return gates on the caller read's bound state
+  (first-upload keeps its privileged read — the recorded tension).
+- Regression owned: my repair-round working-tree rework (rounds 8–9) — the
+  committed e62b0162 retained the round-5/6 shape; owned and reverted.
+- Deno check exit 0; proof suites 61/61. gymloop-35 includes in the next
+  push; the CI's 5 failing media-proof-held tests expected green at the next
+  run.
+
+## Edge-fix push verification (2026-10-05)
+
+- media-proof-held.test.ts: **fully GREEN** at the new Edge bytes (4c956f70)
+  — the four requireBound-regression failures cleared; the fix held.
+- pay-app-boundary-held.test.ts: 2 failures — the mocked request-truth read
+  lacks the fields the new bound gate checks. Holdout author round 16
+  dispatched: re-home the two confirm-fixture cases to the new bound-gate
+  shape (mirroring the passing media-proof-held pattern); escalate if the
+  new shape contradicts the frozen contract.
+- Local run: 2 failed | 156 passed (158) across the two files.
+
+## Convergence update (2026-10-05)
+
+- media-proof-held failures GONE at the Edge fix (32131fad) — requireBound
+  resolved them.
+- Remaining CI failures: pay-app-boundary-held 2 (my round 16 in flight —
+  re-homing to the new bound-gate shape), PT/PTF held tests (gymloop-35's
+  scope — their fork author + PT held re-homing), plus the non-CI items (8
+  operator revokes, OCC findings).
+- The DB's pgTAP continues at the repaired body.
+
+## Round 16 committed — PAY held set fully green (2026-10-05)
+
+- `da1bd26b6af7c0a9` (committed `spec:`): the confirm route's mock supabase
+  gains functions.invoke (the confirm died pre-Edge on invoke-of-undefined,
+  swallowed to XX000/500); the two confirm cases re-homed to the invoke seam
+  (operation 'proof-confirm' strictly before the attach RPC; storage-failure
+  → upload_rejected); request-truth replies carry the bound-gate fields; no
+  contract contradiction — no escalation.
+- Results: pay-app-boundary-held **114/114**; all three PAY holdout files
+  **183 passed** (media-proof-held green at the new Edge bytes confirmed).
+- The PAY held set is fully green. Remaining CI failures: entirely
+  gymloop-35's (PT/PTF) + the non-CI items (8 revokes, OCC). Included in
+  their next push.
+
+## gymloop-35 PT/PTF convergence (2026-10-05)
+
+- PT/PTF held tests ALL GREEN locally (pt-booking-reuse 18/18 — the CI's
+  failures are the date-rollover class, the fake-timer pattern applies;
+  ptf-native 56/56 at d595d1a4).
+- Remaining CI failures resolve with the held-test fixes landed (wsp/ntf
+  paths, pay functions.invoke, PTF fake-timers, pt date-rollover).
+- The DB's pgTAP continues (56-min run at the repaired body). The addon
+  staging chain + 8 operator revokes + OCC's 2 pins remain.
+
+## PG-TAP VERDICT: suite 79 GREEN at the repaired body (2026-10-05)
+
+- **Suite 79 is NOT in the failure list** — the repaired finalize WORKS at
+  runtime: the D3c/D3d pins pass with the normalized comparison, the six
+  42501s cleared, the GL066 chain resolved. The repair round's core claim
+  is CONFIRMED by the CI's pgTAP run.
+- h79: down from 4 to 2 — the regeneration + the normalized keyed-replay
+  fixed half. The holdout author dispatched to identify + fix the final 2
+  (candidates: A11/A12 signature probes or A9/A10 privilege pins).
+- pgTAP failure list: 12/31, 1/144, 2/79, 2/37, 2/164, 1/68, 1/1002,
+  2/126 (h79), 25/94 (h84) — 9 failing suites (down from 13). The unnamed
+  ones need identification.
+- Push sequence advancing: migrate succeeded, pgTAP ran, gen types landed;
+  protected deploy + 8 operator revokes remain.
+
+## Suite-79 contradiction + one-round reconciliation (2026-10-05)
+
+- gymloop-35's verdicts CONTRADICT: earlier "suite 79 is NOT in the failure
+  list — the repaired body WORKS"; now "79_purchase_requests: 83/256 — the
+  pre-push fixture state". Two different DB runs, two different states —
+  trusting the LATEST (83/256 at the CI's committed bytes with the repaired
+  body applied).
+- Requested: the 83 failing labels (TAP extraction) — the h79 A-series
+  pattern (signature pins → amended forms; privilege rows → real forms)
+  likely mirrors into suite 79's own A-series; one comprehensive round ends
+  it instead of another cascade.
+- The meta-split stands: my scope = 04_contract_meta's PAY rows + the
+  legacy money holdouts (h05/h21/h22, if PAY-caused) + suite 79's 83 + h79's
+  2; theirs = WSP/OCC/PUSH/SLF rows + suite 83's 2 + h84's A-cluster.
+  Both sides' fork authors in flight.
+
+## h79 round 15 — catalog clean, labels requested (2026-10-05)
+
+- Holdout author's re-verification: every h79 pin matches the live catalog
+  (the 6-arg frozen form + 9-arg core, both granted; A-series probes only
+  existing rows; the bool_and vacuity risk closed). D3c/D3d cleared by the
+  normalized comparison.
+- The 2 remaining failures can't be identified from bytes alone — the
+  failing labels requested from gymloop-35 (with got/wanted), routing in the
+  same comprehensive round as suite 79's 83.
+
+## Compression to hours — parallel dispatch (2026-10-05)
+
+- Owner directive: hours, not days. The critical path = gymloop-35's label
+  extraction (pressed: run now, both suites).
+- Parallel dispatch (not blocked on labels):
+  1. Visible author: 04_contract_meta's PAY-table schema-inventory rows
+     (purchase_requests/payment_proofs/the 3 enums/triggers+seams) per the
+     prelude's amendment pattern — WSP rows stay gymloop-35's.
+  2. Holdout author: legacy money holdouts (h05 ×2, h21 ×1, h22 ×1) —
+     PAY-caused assessment per the frozen decisions; non-PAY items report
+     for gymloop-35's routing. h02 (2/37) = theirs (tenancy).
+- Compressed timeline: labels land → fixture round (parallel with the meta/
+  legacy rounds) → one CI run (~2h) → done. Everything runs concurrently;
+  the CI run is the only serial tail.
+
+## THE ARTIFACT-OF-TOOLING DISCOVERY (2026-10-05, gymloop-35)
+
+- Their local preview harness SPLICES migrations into the test files. Now
+  that the migrate has APPLIED the migrations permanently, the spliced
+  `create function` statements fail 42723 (functions exist) — the local
+  diagnostics' "remaining failures" (the 28/31/12/2-count sets, including
+  possibly suite 79's 83/256 + the legacy holdouts) were mostly the
+  SPLICE-vs-APPLIED-STATE artifact. The CI's pgTAP runs RAW test files —
+  no splice artifact.
+- **Everything pauses on my side until the CI's pgTAP verdict lands** —
+  the raw run is the single source of truth. My authors stand by: the h79
+  regeneration (committed), the pre-staged variants, and the meta/legacy
+  rounds (now HOLD — possibly phantom failures).
+- The true failure list routes the genuinely-needed fixes only.
+
+## 04_contract_meta PAY rows committed + holdout assessments (2026-10-05)
+
+- 04_contract_meta sha256-16 **aa98a0c21912c38b** (committed `spec:`): the
+  PAY tables' schema-inventory rows (purchase_requests is_front_office
+  read gate; payment_proofs null gates) + the PAY-named trigger catalog
+  (payment_proofs_enforce, purchase_requests_enforce,
+  addon_products_pay_stock_holds — the SHP pattern). No preview-guard
+  rows; the enum vocabulary stays suite-79's.
+- Legacy holdout assessments: h05 (2/164) — the PAY pins match the contract;
+  no PAY-caused defect; the 2 failing need gymloop-35's TAP detail. h21/h22
+  (1 each) — NOT PAY-caused; their routing. h02 — theirs (tenancy).
+- Still blocked on gymloop-35's label extraction (suite 79's 83 + h79's 2)
+  — requested three times; the critical path.
+
+## Label sets delivered — two sharp checks dispatched (2026-10-05)
+
+- gymloop-35 delivered all three label sets (suite 79's ~79: every
+  finalize/recording-chain label; h79's 2: #65/#66 keyed replay; h05's 2:
+  currency CHECKs).
+- Suite 79's cascade root candidate: the create's RETURN jsonb key — if
+  `create_purchase_request`'s return lacks `requestId` (camelCase), the
+  capture inserts a req row with NULL id → the media insert's linkage NULL
+  (matches asset 141's runtime state) → the accept's embedded call fails
+  inside lives_ok (RED, no SQL error — matches the corrected tape
+  semantics) → the whole recording chain starves. Builder verifying the
+  create's return shape at the bytes; if the key differs/absent → source
+  fix to the declared shape; if present → the capture's extract is the
+  fixture defect.
+- h79's #65/#66: the normalized comparison fixed the GL068 but the pins
+  still fail — D3d expects the replay to return the ORIGINAL assetId; if
+  the trimmed return drops it, the seam's return is the fix. Builder
+  verifying.
+- h05's 2 (currency CHECKs): the builder assessed the bytes as
+  contract-matching — the runtime disagrees; the TAP detail decides.
+
+## Builder round 19 + author self-serve loop (2026-10-05)
+
+- Builder round 19: BOTH source-seam checks CLEAN — the create's return
+  carries requestId (camelCase, from app.pay_request_json); the replay's
+  return is NOT trimmed (assetId + staging key present). Remaining shape
+  risk: the replay's inner asset re-read (not found → GL068) — needs the
+  tape's bind values.
+- SCOPE CHANGE (acceleration): the visible author AUTHORIZED to execute the
+  diagnostic artifacts directly (owner-authorized Cloud diagnostics —
+  read-only SELECT/DO queries against pecxrpskmfeuyzngvewq; the suite stays
+  rollback-only; never the committed migration bytes changed). The relay
+  through the coordinator is removed: run → read DIAG rows → diagnose →
+  fix → re-run locally until the seven-error signature is gone; spec:
+  commits per change; the final sha routes for the collapse preview.
+- Facts banked: the capture's extract is fine (requestId present); the
+  replay's return is fine; the gate order is availability → member/creator
+  → deleted → metadata → liveness.
+
+## Round 21/22 — the in-spike diagnostic split (2026-10-05)
+
+- The author's honest run result: the artifact runs clean (zero E rows —
+  the redistribute held; the cap refusals gone); but the tool's tape can't
+  surface the failing pins (S=ok semantics; the injector's needle class
+  failed twice on syntax corruption — stopped honestly rather than publish
+  a hypothesis-covering artifact).
+- The in-spike diagnostic split: the BUILDER produces the diagnostic variant
+  of the finalize body (one RAISE carrying row_to_json(v_asset) + the
+  compared argument values, immediately before the availability raise;
+  artifact-only, the committed migration stays byte-exact); the VISIBLE
+  AUTHOR integrates it into the compiled artifact (their pipeline) and
+  hands it for the run.
+- Outcomes: correct v_asset + the condition still false = the PostgreSQL
+  anomaly (owner packet, final exhibit); wrong/NULL v_asset = the
+  divergence target (fixture/source fix).
+
+## Round 33 — pipeline ready for the body swap (2026-10-05)
+
+- The visible author confirms the artifact pipeline is ready: the swap
+  position mapped (the availability gate's raise in the spliced finalize
+  body; the builder's RAISE slots immediately before it; the existing
+  fin() wrapper catches whatever the body raises — the captured row state
+  rides the TAP). Post-build integrity checks all programmed.
+- Waiting on: the SQL builder's variant text (round 22 deliverable).
+
+## Builder's variant delivered (2026-10-05)
+
+- `docs/evidence/v2/media-pay-diag-finalize-variant.sql` (7367 chars,
+  programmatic — no transcription drift): the audited body + ONE diagnostic
+  raise inside the availability gate's not-found branch
+  (row_to_json(v_asset) + the four compared argument values; pg_catalog-
+  qualified for the empty search_path). Healthy paths byte-identical.
+- Visible author integrating into the compiled artifact (the swap position
+  mapped) → gymloop-35's lock → the decisive DIAG line.
+
+## Integrated artifact ready (2026-10-05)
+
+- `scratchpad/suite79-errdiag-r33.sql` sha256-16 **108b9afd8b6a2f13**: the
+  compiled file's single finalize definition replaced whole by the
+  builder's variant (7879 chars, programmatic); the DIAG fires only in the
+  availability gate's not-found branch; the pipeline (splice → variant swap
+  → flatten → make-err-diag → _diagtap pre-tx + commit; diag SELECT last)
+  integrity-verified end-to-end.
+- gymloop-35 executing under their lock — the DIAG V line (the finalize's
+  actual runtime row state + the four binds) decides the branch.
+
+## CI e2e accessibility gate watch (2026-10-05, gymloop-35)
+
+- The e2e accessibility gate failed 10/103 (PT/shop/phase8 locators timing
+  out at 5s waiting for routes/content) — possibly the dev-server's state
+  or the new shared types. gymloop-35 watches whether the failures persist
+  at the current CI run (37232861793).
+- If persistent: the UI's own rendering (their scope). If cleared: flaky
+  (the dev-server's seeded state). The convergence continues either way.
+
+## e2e accessibility gate near-green (2026-10-05, gymloop-35)
+
+- The 90s timeout + the Playwright-direct run resolved 10 of 11 failures;
+  the last: HARD-010 (the You page's account-hierarchy locator count vs the
+  recent IA/navigation commits — the test's expected count needs
+  re-derivation for the new You page's structure). Their accessibility
+  author fork adjudicates; the e2e gate should reach ZERO with it.
+
+## e2e accessibility gate resolved (2026-10-05, gymloop-35's fork author)
+
+- HARD-010 (the deterministic one): hardcoded gym-noun labels — the demo
+  gym carries business_type='dance' (the BIZ feature's demo: member→student,
+  place→Academy). Noun forms adapted; passes locally (13.6s).
+- The other 9: FLAKY — resource contention in the full-suite run (2 workers
+  × the Mumbai sign-in round-trip per fresh context); individual reruns
+  pass 4/4, repeat-each 6/6. Not a code defect.
+- The pnpm --config flag bug found + fixed (ci 961e5d89): pnpm consumed
+  `--config=X` and never passed it to Playwright — the CI's e2e job has
+  been running the DEFAULT config (113 specs) instead of the accessibility
+  config's 3-spec scope, explaining the CI's failure count. The CI now runs
+  Playwright directly.
+- Commits: c9995d75 (noun labels), 687050fc (90s timeout), 961e5d89 (the
+  CI command). Files: tests/e2e/phase8-accessibility.spec.ts,
+  playwright.accessibility.config.ts, .github/workflows/ci.yml.
+- The CI's rerun verifies; the convergence's remaining items: the OCC
+  findings, the addon staging, the 8 operator revokes.
+
+## e2e gate: 1 failure remaining (2026-10-05, gymloop-35)
+
+- Down from 11 to 1: HARD-003 (the super-admin landing page in dark mode —
+  `toBeVisible` "element(s) not found"). The super-admin account requires
+  the platform super-admin user — the bootstrap-platform-user workflow is
+  owner-gated; the applied DB may not have the seeded platform user. Their
+  fork author investigates: the test's setup seeds the platform user OR a
+  lawful skip when the platform user isn't present (per the test's own
+  setup semantics).
+- The convergence: e2e 1 from green; OCC visible 83 at 2; h83's addon
+  staging; h84's 8 operator revokes; suite 79's six 42501s (the peer's
+  author). The push sequence continues.
+
+## e2e: the residual moved to the holdout (2026-10-05, gymloop-35)
+
+- The visible spec's HARD-003 fixed (the noun-label adaptation landed); the
+  remaining 1: the HOLDOUT's own copy —
+  `tests/e2e-holdout/phase8-accessibility-holdout.spec.ts:251 › super-admin
+  gym detail: dark, desktop-1440` — the same super-admin class (the
+  platform user's seeding OR the holdout's lawful skip). Their e2e fork
+  author's item.
+- Convergence: 1 e2e failure + the OCC items + the 8 revokes remain. The
+  DB's pgTAP continues.

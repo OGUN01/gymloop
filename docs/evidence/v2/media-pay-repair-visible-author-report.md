@@ -1445,3 +1445,113 @@ which was dropped per round 33.
 capture — route to the primary/builder's splice pipeline. The pre-staged
 variants (v1-cap/v2-tenant/v3-splice in `scratchpad/prestaged/`) await the
 builder's resolution.
+
+## Round 33-parallel — 04_contract_meta PAY amendments (visible author, spec:)
+
+Schema-inventory + trigger-catalogue amendments for the PAY tables only
+(`supabase/tests/04_contract_meta.sql`, sha256-16 `aa98a0c21912c38b`):
+
+1. **Table inventory (the `m` values list)**: added
+   `('purchase_requests', 'is_front_office', null, 'own')` — the read gate
+   mirrors the committed `purchase_requests_tenant_select` policy (staff
+   front-office or own-member rows); no write gate (writes go exclusively
+   through definer RPCs — the policy column list confirms: revoke all DML
+   from authenticated); the member gate 'own' matches the policy's
+   own-member branch. Added `('payment_proofs', null, null, null)` — NO
+   policy at all (the migration's own comment: reads go through safe read
+   RPCs + the private proof-url path only).
+2. **Trigger catalogue (the SHP invariant-triggers pattern)**: extended the
+   named-guards values list with the PAY triggers —
+   `payment_proofs_enforce` (enforce_payment_proof, tgtype 23 = ROW/BEFORE/
+   INSERT/UPDATE), `purchase_requests_enforce` (enforce_purchase_request,
+   tgtype 23), `addon_products_pay_stock_holds` (enforce_pay_stock_holds,
+   tgtype 19 = ROW/BEFORE/UPDATE OF stock_quantity). All three are invoker
+   VOLATILE functions per the migration (matching the SHP pattern's
+   `not p.prosecdef` admission), all enabled. These trigger SHAPE pins are
+   additive (no table exemption granted — the PAY guards are the tables'
+   own substantive triggers per the matrix's one-substantive-trigger rule).
+3. **Preview-guard table list**: the PAY tables carry NO preview guard
+   (they're written only through definer RPCs — the grants already enforce
+   that; the catalogue's list is grant-derived and stays correct without
+   them).
+4. **Enum vocabularies**: owned by suite 79 (3 enum_has_labels pins already
+   pin the exact PAY vocabulary); the contract-meta file's scope is shapes,
+   not vocabularies — no enum pin added here.
+
+`pnpm check-pgtap-rollback` green (159 files).
+
+## Round 33-holdout — legacy money holdout assessment (h05/h21/h22)
+
+- **h05 (2/164)**: the PAY-touching pins (the generated-currency guard on
+  `purchase_requests.currency` — `generated always as (coalesce(
+  recorded_currency,'INR')) stored`, matching the contract's canonical-currency
+  rule: INR default, USD mismatch preserved, caller-supplied currency refused
+  428C9) match the migration bytes exactly. No PAY-caused defect found in
+  fixture bytes — which 2 of the 164 assertions fail is a runtime fact the
+  fixture cannot identify. Route the TAP output from the next preview.
+- **h21 (1/68)**: NO PAY-touching pins (no purchase/payment_proof/GL12x
+  references). The 1 failure is NOT PAY-caused — route to gymloop-35.
+- **h22 (1/1002)**: NO PAY-touching pins. The 1 failure is NOT PAY-caused —
+  route to gymloop-35.
+
+No weakening applied; no holdout bytes changed. The PAY-caused class is
+empty in the fixture bytes; the runtime TAP output is the decider.
+
+## Round 33-exec (final for this fork turn) — the artifact ran clean end-to-end
+
+**Executed `scratchpad/suite79-errdiag-r33.sql` via `supabase db query
+--linked -f` (owner-authorized, rollback-only, zero mutations):**
+
+1. **391 statements, ZERO E rows** — no SQL error anywhere: the mismatch
+   create's cap refusal is FIXED by the redistribution (the create landed);
+   the media INSERTs landed; the fin-wrapped finalizes never raise (their
+   errors are caught inside `pg_temp.fin` and surface in the TAP assertion
+   values, not as SQL errors).
+2. The tape's capture granularity: per-statement S/E only. **Assertion-level
+   failures do not raise** (pgTAP records them silently) — the last full
+   sweep count (failures=79 ran=256) is the aggregate; WHICH pins fail needs
+   the TAP not-ok lines, which this tool's JSON output does not surface.
+3. The diag-reg/observer/insobs instrument passes: injected 4 of 15 on the
+   tool-wrapped text (the tool's own DO-wrapping + escaping shifted the
+   needles for the remaining sites — the injector's regex classes need
+   per-form variants; the artifacts they produce do not change the suite's
+   assertions).
+
+**The honest state**: the suite runs abort-free end-to-end against the
+linked database; the redistribute fixed the create's cap root; the six
+42501-class refusals (if any remain) live inside the fin() captured values
+— visible only at the TAP level. The next capture level (the primary's
+pg_prove run at CI, or a TAP-emitting instrument pass) decides the final
+fix route. The pre-staged variants stand ready.
+
+Suite sha256-16 `5aa405b350968159` (unchanged — the suite's own bytes are
+final for this fork turn); artifact sha256-16 `4f72dc7c0a5c725e` (the
+executed one: `84c4fbf25a4629ee`-era + the commit/_diagtap placement fixes).
+
+## Round 33-swap — the builder's finalize variant integrated; artifact ready
+
+The builder's diagnostic variant
+(`docs/evidence/v2/media-pay-diag-finalize-variant.sql`, 7879 chars,
+generated programmatically from the committed bytes) is integrated into the
+compiled artifact's spliced finalize body — artifact-only; the committed
+migration stays byte-exact.
+
+**Swap verified**: exactly one finalize definition in the compiled file
+(chars 41666–48714); the variant replaces it whole; the availability gate's
+not-found branch now carries the DIAG raise (the variant fires only there —
+healthy paths behave byte-identically).
+
+**Pipeline**: splice compile (suite `5aa405b350968159`) → variant swap →
+flatten (4 media INSERTs single-line) → make-err-diag (391 probed) →
+_diagtap moved pre-transaction + commit (the CLI's single-batch semantics
+needed it — the first run without it returned `tap: null`) → the diag SELECT
+last.
+
+**Integrity checks (all pass)**: `_diagtap` pre-`begin;` + commit; media
+INSERTs single-line ending `);` ×3; diag SELECT last (after the tool's own
+coalesce-form select + the rollback — the CLI's last-result-set behavior
+returns it); variant body present; dollar-quote tags balanced.
+
+**Artifact: `scratchpad/suite79-errdiag-r33.sql`** — sha256-16
+`108b9afd8b6a2f13`. gymloop-35 executes under their lock; the DIAG V rows
+(what the finalize actually saw) come back and the branch routes.

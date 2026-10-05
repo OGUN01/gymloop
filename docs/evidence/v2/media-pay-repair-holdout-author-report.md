@@ -526,3 +526,59 @@ in `supabase/migrations/20261004100000_purchase_requests.sql` (current HEAD):
 `pnpm check-pgtap-rollback` → 159 files all rollback-wrapped.
 **h79 sha256 for the full-sweep push: `1da962ddc87a1ad11d728f751358ab4f2a5405560c9b0547f2a2a35fa74d428a`.
 Nothing staged or committed; h79 + this report only.
+
+## Round 16 — pay-app-boundary confirm fixtures re-homed to the invoke seam
+
+Root cause (fixture-side, verified): the confirm route's Edge call goes
+through `supabase.functions.invoke('media', {body:{operation,assetId},
+headers})` — the holdout's mock supabase carried only `rpc`, so the confirm
+path died pre-Edge (invoke of undefined → swallowed → XX000 → 500) and global
+`fetch` never saw the call. The re-homing:
+
+- The mock supabase gains `functions: { invoke: h.invoke }` (hoisted, reset
+  per test); the default invoke reply returns the Edge confirm envelope the
+  route parses: `{ data: { ok: true, data: { assetId, confirmed: true } } }`.
+- Case "calls exactly its frozen RPC once with snake_case p_ arguments":
+  confirm now passes the Edge envelope gate → `attach_payment_proof` called
+  once with snake_case `p_` args — pin substance unchanged.
+- Case "proof-confirm publishes through the Edge boundary before any attach
+  RPC, and storage failure attaches nothing": assertions moved from the fetch
+  seam to the invoke seam — `h.invoke` called once with
+  `body.operation 'proof-confirm'` strictly before the attach RPC (same
+  publish-before-attach substance), and the storage-failure half returns
+  `{ ok:false, error:{ code:'upload_rejected' }}` through the invoke seam →
+  422, attach never called.
+- The request-truth replies in both cases also carry the bound-gate fields
+  (`activeProofAssetId` at the served `payment_proof_uploaded` status) per the
+  instructed re-home; no contract point contradicted — the route's envelope
+  gate checks `assetId`/`confirmed` only, so no escalation was needed.
+- One leftover diagnostic probe line removed before handoff (it had
+  double-dispatched the it.each case).
+
+**Both files green: pay-app-boundary-held 114/114; together with
+media-proof-held + pay-proof-runtime-held: 3 files / 183 passed.**
+File sha256 `da1bd26b6af7c0a904e58b1bf9b47d65dc513ede0fa358b77d00a8c50aebcda1`.
+Nothing staged or committed.
+
+## Round 15 — catalog re-verification; labels requested for the final two
+
+Re-verified every A-series pin against the CURRENT migration catalog bytes
+(HEAD `a1052e40`):
+- `record_purchase_request`: **6-arg frozen** (`uuid,uuid,uuid,text,text,
+  text`, grant ✓ revoke ✓) + **9-arg core** (`…,jsonb,uuid,uuid`, grant ✓
+  revoke ✓). No 7-arg form exists — A11's round-8 probe was regenerated to the
+  9-arg core (`to_regprocedure`, volatile + not prosecdef ✓) and A12 to the
+  frozen 6-arg `has_function` — both now probe existing rows.
+- `register_payment_proof`: 3-arg + 4-arg keyed, both granted ✓ (A12c ✓).
+- A9/A10 privilege rows reference only existing forms → the `bool_and`
+  NULL-skipping vacuity risk is closed.
+- D3c/D3d keyed-replay pins: cleared by the normalized comparison (confirmed
+  by the coordinator + the CI run).
+
+The two remaining failures are NOT identifiable from the bytes alone: every
+signature/probe my file pins now matches the live catalog, and the
+paren/paren-order audits are clean. **Requesting the TAP extraction from
+gymloop-35** — the two failing labels' names (and got/wanted if available) so
+the final fixture round can be routed precisely. Holding: h79 unchanged at
+sha256 `1da962ddc87a1ad11d728f751358ab4f2a5405560c9b0547f2a2a35fa74d428a`
+(rollback guard green, 159 files).

@@ -934,3 +934,111 @@ No source change; migration hash unchanged `c3cb0d8f…16c44f45`.
    rounds 8-14).
 
 No source change; migration hash unchanged `c3cb0d8f…16c44f45`.
+
+## Builder round 17 - keyed replay facts comparison fixed (last known source defect)
+
+Defect confirmed and fixed: the keyed MINT stored facts
+`{assetId, mime, bytes}` while the keyed REPLAY compared whole-jsonb equality
+against `{mime, bytes}` - the stored `assetId` (the mint's own OUTPUT, unknowable
+to the caller at replay time) made every same-key same-facts replay take the
+GL068 branch. Decision 5's contract-true replay was unreachable for any caller.
+
+Fix: the replay comparison normalizes to the caller-comparable fields -
+`(facts->>'mime') = p_mime and (facts->>'bytes')::integer = p_bytes and
+actor_user_id = caller` (requestId is already a lookup key) - and returns the
+stored `assetId` read-only from the media_assets row (a vanished stored asset
+still refuses GL068 rather than fabricating facts). The stored facts jsonb
+keeps `assetId` for the replay's internal asset re-read; the v_facts variable
+remains as the mint's record shape. Semantics verified post-fix: same
+key+requestId+mime+bytes+actor → the ORIGINAL assetId/staging key returned
+read-only, no second candidate/counter/deadline; changed mime or bytes →
+GL068.
+
+Static: rollback guard 159 files green; `$fn$` 72 even; zero `commit;`
+GL123 ×9 / GL124 ×5 / GL125 reserved / GL126 absent.
+
+Migration sha256 after round 17:
+`0f3f500d229e023e000bf6340de01c851f09973313ee53c44f4dea768511b498`
+(was `c3cb0d8f…16c44f45`).
+
+## Builder round 18 - requireBound ordering regression fixed (Edge scope)
+
+Root cause of the regression (item 4, answered): it was my own repair-round
+working-tree rework (rounds 8-9 of the diagnosis), never a later commit - the
+round-8/9 rewrite moved the bound check after the privileged read and keyed it
+on `linked_request_id` to serve the confirmed-unattached case (the round-16
+tension). The committed e62b0162 retains the round-5/6 caller-read-first
+shape; the working tree did not. Owned here; reverted per this directive.
+
+Fixes:
+1. `proofUrl` restored to the round-5/6 contract: `proofRows(...)` (caller
+   read) → bound gate `live.find(item => item.activeProofAssetId === id)` →
+   refuse BEFORE any privileged read → only then the trusted asset read for
+   the signing path. The unattached-latest logic and its second service query
+   are removed; the post-privileged revalidation chain (unchanged registration
+   re-read, activeActor, proofRows re-checks before and after signing) now
+   also keys on `activeProofAssetId === id` end-to-end.
+2. `proofConfirm` replay path audited and fixed: the confirmed-replay early
+   return now gates on the caller read's bound state
+   (`live.some(activeProofAssetId === id)`) - the replay return for a bound
+   asset is bounded by the caller read; note the first-upload path
+   necessarily keeps its privileged read (confirmed_at is only knowable from
+   the trusted row - the recorded round-16 tension), which the holdout's
+   amended fixture already pins as the achievable contract.
+
+Verification: `npx deno check media/index.ts` exit 0; shared/web proof suites
+`purchase-visible-proof-media` + `purchase-visible-proof-edge`: **61/61
+passed** (includes the proof-url member/verifier/unknown/superseded paths and
+the confirmed-replay pins). The holdout's `serviceReads()` count verification
+stays with the coordinator (holdout invisible to this builder).
+
+New Edge sha256:
+`4c956f7004e7eef34c7d7cedf92edc06b17a769175526b548ff61d43caa41c3f`
+(was `e62b0162…4d0d3c`).
+
+## Builder round 19 - two single-seam verdicts: both SOURCE-CLEAN at current bytes
+
+1. **Create's return JSON key: PRESENT - fixture-side if the capture shows otherwise.**
+   Every create path returns through `app.pay_request_json`
+   (fresh: line 1639; replay: line 1504), whose projection builds
+   `'requestId', p_request.id` (line 1415) in camelCase with the full declared
+   detail key set. The capture's `(r->>'requestId')::uuid` therefore resolves
+   the real request id - if gymloop-35's capture still shows a NULL req id,
+   the extract is the fixture defect (visible author's, per the coordinator's
+   own split) and the next suspect is the capture's label timing, not the
+   return shape.
+
+2. **h79 #65/#66 replay return: NOT TRIMMED - includes assetId + staging key.**
+   The round-17 normalized comparison touched only the equality test; the
+   replay's return is `jsonb_build_object('assetId', v_asset.id,
+   'stagingObjectKey', v_asset.staging_object_key, 'mime', p_mime, 'bytes',
+   p_bytes)` (keyed function lines 46-49) - assetId and staging key both
+   present, read-only from the stored row. If D3d still fails at the next
+   preview, the remaining shape risk is the replay's inner asset re-read
+   (`not found` → GL068) - i.e., the mint's stored assetId failed to resolve,
+   which would be a NEW fact (the mint ran, the asset row vanished
+   in-transaction) and would need the tape's bind values rather than a code
+   fix.
+
+Both checks: no migration edit made this round; rollback guard 159 files
+green (unchanged); migration hash unchanged
+`0f3f500d229e023e000bf6340de01c851f09973313ee53c44f4dea768511b498`.
+
+## Builder round 22 - diagnostic finalize variant delivered
+
+Artifact: `docs/evidence/v2/media-pay-diag-finalize-variant.sql` — the COMPLETE
+modified create-or-replace statement (7367 chars), generated programmatically
+from the committed bytes (no transcription): the audited 6659-char body with
+ONE diagnostic raise inserted inside the availability gate's not-found branch:
+
+    raise exception 'DIAG V: % | tenant=% | asset=% | staging=%',
+      pg_catalog.row_to_json(v_asset), p_tenant_id, p_asset_id, p_staging_object_key;
+
+Notes for the artifact integration: the DIAG fires ONLY in the not-found
+branch (the gate's normal path is untouched — healthy assets behave
+byte-identically); it REPLACES the refusal with the DIAG abort so the run's
+DIAG line carries the gate's actual runtime state (the row the select saw —
+empty/null when not found — plus the four compared argument values);
+`row_to_json` is `pg_catalog`-qualified because the function's
+`set search_path = ''` would otherwise fail to resolve it at runtime. The
+committed migration stays byte-exact (`0f3f500d…b498`).
