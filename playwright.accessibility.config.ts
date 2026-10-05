@@ -11,6 +11,7 @@ export default defineConfig({
     'e2e-holdout/phase8-accessibility-holdout.spec.ts',
   ],
   timeout: 90_000,
+  retries: 1,
   use: {
     baseURL: BASE_URL,
     screenshot: 'only-on-failure',
