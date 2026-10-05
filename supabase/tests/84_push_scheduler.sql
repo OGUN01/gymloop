@@ -220,13 +220,13 @@ select is(pg_temp.reads_now(),0,'PSD-003: zero eligible tenants read no Vault se
 select is(pg_temp.sends_now(),0,'PSD-003: zero eligible tenants enqueue no wakeup');
 
 -- ============ D2. mixed readiness: only ready tenants process ============
-perform pg_temp.event_tenant(11);
-perform pg_temp.event_tenant(12);
-perform pg_temp.event_tenant(13);
-perform pg_temp.event_tenant(14);
-perform pg_temp.config(11, now()-interval '1 hour');
-perform pg_temp.config(12, null);
-perform pg_temp.config(13, now()+interval '1 hour');
+select pg_temp.event_tenant(11);
+select pg_temp.event_tenant(12);
+select pg_temp.event_tenant(13);
+select pg_temp.event_tenant(14);
+select pg_temp.config(11, now()-interval '1 hour');
+select pg_temp.config(12, null);
+select pg_temp.config(13, now()+interval '1 hour');
 create temp table d2_pre as select pg_temp.reads_now() r, pg_temp.sends_now() s;
 select set_config('request.jwt.claims','',true);
 create temp table d2_res as select pg_temp.tickj() r;
@@ -246,8 +246,8 @@ select is((select tenant_id from public.notifications where dedupe_key like 'ann
 select is((select dedupe_key from public.notifications where tenant_id=pg_temp.aid(11) and dedupe_key like 'announcement:%'),'announcement:'||pg_temp.aid(5011)::text||':v1:'||pg_temp.aid(4011)::text,'PSD-003: the runner delegated with the exact approved announcement dedupe key');
 
 -- ============ D3. deterministic bounded wrap at 103 eligible tenants ============
-perform pg_temp.event_tenant(g) from generate_series(200,302) g;
-perform pg_temp.config(g, now()-interval '1 hour') from generate_series(200,302) g;
+select pg_temp.event_tenant(g) from generate_series(200,302) g;
+select pg_temp.config(g, now()-interval '1 hour') from generate_series(200,302) g;
 select set_config('request.jwt.claims','',true);
 select is((select count(*)::integer from public.push_provider_configurations where tenant_id between pg_temp.aid(200) and pg_temp.aid(302) and activated_at<=statement_timestamp()),103,'PSD-004: all 103 wrap-fixture tenants are ready');
 create temp table d3_res as select pg_temp.tickj() r;
