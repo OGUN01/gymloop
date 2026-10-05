@@ -68,6 +68,10 @@ set local search_path=extensions,public;
 select set_config('request.jwt.claims','',true);
 select plan(149);
 
+-- Temp seam tables must exist before the language-SQL helpers that reference them.
+create temp table seam_reads(n integer);
+create temp table seam_sends(n integer, secret text);
+
 create function pg_temp.aid(n integer) returns uuid language sql immutable as $$select ('84000000-0000-4000-8000-'||lpad(n::text,12,'0'))::uuid$$;
 create function pg_temp.probe(q text) returns text language plpgsql as $$begin execute q; return 'OK'; exception when others then return sqlstate; end$$;
 create function pg_temp.val(q text) returns text language plpgsql as $$declare r text; begin execute q into r; return r; exception when others then return sqlstate; end$$;
@@ -197,8 +201,6 @@ select is(pg_temp.probe($q$delete from net.http_request$q$),'OK','PSD-005: the i
 rollback to savepoint d0;
 
 -- ============ D1. zero eligible tenants: zero Vault and network work ============
-create temp table seam_reads(n integer);
-create temp table seam_sends(n integer, secret text);
 select is(pg_temp.probe($q$create or replace function app.read_push_dispatch_secret() returns text language plpgsql volatile security definer set search_path = '' as $fn$ begin insert into pg_temp.seam_reads(n) values (coalesce((select max(n) from pg_temp.seam_reads),0)+1); return 'synthetic-dispatch-secret-S'; end $fn$$q$),'OK','PSD-005: the sanctioned secret-lookup seam is installed');
 select is(pg_temp.probe($q$create or replace function app.enqueue_push_dispatch_wakeup(p_secret text) returns void language plpgsql volatile security definer set search_path = '' as $fn$ begin insert into pg_temp.seam_sends(n,secret) values (coalesce((select max(n) from pg_temp.seam_sends),0)+1,p_secret); end $fn$$q$),'OK','PSD-005: the sanctioned enqueue seam is installed');
 select set_config('request.jwt.claims','',true);
