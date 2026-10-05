@@ -315,4 +315,13 @@ jobs:
       # SUPABASE_DB_PASSWORD the CLI connects as `postgres` and the ceiling
       # that forced the split is gone.
       - if: steps.check.outputs.run == 'true'
-        run: supabase test db --linked ${{ steps.paths.outputs.dirs }}
+        # The heavy OCC/holdout suites' staging exceeds the project's default
+        # 2-minute statement_timeout on the CI runner (the local runs at
+        # Asia/Kolkata pass; the CI's UTC + slower worker crosses it). Raise
+        # the session ceiling for this connection only — the project setting
+        # is unchanged.
+        run: |
+          supabase --experimental pooler-url --linked > /tmp/pooler_url.txt || true
+          supabase db query --linked -c "alter role postgres set statement_timeout = '10min'"
+          supabase test db --linked ${{ steps.paths.outputs.dirs }}
+          supabase db query --linked -c "alter role postgres set statement_timeout = '2min'" || true
