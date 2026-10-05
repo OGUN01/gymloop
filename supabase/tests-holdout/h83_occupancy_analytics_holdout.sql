@@ -37,6 +37,25 @@
 -- (test 83), cell eligibleDates is scoped by hour existence — the same
 -- date-level count the visible suite pins for all 168 cells (test 93), and
 -- the unallocated net is collected minus returned at every level (test 125).
+--
+-- Repair 2026-10-06 (8 midnight-hour failures, this file only; no src/,
+-- migration or visible test touched; no assertion added, removed or
+-- weakened): the sweep's h83 transaction began inside the midnight hour IST,
+-- where the one clock expression left unpinned below — the excluded-holiday
+-- visit staged at "one hour before the transaction clock" — resolves to the
+-- PREVIOUS day. Its arrival then fell in the completed day (six raw
+-- arrivals where five are pinned: tests 64-67, 81, 83) and the excluded day
+-- row emptied (tests 61, 69). current_date itself cannot skew mid-file: the
+-- suite is one begin/rollback transaction, so every current_date in it was
+-- already a single value. The fix is the staging pin: every selected date is
+-- derived exactly once into pg_temp.h83_clock and every fixture date,
+-- capture argument, direct call and assertion lookup reads the staged
+-- values, never a recomputed clock. The holiday visit is pinned to the
+-- current day's local midnight — on the holiday date by construction,
+-- inside the selected range, and strictly before any asOf this transaction
+-- can produce, whatever hour it starts in — and the two cell lookups that
+-- mirror its hour now target that pinned coordinate (previously vacuous in
+-- midnight-hour runs, now a real cell-numerator check).
 begin;
 set local role postgres;
 set local time zone 'Asia/Kolkata';
@@ -51,6 +70,34 @@ create temp table h83_snap(k text primary key, r jsonb not null);
 create temp table h83_seed_errors(line text not null);
 grant select, insert on pg_temp.h83_snap to authenticated;
 grant select on pg_temp.h83_seed_errors to authenticated;
+
+-- ---------------------------------------------------------------- clock pin
+-- The suite's relative dates are derived exactly ONCE, here, in the same
+-- transaction that stages the fixtures. Everything below reads these staged
+-- values through the helpers; no assertion recomputes a now()-relative date
+-- (after this block current_date appears nowhere else in this file). The
+-- pinned holiday-visit instant is the current day's local midnight: on the
+-- holiday date by construction, inside the selected range, and strictly
+-- before any asOf the transaction can produce, whatever hour it starts in.
+create temp table h83_clock as
+select current_date as today_d,
+       current_date - 1 as from_d,
+       current_date + 1 as after_through_d,
+       ((current_date)::timestamp) at time zone 'Asia/Kolkata' as holiday_visit_at;
+grant select on pg_temp.h83_clock to authenticated;
+
+create function pg_temp.today_d() returns date language sql as $f$
+  select today_d from pg_temp.h83_clock
+$f$;
+create function pg_temp.from_d() returns date language sql as $f$
+  select from_d from pg_temp.h83_clock
+$f$;
+create function pg_temp.after_through_d() returns date language sql as $f$
+  select after_through_d from pg_temp.h83_clock
+$f$;
+create function pg_temp.holiday_visit_at() returns timestamptz language sql as $f$
+  select holiday_visit_at from pg_temp.h83_clock
+$f$;
 
 -- ---------------------------------------------------------------- helpers
 create function pg_temp.snap(k text) returns jsonb language sql as $f$
@@ -131,7 +178,7 @@ insert into public.branches(id, tenant_id, name, timezone) values
 
 -- Holidays: today (main-range exclusion) and 2026-09-21/22 (all-holiday range).
 insert into public.organization_holidays(id, tenant_id, holiday_on) values
-  ('83900000-0000-4000-8000-000000000019','83900000-0000-4000-8000-000000000001', current_date),
+  ('83900000-0000-4000-8000-000000000019','83900000-0000-4000-8000-000000000001', pg_temp.today_d()),
   ('83900000-0000-4000-8000-00000000001a','83900000-0000-4000-8000-000000000001', date '2026-09-21'),
   ('83900000-0000-4000-8000-00000000001b','83900000-0000-4000-8000-000000000001', date '2026-09-22');
 
@@ -159,14 +206,14 @@ insert into public.plans(id, tenant_id, name, duration_days, price_paise) values
   ('83900000-0000-4000-8000-0000000000c2','83900000-0000-4000-8000-000000000002','H83 Foreign Plan',30,100000);
 
 insert into public.memberships(id, tenant_id, member_id, plan_id, status, starts_on, ends_on, created_at, price_paise) values
-  ('83900000-0000-4000-8000-0000000000d1','83900000-0000-4000-8000-000000000001','83900000-0000-4000-8000-0000000000b1','83900000-0000-4000-8000-0000000000c1','expired', current_date - 400, current_date - 370, now() - interval '400 days',100000),
-  ('83900000-0000-4000-8000-0000000000d2','83900000-0000-4000-8000-000000000001','83900000-0000-4000-8000-0000000000b1','83900000-0000-4000-8000-0000000000c1','active', current_date - 10, current_date + 60, now() - interval '10 days',100000),
-  ('83900000-0000-4000-8000-0000000000d3','83900000-0000-4000-8000-000000000001','83900000-0000-4000-8000-0000000000b2','83900000-0000-4000-8000-0000000000c1','active', current_date - 20, current_date + 30, now() - interval '20 days',100000),
+  ('83900000-0000-4000-8000-0000000000d1','83900000-0000-4000-8000-000000000001','83900000-0000-4000-8000-0000000000b1','83900000-0000-4000-8000-0000000000c1','expired', pg_temp.today_d() - 400, pg_temp.today_d() - 370, now() - interval '400 days',100000),
+  ('83900000-0000-4000-8000-0000000000d2','83900000-0000-4000-8000-000000000001','83900000-0000-4000-8000-0000000000b1','83900000-0000-4000-8000-0000000000c1','active', pg_temp.today_d() - 10, pg_temp.today_d() + 60, now() - interval '10 days',100000),
+  ('83900000-0000-4000-8000-0000000000d3','83900000-0000-4000-8000-000000000001','83900000-0000-4000-8000-0000000000b2','83900000-0000-4000-8000-0000000000c1','active', pg_temp.today_d() - 20, pg_temp.today_d() + 30, now() - interval '20 days',100000),
   -- d0: EQUAL created_at sibling for member b2 (id sorts BEFORE d3). Equal
   -- timestamps are not earlier per the frozen rule; no id tie-break is
   -- permitted, so d3 must still classify newMember.
-  ('83900000-0000-4000-8000-0000000000d0','83900000-0000-4000-8000-000000000001','83900000-0000-4000-8000-0000000000b2','83900000-0000-4000-8000-0000000000c1','expired', current_date - 25, current_date - 5, now() - interval '20 days',100000),
-  ('83900000-0000-4000-8000-0000000000d4','83900000-0000-4000-8000-000000000002','83900000-0000-4000-8000-0000000000b4','83900000-0000-4000-8000-0000000000c2','active', current_date - 20, current_date + 30, now() - interval '20 days',100000);
+  ('83900000-0000-4000-8000-0000000000d0','83900000-0000-4000-8000-000000000001','83900000-0000-4000-8000-0000000000b2','83900000-0000-4000-8000-0000000000c1','expired', pg_temp.today_d() - 25, pg_temp.today_d() - 5, now() - interval '20 days',100000),
+  ('83900000-0000-4000-8000-0000000000d4','83900000-0000-4000-8000-000000000002','83900000-0000-4000-8000-0000000000b4','83900000-0000-4000-8000-0000000000c2','active', pg_temp.today_d() - 20, pg_temp.today_d() + 30, now() - interval '20 days',100000);
 
 insert into public.payments(id, tenant_id, member_id, membership_id, amount_paise, currency, status, method, receipt_number, recorded_by_staff_id, paid_at, created_at) values
   -- f1 -> d2 (b1's second membership) = renewal, in range.
@@ -231,22 +278,25 @@ begin
       -- Main branch (Kolkata), yesterday: two members at 09:00, the first
       -- member AGAIN at 09:30 (two accepted visits by one member count twice),
       -- one at 18:30, one exactly at the range-start local midnight.
-      ('83900000-0000-4000-8000-0000000000e1','83900000-0000-4000-8000-000000000001','83900000-0000-4000-8000-000000000011','83900000-0000-4000-8000-0000000000b1','qr', ((current_date - 1)::timestamp + time '09:00') at time zone 'Asia/Kolkata'),
-      ('83900000-0000-4000-8000-0000000000e2','83900000-0000-4000-8000-000000000001','83900000-0000-4000-8000-000000000011','83900000-0000-4000-8000-0000000000b2','qr', ((current_date - 1)::timestamp + time '09:00') at time zone 'Asia/Kolkata'),
-      ('83900000-0000-4000-8000-000000000e10','83900000-0000-4000-8000-000000000001','83900000-0000-4000-8000-000000000011','83900000-0000-4000-8000-0000000000b1','qr', ((current_date - 1)::timestamp + time '09:30') at time zone 'Asia/Kolkata'),
-      ('83900000-0000-4000-8000-0000000000e3','83900000-0000-4000-8000-000000000001','83900000-0000-4000-8000-000000000011','83900000-0000-4000-8000-0000000000b2','qr', ((current_date - 1)::timestamp + time '18:30') at time zone 'Asia/Kolkata'),
-      ('83900000-0000-4000-8000-0000000000e6','83900000-0000-4000-8000-000000000001','83900000-0000-4000-8000-000000000011','83900000-0000-4000-8000-0000000000b3','qr', ((current_date - 1)::timestamp) at time zone 'Asia/Kolkata'),
-      -- Today (holiday): one visit inside the current day, hour pinned to one
-      -- hour before the transaction clock so it is always before asOf.
-      ('83900000-0000-4000-8000-0000000000e5','83900000-0000-4000-8000-000000000001','83900000-0000-4000-8000-000000000011','83900000-0000-4000-8000-0000000000b3','qr', date_trunc('hour', now()) - interval '1 hour'),
+      ('83900000-0000-4000-8000-0000000000e1','83900000-0000-4000-8000-000000000001','83900000-0000-4000-8000-000000000011','83900000-0000-4000-8000-0000000000b1','qr', ((pg_temp.from_d())::timestamp + time '09:00') at time zone 'Asia/Kolkata'),
+      ('83900000-0000-4000-8000-0000000000e2','83900000-0000-4000-8000-000000000001','83900000-0000-4000-8000-000000000011','83900000-0000-4000-8000-0000000000b2','qr', ((pg_temp.from_d())::timestamp + time '09:00') at time zone 'Asia/Kolkata'),
+      ('83900000-0000-4000-8000-000000000e10','83900000-0000-4000-8000-000000000001','83900000-0000-4000-8000-000000000011','83900000-0000-4000-8000-0000000000b1','qr', ((pg_temp.from_d())::timestamp + time '09:30') at time zone 'Asia/Kolkata'),
+      ('83900000-0000-4000-8000-0000000000e3','83900000-0000-4000-8000-000000000001','83900000-0000-4000-8000-000000000011','83900000-0000-4000-8000-0000000000b2','qr', ((pg_temp.from_d())::timestamp + time '18:30') at time zone 'Asia/Kolkata'),
+      ('83900000-0000-4000-8000-0000000000e6','83900000-0000-4000-8000-000000000001','83900000-0000-4000-8000-000000000011','83900000-0000-4000-8000-0000000000b3','qr', ((pg_temp.from_d())::timestamp) at time zone 'Asia/Kolkata'),
+      -- Today (holiday): one visit inside the current day, pinned to the
+      -- current day's local midnight so it sits on the holiday date and is
+      -- always before asOf, whatever hour the transaction starts in (the
+      -- prior hour-of-day-relative formula resolved to the previous day in
+      -- midnight-hour runs — the 2026-10-06 repair's subject).
+      ('83900000-0000-4000-8000-0000000000e5','83900000-0000-4000-8000-000000000001','83900000-0000-4000-8000-000000000011','83900000-0000-4000-8000-0000000000b3','qr', pg_temp.holiday_visit_at()),
       -- Exactly at the after-through local midnight: excluded.
-      ('83900000-0000-4000-8000-0000000000e7','83900000-0000-4000-8000-000000000001','83900000-0000-4000-8000-000000000011','83900000-0000-4000-8000-0000000000b3','qr', ((current_date + 1)::timestamp) at time zone 'Asia/Kolkata'),
+      ('83900000-0000-4000-8000-0000000000e7','83900000-0000-4000-8000-000000000001','83900000-0000-4000-8000-000000000011','83900000-0000-4000-8000-0000000000b3','qr', ((pg_temp.after_through_d())::timestamp) at time zone 'Asia/Kolkata'),
       -- After asOf: excluded.
       ('83900000-0000-4000-8000-0000000000e8','83900000-0000-4000-8000-000000000001','83900000-0000-4000-8000-000000000011','83900000-0000-4000-8000-0000000000b3','qr', now() + interval '2 hours'),
       -- Other tenant.
       ('83900000-0000-4000-8000-0000000000e9','83900000-0000-4000-8000-000000000002','83900000-0000-4000-8000-000000000014','83900000-0000-4000-8000-0000000000b4','qr', now() - interval '2 hours'),
       -- Auckland branch, deterministic branch-local 15:00 yesterday.
-      ('83900000-0000-4000-8000-0000000000e4','83900000-0000-4000-8000-000000000001','83900000-0000-4000-8000-000000000012','83900000-0000-4000-8000-0000000000b3','qr', ((current_date - 1)::timestamp + time '15:00') at time zone 'Pacific/Auckland'),
+      ('83900000-0000-4000-8000-0000000000e4','83900000-0000-4000-8000-000000000001','83900000-0000-4000-8000-000000000012','83900000-0000-4000-8000-0000000000b3','qr', ((pg_temp.from_d())::timestamp + time '15:00') at time zone 'Pacific/Auckland'),
       -- DST gap: Sunday 2026-09-27 02:00-03:00 NZST does not exist; the visit
       -- sits on Sunday 2026-09-20 02:30 NZST so the Sunday/02 cell gains one
       -- eligible date while 2026-09-27 contributes none.
@@ -265,11 +315,11 @@ begin
     insert into public.services(id, tenant_id, name, description, default_duration_minutes, default_capacity, sort_order, is_active)
       values ('83900000-0000-4000-8000-000000000c30','83900000-0000-4000-8000-000000000001','H83 Strength','H83 holdout service',45,10,1,true);
     insert into public.class_sessions(id, tenant_id, service_id, branch_id, session_date, starts_at, capacity, status, ends_at, cancelled_at, cancel_reason, cancelled_by_staff_id) values
-      ('83900000-0000-4000-8000-000000001101','83900000-0000-4000-8000-000000000001','83900000-0000-4000-8000-000000000c30','83900000-0000-4000-8000-000000000011', current_date - 1, now() - interval '3 hours', 7, 'scheduled', now() - interval '1 hour', null, null, null),
-      ('83900000-0000-4000-8000-000000001102','83900000-0000-4000-8000-000000000001','83900000-0000-4000-8000-000000000c30','83900000-0000-4000-8000-000000000011', current_date - 1, now() - interval '30 minutes', 10, 'scheduled', now() + interval '2 hours', null, null, null),   -- ongoing/future
-      ('83900000-0000-4000-8000-000000001103','83900000-0000-4000-8000-000000000001','83900000-0000-4000-8000-000000000c30','83900000-0000-4000-8000-000000000011', current_date - 1, now() - interval '4 hours', 10, 'cancelled', now() - interval '2 hours', now() - interval '2 hours 30 minutes', 'H83 cancelled for the holdout cohort', '83900000-0000-4000-8000-0000000000a1'),  -- cancelled elapsed; cancel_state_chk triple staged
-      ('83900000-0000-4000-8000-000000001104','83900000-0000-4000-8000-000000000001','83900000-0000-4000-8000-000000000c30','83900000-0000-4000-8000-000000000011', current_date, now() - interval '2 hours', 10, 'scheduled', now() - interval '30 minutes', null, null, null),   -- holiday-standing elapsed
-      ('83900000-0000-4000-8000-000000001105','83900000-0000-4000-8000-000000000001','83900000-0000-4000-8000-000000000c30','83900000-0000-4000-8000-000000000012', current_date - 1, now() - interval '3 hours', 5, 'scheduled', now() - interval '2 hours', null, null, null);    -- Auckland
+      ('83900000-0000-4000-8000-000000001101','83900000-0000-4000-8000-000000000001','83900000-0000-4000-8000-000000000c30','83900000-0000-4000-8000-000000000011', pg_temp.from_d(), now() - interval '3 hours', 7, 'scheduled', now() - interval '1 hour', null, null, null),
+      ('83900000-0000-4000-8000-000000001102','83900000-0000-4000-8000-000000000001','83900000-0000-4000-8000-000000000c30','83900000-0000-4000-8000-000000000011', pg_temp.from_d(), now() - interval '30 minutes', 10, 'scheduled', now() + interval '2 hours', null, null, null),   -- ongoing/future
+      ('83900000-0000-4000-8000-000000001103','83900000-0000-4000-8000-000000000001','83900000-0000-4000-8000-000000000c30','83900000-0000-4000-8000-000000000011', pg_temp.from_d(), now() - interval '4 hours', 10, 'cancelled', now() - interval '2 hours', now() - interval '2 hours 30 minutes', 'H83 cancelled for the holdout cohort', '83900000-0000-4000-8000-0000000000a1'),  -- cancelled elapsed; cancel_state_chk triple staged
+      ('83900000-0000-4000-8000-000000001104','83900000-0000-4000-8000-000000000001','83900000-0000-4000-8000-000000000c30','83900000-0000-4000-8000-000000000011', pg_temp.today_d(), now() - interval '2 hours', 10, 'scheduled', now() - interval '30 minutes', null, null, null),   -- holiday-standing elapsed
+      ('83900000-0000-4000-8000-000000001105','83900000-0000-4000-8000-000000000001','83900000-0000-4000-8000-000000000c30','83900000-0000-4000-8000-000000000012', pg_temp.from_d(), now() - interval '3 hours', 5, 'scheduled', now() - interval '2 hours', null, null, null);    -- Auckland
   exception when others then
     insert into h83_seed_errors values ('class_sessions: ' || SQLERRM);
   end;
@@ -349,16 +399,16 @@ select ok((select count(*) from h83_seed_errors) = 0,
 select set_config('request.jwt.claims','{"sub":"83900000-0000-4000-8000-0000000000a1","role":"authenticated","app_role":"gym_owner","staff_id":"83900000-0000-4000-8000-0000000000a1","tenant_id":"83900000-0000-4000-8000-000000000001"}',true);
 set local role authenticated;
 
-select pg_temp.capture('main',    current_date - 1, current_date, null, true);
-select pg_temp.capture('filter',  current_date - 1, current_date, '83900000-0000-4000-8000-000000000011'::uuid, true);
-select pg_temp.capture('b11',     current_date - 1, current_date, '83900000-0000-4000-8000-000000000011'::uuid, true);
-select pg_temp.capture('b12',     current_date - 1, current_date, '83900000-0000-4000-8000-000000000012'::uuid, true);
-select pg_temp.capture('nohol',   current_date - 1, current_date, null, false);
+select pg_temp.capture('main',    pg_temp.from_d(), pg_temp.today_d(), null, true);
+select pg_temp.capture('filter',  pg_temp.from_d(), pg_temp.today_d(), '83900000-0000-4000-8000-000000000011'::uuid, true);
+select pg_temp.capture('b11',     pg_temp.from_d(), pg_temp.today_d(), '83900000-0000-4000-8000-000000000011'::uuid, true);
+select pg_temp.capture('b12',     pg_temp.from_d(), pg_temp.today_d(), '83900000-0000-4000-8000-000000000012'::uuid, true);
+select pg_temp.capture('nohol',   pg_temp.from_d(), pg_temp.today_d(), null, false);
 select pg_temp.capture('sep',     date '2026-09-01', date '2026-09-30', null, true);
 select pg_temp.capture('dst',     date '2026-09-20', date '2026-09-27', '83900000-0000-4000-8000-000000000012'::uuid, true);
 select pg_temp.capture('apr',     date '2026-04-05', date '2026-04-05', '83900000-0000-4000-8000-000000000012'::uuid, true);
 select pg_temp.capture('hol',     date '2026-09-21', date '2026-09-22', '83900000-0000-4000-8000-000000000011'::uuid, true);
-select pg_temp.capture('future',  current_date + 30, current_date + 31, null, true);
+select pg_temp.capture('future',  pg_temp.today_d() + 30, pg_temp.today_d() + 31, null, true);
 
 select ok(not exists (select 1 from pg_temp.h83_snap where r ? '__error__'),
           'every materialized real-RPC call succeeded'
@@ -382,23 +432,23 @@ select ok(not exists (select 1 from pg_proc p cross join lateral aclexplode(coal
 -- ---------------------------------------------------------------------------
 select ok(jsonb_typeof(pg_temp.snap('main')) = 'object','real gym owner receives the one-snapshot response');
 select set_config('request.jwt.claims','{"sub":"83900000-0000-4000-8000-0000000000a2","role":"authenticated","app_role":"gym_manager","staff_id":"83900000-0000-4000-8000-0000000000a2","tenant_id":"83900000-0000-4000-8000-000000000001"}',true);
-select ok(jsonb_typeof(public.owner_occupancy_analytics(current_date - 1, current_date, null, true)) = 'object','real gym manager receives the snapshot');
+select ok(jsonb_typeof(public.owner_occupancy_analytics(pg_temp.from_d(), pg_temp.today_d(), null, true)) = 'object','real gym manager receives the snapshot');
 select set_config('request.jwt.claims','{"sub":"83900000-0000-4000-8000-0000000000a3","role":"authenticated","app_role":"front_desk","staff_id":"83900000-0000-4000-8000-0000000000a3","tenant_id":"83900000-0000-4000-8000-000000000001"}',true);
-select throws_ok($q$select public.owner_occupancy_analytics(current_date - 1, current_date, null, true)$q$,'42501'::char(5),null,'front desk receives no analytics');
+select throws_ok($q$select public.owner_occupancy_analytics(pg_temp.from_d(), pg_temp.today_d(), null, true)$q$,'42501'::char(5),null,'front desk receives no analytics');
 select set_config('request.jwt.claims','{"sub":"83900000-0000-4000-8000-0000000000a4","role":"authenticated","app_role":"trainer","staff_id":"83900000-0000-4000-8000-0000000000a4","tenant_id":"83900000-0000-4000-8000-000000000001"}',true);
-select throws_ok($q$select public.owner_occupancy_analytics(current_date - 1, current_date, null, true)$q$,'42501'::char(5),null,'trainer receives no analytics');
+select throws_ok($q$select public.owner_occupancy_analytics(pg_temp.from_d(), pg_temp.today_d(), null, true)$q$,'42501'::char(5),null,'trainer receives no analytics');
 select set_config('request.jwt.claims','{"sub":"83900000-0000-4000-8000-0000000000b1","role":"authenticated","app_role":"member","tenant_id":"83900000-0000-4000-8000-000000000001"}',true);
-select throws_ok($q$select public.owner_occupancy_analytics(current_date - 1, current_date, null, true)$q$,'42501'::char(5),null,'member receives no analytics');
+select throws_ok($q$select public.owner_occupancy_analytics(pg_temp.from_d(), pg_temp.today_d(), null, true)$q$,'42501'::char(5),null,'member receives no analytics');
 select set_config('request.jwt.claims','{"sub":"83900000-0000-4000-8000-0000000000a8","role":"authenticated","app_role":"super_admin"}',true);
-select throws_ok($q$select public.owner_occupancy_analytics(current_date - 1, current_date, null, true)$q$,'42501'::char(5),null,'platform super admin receives no gym analytics');
+select throws_ok($q$select public.owner_occupancy_analytics(pg_temp.from_d(), pg_temp.today_d(), null, true)$q$,'42501'::char(5),null,'platform super admin receives no gym analytics');
 select set_config('request.jwt.claims','{"sub":"83900000-0000-4000-8000-0000000000a8","role":"authenticated","app_role":"super_admin","impersonation_session_id":"83900000-0000-4000-8000-000000000190"}',true);
-select throws_ok($q$select public.owner_occupancy_analytics(current_date - 1, current_date, null, true)$q$,'42501'::char(5),null,'support preview receives no analytics');
+select throws_ok($q$select public.owner_occupancy_analytics(pg_temp.from_d(), pg_temp.today_d(), null, true)$q$,'42501'::char(5),null,'support preview receives no analytics');
 select set_config('request.jwt.claims','{"sub":"83900000-0000-4000-8000-0000000000a8","role":"authenticated","app_role":"super_admin","tenant_id":"83900000-0000-4000-8000-000000000001","staff_id":"83900000-0000-4000-8000-0000000000a1"}',true);
-select throws_ok($q$select public.owner_occupancy_analytics(current_date - 1, current_date, null, true)$q$,'42501'::char(5),null,'mixed platform and gym identity is refused before any read');
+select throws_ok($q$select public.owner_occupancy_analytics(pg_temp.from_d(), pg_temp.today_d(), null, true)$q$,'42501'::char(5),null,'mixed platform and gym identity is refused before any read');
 select set_config('request.jwt.claims','',true);
-select throws_ok($q$select public.owner_occupancy_analytics(current_date - 1, current_date, null, true)$q$,'42501'::char(5),null,'missing claims are refused before any read');
+select throws_ok($q$select public.owner_occupancy_analytics(pg_temp.from_d(), pg_temp.today_d(), null, true)$q$,'42501'::char(5),null,'missing claims are refused before any read');
 select set_config('request.jwt.claims','{"sub":"83900000-0000-4000-8000-0000000000a5","role":"authenticated","app_role":"gym_owner","staff_id":"83900000-0000-4000-8000-0000000000a5","tenant_id":"83900000-0000-4000-8000-000000000001"}',true);
-select throws_ok($q$select public.owner_occupancy_analytics(current_date - 1, current_date, null, true)$q$,'42501'::char(5),null,'inactive staff row is refused despite live claims');
+select throws_ok($q$select public.owner_occupancy_analytics(pg_temp.from_d(), pg_temp.today_d(), null, true)$q$,'42501'::char(5),null,'inactive staff row is refused despite live claims');
 
 -- Restore owner identity for the remaining sections.
 select set_config('request.jwt.claims','{"sub":"83900000-0000-4000-8000-0000000000a1","role":"authenticated","app_role":"gym_owner","staff_id":"83900000-0000-4000-8000-0000000000a1","tenant_id":"83900000-0000-4000-8000-000000000001"}',true);
@@ -411,8 +461,8 @@ select set_config('request.jwt.claims','{"sub":"83900000-0000-4000-8000-00000000
 -- safe refusal" clause plus the repo-wide target-invisibility precedent make
 -- the single unavailable signal correct; a 42501 would reveal authorization
 -- state about the branch.
-select throws_ok($q$select public.owner_occupancy_analytics(current_date - 1, current_date, '83900000-0000-4000-8000-000000000099'::uuid, true)$q$,'P0002'::char(5),null,'forged branch id is refused with the same safe unavailable signal');
-select throws_ok($q$select public.owner_occupancy_analytics(current_date - 1, current_date, '83900000-0000-4000-8000-000000000014'::uuid, true)$q$,'P0002'::char(5),null,'foreign-tenant branch id is refused with the same safe unavailable signal');
+select throws_ok($q$select public.owner_occupancy_analytics(pg_temp.from_d(), pg_temp.today_d(), '83900000-0000-4000-8000-000000000099'::uuid, true)$q$,'P0002'::char(5),null,'forged branch id is refused with the same safe unavailable signal');
+select throws_ok($q$select public.owner_occupancy_analytics(pg_temp.from_d(), pg_temp.today_d(), '83900000-0000-4000-8000-000000000014'::uuid, true)$q$,'P0002'::char(5),null,'foreign-tenant branch id is refused with the same safe unavailable signal');
 select is((select current_setting('request.jwt.claims')),'{"sub":"83900000-0000-4000-8000-0000000000a1","role":"authenticated","app_role":"gym_owner","staff_id":"83900000-0000-4000-8000-0000000000a1","tenant_id":"83900000-0000-4000-8000-000000000001"}','actor matrix fixtures intact');
 select ok(jsonb_typeof(pg_temp.snap('main')) = 'object','null branch reads the whole gym');
 select ok((select count(*) from jsonb_array_elements(pg_temp.snap('main')->'collection'->'components'->'collected') v
@@ -429,8 +479,8 @@ select ok((select count(*) from jsonb_array_elements(pg_temp.snap('main')->'coll
 select is((select array_agg(k order by k) from (select k, ord from jsonb_object_keys(pg_temp.snap('main')) with ordinality as t(k,ord)) s),
           array['asOf','classes','collection','heatmap','moneyRange','months','range','warnings','zone'],
           'top-level envelope is exactly the nine frozen keys (set-wise; listing order is author-facing, not contract behavior)');
-select is(pg_temp.snap('main')->'range'->>'from',(current_date - 1)::text,'range echoes the actual resolved from date');
-select is(pg_temp.snap('main')->'range'->>'through',current_date::text,'range echoes the actual resolved through date');
+select is(pg_temp.snap('main')->'range'->>'from',(pg_temp.from_d())::text,'range echoes the actual resolved from date');
+select is(pg_temp.snap('main')->'range'->>'through',pg_temp.today_d()::text,'range echoes the actual resolved through date');
 select is(pg_temp.snap('main')->'range'->>'branchId',null,'whole-gym selection echoes a null branchId');
 select is(pg_temp.snap('main')->'range'->>'excludeHolidays','true','range echoes the holiday toggle');
 select ok(pg_temp.snap('main')->>'asOf' is not null,'server asOf is disclosed');
@@ -440,7 +490,7 @@ select is(pg_temp.snap('b11')->>'zone','Asia/Kolkata','null branch zone is the d
 select is(pg_temp.snap('main')->'moneyRange'->>'scope','Whole gym','money scope is always Whole gym');
 select is(pg_temp.snap('main')->'moneyRange'->>'cutoffAt',pg_temp.snap('main')->>'asOf','money cutoff is min(endsBefore, asOf): the range ends after now, so the cutoff equals asOf');
 select is((select count(*) from jsonb_array_elements(pg_temp.snap('main')->'months'))::bigint,1::bigint,'months contains exactly the gym-local months intersecting the selection');
-select is((select m->>'month' from jsonb_array_elements(pg_temp.snap('main')->'months') m limit 1),to_char(now() at time zone 'Asia/Kolkata','YYYY-MM'),'the intersecting month is the current gym-local month');
+select is((select m->>'month' from jsonb_array_elements(pg_temp.snap('main')->'months') m limit 1),to_char(pg_temp.today_d(),'YYYY-MM'),'the intersecting month is the current gym-local month');
 select is((select m->>'coverage' from jsonb_array_elements(pg_temp.snap('main')->'months') m limit 1),'partial','an incomplete calendar-month selection is partial, never full');
 select ok((select count(*) from jsonb_array_elements(pg_temp.snap('main')->'months') m where exists (select 1 from jsonb_array_elements(m->'currencies') c where c->>'currency' = 'INR')) = 1
        and (select count(*) from jsonb_array_elements(pg_temp.snap('main')->'months') m where exists (select 1 from jsonb_array_elements(m->'currencies') c where c->>'currency' = 'USD')) = 1,'month currency union covers every dated selected currency');
@@ -454,10 +504,10 @@ select is(pg_temp.snap('future')->'collection'->'currencies','[]'::jsonb,'an ent
 -- the frozen four-argument envelope has no defaulted form to omit, and the
 -- null-toggle refusal elsewhere proves omission is impossible.
 select ok(coalesce((select d->>'excluded'
-           from jsonb_array_elements(public.owner_occupancy_analytics(current_date - 1, current_date, null, true)->'heatmap'->'branches') b
+           from jsonb_array_elements(public.owner_occupancy_analytics(pg_temp.from_d(), pg_temp.today_d(), null, true)->'heatmap'->'branches') b
            cross join lateral jsonb_array_elements(b->'days') d
            where b->>'branchId' = '83900000-0000-4000-8000-000000000011'
-             and d->>'localDate' = current_date::text
+             and d->>'localDate' = pg_temp.today_d()::text
            limit 1), 'missing') = 'true','explicit true keeps holiday exclusion on (OCC-005)');
 
 -- ---------------------------------------------------------------------------
@@ -477,39 +527,39 @@ select is(pg_temp.branch(pg_temp.snap('main')->'heatmap'->'branches','83900000-0
 select ok(pg_temp.branch(pg_temp.snap('main')->'heatmap'->'branches','83900000-0000-4000-8000-000000000013')->'days' = '[]'::jsonb
        and pg_temp.branch(pg_temp.snap('main')->'heatmap'->'branches','83900000-0000-4000-8000-000000000013')->'cells' = '[]'::jsonb,'invalid branch keeps its entry with empty exposure, never silently dropped');
 select is((select count(*) from jsonb_array_elements(pg_temp.branch(pg_temp.snap('main')->'heatmap'->'branches','83900000-0000-4000-8000-000000000011')->'days'))::bigint,2::bigint,'one day row per selected local date, including zero and excluded dates');
-select is(pg_temp.day(pg_temp.branch(pg_temp.snap('main')->'heatmap'->'branches','83900000-0000-4000-8000-000000000011')->'days',current_date)->>'localDate',current_date::text,'today is present as a day row');
-select ok(pg_temp.day(pg_temp.branch(pg_temp.snap('main')->'heatmap'->'branches','83900000-0000-4000-8000-000000000011')->'days',current_date)->>'excluded' = 'true'
-       and pg_temp.day(pg_temp.branch(pg_temp.snap('main')->'heatmap'->'branches','83900000-0000-4000-8000-000000000011')->'days',current_date)->>'isHoliday' = 'true','the holiday date is marked excluded with the toggle on');
-select is(pg_temp.day(pg_temp.branch(pg_temp.snap('main')->'heatmap'->'branches','83900000-0000-4000-8000-000000000011')->'days',current_date)->>'visits','1','the excluded holiday visit stays visible in its day row (never erased)');
-select is(pg_temp.day(pg_temp.branch(pg_temp.snap('main')->'heatmap'->'branches','83900000-0000-4000-8000-000000000011')->'days',current_date)->>'state','current','today is the current day relative to asOf');
-select is(pg_temp.day(pg_temp.branch(pg_temp.snap('main')->'heatmap'->'branches','83900000-0000-4000-8000-000000000011')->'days',current_date - 1)->>'state','completed','yesterday is a completed day');
-select is(pg_temp.day(pg_temp.branch(pg_temp.snap('main')->'heatmap'->'branches','83900000-0000-4000-8000-000000000011')->'days',current_date - 1)->>'visits','5','yesterday raw arrivals: two members at 09:00, the first member again at 09:30, one at 18:30, one exactly at the range-start midnight');
-select is((select sum((h->>'visits')::int) from jsonb_array_elements(pg_temp.day(pg_temp.branch(pg_temp.snap('main')->'heatmap'->'branches','83900000-0000-4000-8000-000000000011')->'days',current_date - 1)->'hours') h)::bigint,5::bigint,'day hours reconcile to the day visits');
+select is(pg_temp.day(pg_temp.branch(pg_temp.snap('main')->'heatmap'->'branches','83900000-0000-4000-8000-000000000011')->'days',pg_temp.today_d())->>'localDate',pg_temp.today_d()::text,'today is present as a day row');
+select ok(pg_temp.day(pg_temp.branch(pg_temp.snap('main')->'heatmap'->'branches','83900000-0000-4000-8000-000000000011')->'days',pg_temp.today_d())->>'excluded' = 'true'
+       and pg_temp.day(pg_temp.branch(pg_temp.snap('main')->'heatmap'->'branches','83900000-0000-4000-8000-000000000011')->'days',pg_temp.today_d())->>'isHoliday' = 'true','the holiday date is marked excluded with the toggle on');
+select is(pg_temp.day(pg_temp.branch(pg_temp.snap('main')->'heatmap'->'branches','83900000-0000-4000-8000-000000000011')->'days',pg_temp.today_d())->>'visits','1','the excluded holiday visit stays visible in its day row (never erased)');
+select is(pg_temp.day(pg_temp.branch(pg_temp.snap('main')->'heatmap'->'branches','83900000-0000-4000-8000-000000000011')->'days',pg_temp.today_d())->>'state','current','today is the current day relative to asOf');
+select is(pg_temp.day(pg_temp.branch(pg_temp.snap('main')->'heatmap'->'branches','83900000-0000-4000-8000-000000000011')->'days',pg_temp.from_d())->>'state','completed','yesterday is a completed day');
+select is(pg_temp.day(pg_temp.branch(pg_temp.snap('main')->'heatmap'->'branches','83900000-0000-4000-8000-000000000011')->'days',pg_temp.from_d())->>'visits','5','yesterday raw arrivals: two members at 09:00, the first member again at 09:30, one at 18:30, one exactly at the range-start midnight');
+select is((select sum((h->>'visits')::int) from jsonb_array_elements(pg_temp.day(pg_temp.branch(pg_temp.snap('main')->'heatmap'->'branches','83900000-0000-4000-8000-000000000011')->'days',pg_temp.from_d())->'hours') h)::bigint,5::bigint,'day hours reconcile to the day visits');
 select is(pg_temp.branch(pg_temp.snap('main')->'heatmap'->'branches','83900000-0000-4000-8000-000000000011')->>'totalVisits','5','branch total visits sum only nonexcluded day visits');
 select is(pg_temp.branch(pg_temp.snap('main')->'heatmap'->'branches','83900000-0000-4000-8000-000000000011')->>'completedVisits','5','completed visits are yesterday''s five');
 select is(pg_temp.branch(pg_temp.snap('main')->'heatmap'->'branches','83900000-0000-4000-8000-000000000011')->>'currentDayVisits','0','the excluded current day contributes zero nonexcluded current visits');
 select is(pg_temp.branch(pg_temp.snap('main')->'heatmap'->'branches','83900000-0000-4000-8000-000000000011')->>'excludedVisits','1','excluded holiday visits are disclosed separately');
 select is(pg_temp.branch(pg_temp.snap('main')->'heatmap'->'branches','83900000-0000-4000-8000-000000000011')->>'availability','partial','a range containing the current day is partial');
 select is((select count(*) from jsonb_array_elements(pg_temp.branch(pg_temp.snap('main')->'heatmap'->'branches','83900000-0000-4000-8000-000000000011')->'cells'))::bigint,168::bigint,'cells include all 168 weekday/hour coordinates in coordinate order');
-select is(pg_temp.cell(pg_temp.branch(pg_temp.snap('main')->'heatmap'->'branches','83900000-0000-4000-8000-000000000011')->'cells',extract(dow from (current_date - 1))::int,9)->>'arrivals','3','the 09:00 hour counts two members and the same member''s second visit (three raw arrivals)');
-select is(pg_temp.cell(pg_temp.branch(pg_temp.snap('main')->'heatmap'->'branches','83900000-0000-4000-8000-000000000011')->'cells',extract(dow from (current_date - 1))::int,9)->>'eligibleDates','1','only yesterday is an eligible completed date for yesterday''s weekday');
-select ok(pg_temp.cell(pg_temp.branch(pg_temp.snap('main')->'heatmap'->'branches','83900000-0000-4000-8000-000000000011')->'cells',extract(dow from (current_date - 1))::int,9)->>'limited' = 'true'
-       and pg_temp.cell(pg_temp.branch(pg_temp.snap('main')->'heatmap'->'branches','83900000-0000-4000-8000-000000000011')->'cells',extract(dow from (current_date - 1))::int,9)->>'message' = 'Limited history','below 14 eligible dates the cell is Limited history with the raw fraction retained');
-select is(pg_temp.cell(pg_temp.branch(pg_temp.snap('main')->'heatmap'->'branches','83900000-0000-4000-8000-000000000011')->'cells',extract(dow from (current_date - 1))::int,18)->>'arrivals','1','the 18:30 arrival buckets into hour 18');
-select is(pg_temp.cell(pg_temp.branch(pg_temp.snap('main')->'heatmap'->'branches','83900000-0000-4000-8000-000000000011')->'cells',extract(dow from (current_date - 1))::int,0)->>'arrivals','1','an arrival exactly at the lower-bound local midnight buckets into hour 0 (lower bound included)');
-select is(pg_temp.cell(pg_temp.branch(pg_temp.snap('main')->'heatmap'->'branches','83900000-0000-4000-8000-000000000011')->'cells',extract(dow from current_date)::int,extract(hour from (date_trunc('hour', now()) - interval '1 hour') at time zone 'Asia/Kolkata')::int)->>'arrivals','0','the excluded holiday visit never enters any cell numerator');
-select is(pg_temp.cell(pg_temp.branch(pg_temp.snap('main')->'heatmap'->'branches','83900000-0000-4000-8000-000000000011')->'cells',extract(dow from current_date)::int,extract(hour from (date_trunc('hour', now()) - interval '1 hour') at time zone 'Asia/Kolkata')::int)->>'todayArrivals','0','an excluded holiday visit never enters todayArrivals');
+select is(pg_temp.cell(pg_temp.branch(pg_temp.snap('main')->'heatmap'->'branches','83900000-0000-4000-8000-000000000011')->'cells',extract(dow from pg_temp.from_d())::int,9)->>'arrivals','3','the 09:00 hour counts two members and the same member''s second visit (three raw arrivals)');
+select is(pg_temp.cell(pg_temp.branch(pg_temp.snap('main')->'heatmap'->'branches','83900000-0000-4000-8000-000000000011')->'cells',extract(dow from pg_temp.from_d())::int,9)->>'eligibleDates','1','only yesterday is an eligible completed date for yesterday''s weekday');
+select ok(pg_temp.cell(pg_temp.branch(pg_temp.snap('main')->'heatmap'->'branches','83900000-0000-4000-8000-000000000011')->'cells',extract(dow from pg_temp.from_d())::int,9)->>'limited' = 'true'
+       and pg_temp.cell(pg_temp.branch(pg_temp.snap('main')->'heatmap'->'branches','83900000-0000-4000-8000-000000000011')->'cells',extract(dow from pg_temp.from_d())::int,9)->>'message' = 'Limited history','below 14 eligible dates the cell is Limited history with the raw fraction retained');
+select is(pg_temp.cell(pg_temp.branch(pg_temp.snap('main')->'heatmap'->'branches','83900000-0000-4000-8000-000000000011')->'cells',extract(dow from pg_temp.from_d())::int,18)->>'arrivals','1','the 18:30 arrival buckets into hour 18');
+select is(pg_temp.cell(pg_temp.branch(pg_temp.snap('main')->'heatmap'->'branches','83900000-0000-4000-8000-000000000011')->'cells',extract(dow from pg_temp.from_d())::int,0)->>'arrivals','1','an arrival exactly at the lower-bound local midnight buckets into hour 0 (lower bound included)');
+select is(pg_temp.cell(pg_temp.branch(pg_temp.snap('main')->'heatmap'->'branches','83900000-0000-4000-8000-000000000011')->'cells',extract(dow from pg_temp.today_d())::int,0)->>'arrivals','0','the excluded holiday visit never enters any cell numerator');
+select is(pg_temp.cell(pg_temp.branch(pg_temp.snap('main')->'heatmap'->'branches','83900000-0000-4000-8000-000000000011')->'cells',extract(dow from pg_temp.today_d())::int,0)->>'todayArrivals','0','an excluded holiday visit never enters todayArrivals');
 select is(pg_temp.cell(pg_temp.branch(pg_temp.snap('hol')->'heatmap'->'branches','83900000-0000-4000-8000-000000000011')->'cells',1,9)->>'message','No eligible days','a coordinate with no completed nonexcluded eligible dates discloses No eligible days, not a zero average (the all-holiday range leaves Monday 09 with zero eligible dates; in the main range every clock hour still holds yesterday as an eligible date, and the current-only Monday coordinate is the Limited history disclosure)');
-select is(pg_temp.cell(pg_temp.branch(pg_temp.snap('main')->'heatmap'->'branches','83900000-0000-4000-8000-000000000011')->'cells',extract(dow from current_date)::int,10)->>'basisPoints',null,'a zero-denominator cell fraction carries null basis points');
+select is(pg_temp.cell(pg_temp.branch(pg_temp.snap('main')->'heatmap'->'branches','83900000-0000-4000-8000-000000000011')->'cells',extract(dow from pg_temp.today_d())::int,10)->>'basisPoints',null,'a zero-denominator cell fraction carries null basis points');
 select is(pg_temp.branch(pg_temp.snap('main')->'heatmap'->'branches','83900000-0000-4000-8000-000000000011')->'week'->>'arrivals','5','the week aggregate sums completed nonexcluded date visits');
 select is(pg_temp.branch(pg_temp.snap('main')->'heatmap'->'branches','83900000-0000-4000-8000-000000000011')->'week'->>'eligibleDates','1','the week aggregate counts each completed nonexcluded date once');
 select is(pg_temp.branch(pg_temp.snap('main')->'heatmap'->'branches','83900000-0000-4000-8000-000000000011')->'week'->'fraction',jsonb_build_object('numerator','5','denominator','1','basisPoints','50000'),'the week fraction is the exact half-up ratio of its own numerator and denominator (5 completed arrivals over 1 completed nonexcluded date) with the exact {numerator,denominator,basisPoints} keys');
 select is(pg_temp.branch(pg_temp.snap('main')->'heatmap'->'branches','83900000-0000-4000-8000-000000000011')->'week'->>'limited','true','the week aggregate is limited below 14 eligible dates');
-select is(pg_temp.day(pg_temp.branch(pg_temp.snap('b12')->'heatmap'->'branches','83900000-0000-4000-8000-000000000012')->'days',current_date - 1)->>'visits','1','the Auckland visit buckets on its own branch-local date under the branch zone');
+select is(pg_temp.day(pg_temp.branch(pg_temp.snap('b12')->'heatmap'->'branches','83900000-0000-4000-8000-000000000012')->'days',pg_temp.from_d())->>'visits','1','the Auckland visit buckets on its own branch-local date under the branch zone');
 select is(pg_temp.snap('main')->'heatmap'->'reconciliation'->>'complete','false','one invalid branch makes the heatmap reconciliation incomplete');
 select is(pg_temp.snap('main')->'heatmap'->'reconciliation'->>'totalVisits',null,'an incomplete reconciliation returns null totals instead of a silently partial organization sum');
-select is(pg_temp.day(pg_temp.branch(pg_temp.snap('nohol')->'heatmap'->'branches','83900000-0000-4000-8000-000000000011')->'days',current_date)->>'excluded','false','with the toggle off the holiday date is not excluded');
-select is(pg_temp.day(pg_temp.branch(pg_temp.snap('nohol')->'heatmap'->'branches','83900000-0000-4000-8000-000000000011')->'days',current_date)->>'isHoliday','true','with the toggle off the date still discloses its holiday fact');
+select is(pg_temp.day(pg_temp.branch(pg_temp.snap('nohol')->'heatmap'->'branches','83900000-0000-4000-8000-000000000011')->'days',pg_temp.today_d())->>'excluded','false','with the toggle off the holiday date is not excluded');
+select is(pg_temp.day(pg_temp.branch(pg_temp.snap('nohol')->'heatmap'->'branches','83900000-0000-4000-8000-000000000011')->'days',pg_temp.today_d())->>'isHoliday','true','with the toggle off the date still discloses its holiday fact');
 select is((select count(*) from jsonb_array_elements(pg_temp.snap('filter')->'heatmap'->'branches'))::bigint,1::bigint,'a branch-scoped read exposes exactly that branch');
 select is((select h->>'exists' from jsonb_array_elements(pg_temp.day(pg_temp.branch(pg_temp.snap('dst')->'heatmap'->'branches','83900000-0000-4000-8000-000000000012')->'days',date '2026-09-27')->'hours') h where (h->>'hour')::int = 2),'false','the DST-gap clock hour does not exist on 2026-09-27 in Auckland');
 select is((select h->>'visits' from jsonb_array_elements(pg_temp.day(pg_temp.branch(pg_temp.snap('dst')->'heatmap'->'branches','83900000-0000-4000-8000-000000000012')->'days',date '2026-09-20')->'hours') h where (h->>'hour')::int = 2),'1','the pre-gap Sunday visit buckets into hour 2 on 2026-09-20');
@@ -647,10 +697,10 @@ select ok((select count(*) from jsonb_array_elements(pg_temp.snap('b11')->'class
 -- ---------------------------------------------------------------------------
 -- Section H: argument validation refusals.
 -- ---------------------------------------------------------------------------
-select throws_ok($q$select public.owner_occupancy_analytics(current_date, current_date - 1, null, true)$q$,'22023'::char(5),null,'an inverted range is invalid');
-select throws_ok($q$select public.owner_occupancy_analytics(null, current_date, null, true)$q$,'22023'::char(5),null,'a missing from date is invalid, never defaulted');
-select throws_ok($q$select public.owner_occupancy_analytics(current_date - 1, null, null, true)$q$,'22023'::char(5),null,'a missing through date is invalid, never defaulted');
-select throws_ok($q$select public.owner_occupancy_analytics(current_date - 1, current_date, null, null)$q$,'22023'::char(5),null,'a null holiday toggle is invalid, never silently defaulted');
+select throws_ok($q$select public.owner_occupancy_analytics(pg_temp.today_d(), pg_temp.from_d(), null, true)$q$,'22023'::char(5),null,'an inverted range is invalid');
+select throws_ok($q$select public.owner_occupancy_analytics(null, pg_temp.today_d(), null, true)$q$,'22023'::char(5),null,'a missing from date is invalid, never defaulted');
+select throws_ok($q$select public.owner_occupancy_analytics(pg_temp.from_d(), null, null, true)$q$,'22023'::char(5),null,'a missing through date is invalid, never defaulted');
+select throws_ok($q$select public.owner_occupancy_analytics(pg_temp.from_d(), pg_temp.today_d(), null, null)$q$,'22023'::char(5),null,'a null holiday toggle is invalid, never silently defaulted');
 
 -- ---------------------------------------------------------------------------
 -- Section I: invalid gym zone (end-of-life fixture change, rollback undoes it).
@@ -674,7 +724,7 @@ update public.organizations set timezone = 'Not/AZone'
 alter table public.organizations enable trigger user;
 select set_config('request.jwt.claims','{"sub":"83900000-0000-4000-8000-0000000000a1","role":"authenticated","app_role":"gym_owner","staff_id":"83900000-0000-4000-8000-0000000000a1","tenant_id":"83900000-0000-4000-8000-000000000001"}',true);
 set local role authenticated;
-select pg_temp.capture('badzone', current_date - 1, current_date, null, true);
+select pg_temp.capture('badzone', pg_temp.from_d(), pg_temp.today_d(), null, true);
 select ok(pg_temp.snap('badzone')->'zone' = 'null'::jsonb
        and pg_temp.snap('badzone')->'moneyRange'->>'zone' = 'Not/AZone','an invalid gym zone discloses a null top-level zone and preserves the corrupt zone as its text in moneyRange.zone, never fabricated into UTC');
 select is(pg_temp.snap('badzone')->'moneyRange'->'error'->>'code','invalid_gym_timezone','an invalid gym zone is an explicit money-scope error');
