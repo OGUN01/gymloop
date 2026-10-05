@@ -19,8 +19,9 @@ export default defineConfig({
   },
   projects: [{ name: 'chromium', use: devices['Desktop Chrome'] }],
   webServer: {
-    command: 'pnpm --filter @gymloop/web dev',
+    command: 'pnpm --filter @gymloop/web build && pnpm --filter @gymloop/web start',
     url: BASE_URL,
     reuseExistingServer: true,
+    timeout: 300_000,
   },
 });
