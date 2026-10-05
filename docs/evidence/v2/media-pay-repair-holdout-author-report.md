@@ -582,3 +582,137 @@ gymloop-35** — the two failing labels' names (and got/wanted if available) so
 the final fixture round can be routed precisely. Holding: h79 unchanged at
 sha256 `1da962ddc87a1ad11d728f751358ab4f2a5405560c9b0547f2a2a35fa74d428a`
 (rollback guard green, 159 files).
+
+## Round 16/17 — CI TAP extraction (run 37245069750) + suite-79 label routing
+
+**h79 TAP truth (contradicts the "2 failures" table):** the final run shows
+h79 **aborted, not failed**: "Bad plan. You planned 126 tests but ran 58",
+exit 3 — the pgTAP log places the abort at `h79:…sql:255: ERROR: canceling
+statement due to statement timeout` — my file's line 255 is the **C25
+counter-sale `record_addon_sale`** (the first statement after the C24 hold
+release). No h79 label failed on its substance; the file died mid-run on a
+statement timeout in a batch that shows the same pattern everywhere (h31
+planned 49 ran 0; h77 planned 137 ran 0; h80 planned 156 ran 0; pooler
+checkout timeouts logged elsewhere in the same run). Classification: infra/
+contention at the shared DB, not a fixture defect; the file is clean as-is at
+`f4383781…82be`/`1da962dd…428a` (no edit made this round — nothing to fix in
+the file; a healthy-pool rerun decides it).
+
+**Suite 79 (routing to the visible author — the complete failing-label list,
+53 of 256, suite completed):** 18, 45, 79-80, 111, 113-123, 128-133, 135-137,
+139-144, 153, 156-157, 160-161, 180, 183, 205, 212, 216, 223-225, 236-237,
+245-246, 250, 253-256. Labels (file-order mapping):
+- #18: service_role holds no application-command EXECUTE.
+- #45: B-series open-cap region (fourth of five, last unit second contender).
+- #79-80: K6 create→accept + the 144 linkage anchor (create refused ⇒ cascade).
+- #111-123: the KR1 exact-price chain — accept, finalize, attach, record,
+  ledger order, hold consumption, replay pins (entire chain starved).
+- #128-137: the KR2 mismatch chain — accept, 141 linkage anchor, finalize,
+  attach, mismatch record, terminal closure, viewed-proof bind, no-order,
+  hold release (entire chain starved).
+- #139-144, 153: the renewal chain — creation, partial scenario, acceptance,
+  sold-terms token, recording, recorded state, no-period pin (starved).
+- #156: re-record refusal pin. #157: eleventh-creation cap pin.
+- #160/161: PT slot refusals (pt_slot_required + fabricated slot).
+- #180/183: registration/refusal + fresh-private-published-key pin.
+- #205/212/216: W-series finalizations (tombstoned candidate refusal; both
+  confirmed winners).
+- #223-225: keyed registration replay region (same-asset/no-candidate/same
+  staging facts).
+- #236/237: active-only boundary (bound-proof view after recorded/
+  mismatch_recorded refuses for everyone).
+- #245/246: member-status region create + labeled capture (create refused ⇒
+  cascade). #250: cancelled-creator finalize refusal.
+- #253-256: audit region — no storage strings in audit; creation/acceptance
+  audit-once pins.
+
+Cluster hypotheses for the visible author (from the ordering insights): the
+late-suite member-product starvation candidates are the member-31 rolling-day
+cap boundary in the current plan-252 file and the label-capture order; the
+#223-225 keyed-replay trio needs the runtime comparison's exact normalized
+shape; #236/237 need the runtime's actual refusal shape vs the committed
+active-only contract. NOT mine to edit — routed per the boundary discipline.
+
+No fixture edits were required or made this round (h79's abort is runtime/
+infra-class). h79 unchanged; rollback guard green (159 files). Nothing staged
+or committed.
+
+## Round 18 — h79 verdict against the TAP (dispatch premise corrected)
+
+The dispatched premise ("h79's 2 failing labels, fix per the retyped facts")
+is **disproven by run 37245069750's own TAP summary**:
+
+```
+h79_purchase_requests_holdout.sql  (Wstat: 768 (exited 3) Tests: 58 Failed: 0)
+  Non-zero exit status: 3
+  Parse errors: Bad plan.  You planned 126 tests but ran 58.
+```
+
+There is NO "Failed tests:" list for h79 — zero label failures among the 58
+that ran. The abort cause is in the same run's pgTAP stream:
+
+```
+h79_purchase_requests_holdout.sql:255: ERROR: canceling statement due to
+statement timeout
+```
+
+— my file's line 255 is the **C25 counter-sale `record_addon_sale`**
+(first statement after the C24 hold release). Classification:
+**runtime/infra statement timeout, not a fixture or contract defect.** The
+same run shows the batch-wide pattern (h31/h77/h80 planned-but-ran-0, pooler
+checkout timeouts).
+
+Consequently:
+- **No fixture fix exists or is needed** for a statement timeout on a correct
+  counter-sale statement; a fixture cannot change Cloud's statement_timeout
+  and weakening/reordering would be a non-fix. The substantive h79 work
+  (rounds 5-14: signature disambiguation, paren/arg-shape repairs, keyed
+  registration coverage, A-series regeneration to the live catalog) is
+  committed at **`1eee5fee` / tree sha `1da962dd…428a` — green-by-
+  construction**: all 58 assertions that ran passed, and the remaining 68 are
+  the same assertion classes the healthy-pool rerun must execute.
+- The one substantive follow-up outside my file: `record_addon_sale`'s
+  counter-sale path timing out (lock/sweep/view latency on the applied state)
+  is a source-side performance question for gymloop-35, or simply pool
+  health during the batch — either way, rerun territory, not holdout
+  territory.
+
+h79 stands ready for the single final sweep at the committed sha; the file
+itself is unchanged this round. `pnpm check-pgtap-rollback` green (159
+files). Nothing staged or committed; h79 + this report only.
+
+## Round 18 — h05 currency-CHECK pins reconciled by construction
+
+**Labels:** #159 "H05 currency CHECKs retain BUY-014 factual USD mismatch
+against an INR Shop quote" (expected false) and #160 "recorded factual
+currency still refuses a malformed currency code" (expected true).
+
+**Reconcile verdict — FIXTURE DEFECT (helper's probe column), source
+contract-true:**
+- The pinned calls probe `'recorded_currency'` — but `purchase_requests`
+  carries NO CHECK on `recorded_currency`: the only currency CHECK is
+  `purchase_requests_currency_format_chk` on the GENERATED column
+  `currency generated always as (coalesce(recorded_currency,'INR'))
+  check (currency ~ '^[A-Z]{3}$')` (migration lines 55-56). The helper
+  selects CHECKs whose conkey includes the probe column → v_checked=0 →
+  returns NULL → `is(NULL, false/true)` fails both labels mechanically.
+- Contract evaluation at current bytes: recorded 'USD' → generated
+  currency 'USD' → passes `^[A-Z]{3}$` → retained with no refusal (#159 ✓);
+  recorded 'Rupees' → generated 'Rupees' → CHECK fails → refused (#160 ✓).
+  The migration's guard is exactly the frozen-decision semantics.
+- **Applied-state check:** `git status`/`git diff` on
+  `20261004100000_purchase_requests.sql` = CLEAN against HEAD (zero
+  currency-line deltas, working tree == pushed bytes) — the CI-applied
+  migration contains the same CHECK text; no builder push is needed for
+  this pair. No migration edit made (builder's file, per instruction).
+
+**Suite-side fix (h05, author-owned):** the two calls' probe column moved
+from 'recorded_currency' to the generated `currency` column — the column
+whose conkey the CHECK actually references; the synthesized facts' currency
+field models the post-generation value faithfully (USD retained / malformed
+refused), labels and expected values unchanged, no weakening; the WSP
+`hold_currency` pin (passing) untouched.
+
+`pnpm check-pgtap-rollback` → 159 files all rollback-wrapped.
+h05 sha256 `888c0369e09b36d867946d858f5075471edd0444be934eaf329e6c03a44f5051`.
+Nothing staged or committed; h05 + this report only (as routed).

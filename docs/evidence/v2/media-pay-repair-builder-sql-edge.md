@@ -1042,3 +1042,63 @@ empty/null when not found — plus the four compared argument values);
 `row_to_json` is `pg_catalog`-qualified because the function's
 `set search_path = ''` would otherwise fail to resolve it at runtime. The
 committed migration stays byte-exact (`0f3f500d…b498`).
+
+## Builder round 23 - keyed replay accessors pinned to jsonb (runtime 42883 fix)
+
+Runtime capture: `register_payment_proof` raises `42883: operator does not
+exist: text ->> unknown` in the replay comparison — a TEXT-typed left operand
+reached `->>`. Fix applied: every accessor in the keyed replay comparison pins
+the jsonb type explicitly — `(v_existing::jsonb)->'facts'->>'mime'`,
+`...->>'bytes')::integer`, `(v_existing::jsonb)->>'actor_user_id'`, and the
+asset re-read's `(v_existing::jsonb)->'facts'->>'assetId'` — so the
+comparison cannot resolve against a text-typed value regardless of how the
+seam's return/row value is typed in the live spliced set. Semantics unchanged:
+same key + requestId + mime + bytes + actor → the ORIGINAL assetId/staging key
+returned read-only (no second candidate/counter/deadline); changed facts →
+GL068; a vanished stored asset → GL068 (never fabricated). D3d's
+assetId-in-return is unchanged from round 19.
+
+Static: rollback guard 159 files green; `$fn$` 72 even; zero `commit;`
+GL123 ×9 / GL124 ×5 / GL125 reserved / GL126 absent.
+
+Migration sha256 after round 23:
+`28c416512fb3a47d9eb2b412792068b182d30052174cde12fc2d33b1567fdecb`
+(was `0f3f500d…b498`). Full sweep proceeds after this sha lands.
+
+## Builder round 24 - exhaustive accessor sweep + SPLICE DIVERGENCE PROVEN for register_payment_proof
+
+Sweep (every `->`/`->>` in both register functions, enumerated by line):
+- keyed: line 29 `(v_existing::jsonb)->'facts'->>'mime'` ✓ pinned; line 30
+  `...->>'bytes')::integer` ✓; **line 31 `(v_existing::jsonb)->>'actor_user_id'`
+  ✓ pinned**; line 36 `...->>'assetId')::uuid` ✓; line 50 the mint's
+  `v_result` accessor — NOW PINNED (`(v_result::jsonb)->>'assetId'` — the one
+  remaining unpinned left operand, fixed this round). The unkeyed function
+  body contains ZERO accessors.
+- The seam callees (`app.pay_command_record`/`pay_command_lookup`) are the
+  only definitions in the splice (PAY 307/329, both `returns jsonb`).
+
+**The line-31 evidence convicts the splice, not the source**: in the committed
+bytes, the keyed body's line 31 IS the round-23-pinned expression
+`(v_existing::jsonb)->>'actor_user_id'` — a jsonb→jsonb cast followed by
+`jsonb ->> unknown`, whose operator resolution is static by declared types and
+CANNOT produce `text ->> unknown`. The live preview's line 31 raising exactly
+that error means the live `register_payment_proof` body's line 31 is a
+DIFFERENT expression — the previewed/spliced function body is not the
+committed text. This generalizes the finalize pg_get_functiondef divergence
+suspicion to the registration seam.
+
+Closing capture (primary, in the preview session):
+`pg_get_functiondef('public.register_payment_proof(uuid,text,integer,uuid)'::regproc)`
++ the same for the unkeyed overload — diff against the committed
+create-or-replace text (keyed body 2809 chars, unkeyed 3682). The first
+diverging byte identifies the spliced text; every symptom so far (42883
+text->>, GL066 on healthy rows) is consistent with the preview running an
+older/other register+finalize byte set while the committed fixes land only in
+the tree.
+
+Static: rollback guard 159 files green; `$fn$` 72 even; zero `commit;`
+GL123 ×9 / GL124 ×5 / GL126 absent (GL125 reserved).
+
+Migration sha256 after round 24:
+`8ed782262f2e0f03b0aeb2b1812b311bf64a6d835c6c971c6bd182a8163490b3`
+(was `28c41651…567fdecb`).

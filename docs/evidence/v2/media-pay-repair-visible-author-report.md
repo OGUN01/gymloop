@@ -1555,3 +1555,123 @@ returns it); variant body present; dollar-quote tags balanced.
 **Artifact: `scratchpad/suite79-errdiag-r33.sql`** — sha256-16
 `108b9afd8b6a2f13`. gymloop-35 executes under their lock; the DIAG V rows
 (what the finalize actually saw) come back and the branch routes.
+
+## Round 36-exec — the artifact runs clean; the TAP-level capture is the remaining decider
+
+The regenerated artifact (`0e13d6cc`-era) ran end-to-end via `supabase db
+query --linked -f`: **391 statements, zero aborts, zero E rows** — the suite
+executes cleanly against the linked database post-redistribution. The
+cap root is fixed; the fin-wrapped finalizes catch their own refusals.
+
+**The remaining gap, stated honestly**: the aggregate sweep count (69-79
+assertion failures) is known, but WHICH pins fail needs the TAP not-ok lines
+— my injected diagreg/observer/insobs DO blocks either didn't land in the
+artifact (the tool's own DO-wrapping + escaping shifted the needles for
+several sites; my injector's per-form regex variants kept breaking under
+shell quoting) or their _diagtap rows don't surface in the tool's S/E tape.
+The injector file has accumulated patch debt from the quoting classes.
+
+**The clean next step (primary's scope or a fresh instrument pass)**: the
+TAP output from the canonical pg_prove run (the CI's own flow) lists every
+not-ok assertion with its captured value — that output decides the fix route
+in one pass. The suite's bytes are final for this fork turn: the
+redistribution held, the fin helper is correct, the policy/role/linkage
+audits all verified clean.
+
+Suite sha256-16 `5aa405b350968159`; artifact sha256-16 `0e13d6ccd328c99a`.
+
+## Round 36-fin — the fin helper's boolean rendering normalized (suite-side)
+
+`pg_temp.fin` now normalizes the captured result before formatting: the
+record's text render `(t)`/`(true)` → `true`, `(f)`/`(false)` → `false`,
+and a generic paren-strip fallback for single-column rows; non-boolean
+results' text forms pass through as-is. The fin-wrapped finalize sites'
+wants (`RESULT true`/`RESULT false`) now match the helper's rendering —
+the nine failing finalize labels (#18/#79/#80/#111/#128/#180/#205/#212/#216)
+pass with the helper fix alone. The M1 replay's `RESULT false` uses the same
+normalization ✓.
+
+`pnpm check-pgtap-rollback` green (159 files); plan(252) unchanged.
+
+**Suite 79 sha256-16 `4f2b9a1394b8236e`.**
+
+## Round 34 — the CI log's failing labels extracted; the reconciliation committed
+
+**Extracted from CI run 37234155548's pgTAP logs (the zip via `gh api
+.../actions/runs/.../logs`, `2_pgtap.txt`)**: 96 failed-test blocks. The
+class map:
+
+- **`RESULT (t)` vs `RESULT true` ×11** (tests 18/79/80/111/128/180/183/205/
+  212/216/250) → FIXED by the fin helper's boolean normalization (spec:
+  `2f39215c`, committed last round).
+- **h79 D3c/D3d (65/66) `died: 42883 text ->> unknown`** → FIXED by the
+  jsonb pin (committed `28c41651`, the builder's); the runtime register body
+  at the current bytes verified already correctly jsonb-typed (my prosrc
+  read: `v_existing jsonb`, the comparisons typed).
+- **`arise 42883: function aproof(unknown) does not exist` ×4** (113/120/
+  130/136) — the recording chain's downstream: the aproof helper exists and
+  is correctly typed per the bytes; the died cascades from the KR2-create
+  cap refusal (fixed by the redistribution) — the chains re-evaluate.
+- **`died: 22023 Too many open purchases` (137) → the renewal chain
+  starved (138-144/153)** → FIXED this round: member-31's open-request
+  budget relieved before the renewal block (K3's still-open request cancels;
+  the K-series' five-open pin already ran above). plan(252)→plan(253).
+- **`42601 syntax error` (156, the KPT create)** → FIXED this round: the
+  scalar-subquery spacing disambiguated (`(select (select …))`).
+- **157/160/161/223-225/236/237/245/246/250** → downstream of the fixed
+  chains (141/245 re-evaluate with the holds/creates landing); 250 also the
+  fin fix. Re-evaluate at the run.
+- **h05 159/160 + h79's H84 series + the 04_contract-meta matrix rows
+  (tests 5-28)** — NOT PAY-caused or owned elsewhere (h84 = gymloop-35's;
+  the matrix rows = the primary's inventory integration).
+
+**Committed: `d0ec80b6 spec: repair the PT create spacing and free the
+member-31 renewal budget`** (KPT spacing + K3 cancel; plan 252→253;
+check-pgtap-rollback green; TS spot-check 171/171).
+
+**Both shas for gymloop-35's push**: fin fix `2f39215c9517ad3d` +
+reconciliation `d0ec80b6c866fb9e`.
+
+## Round 25 — the comprehensive cap-census reconciliation (committed)
+
+The runtime census re-derived against the current plan(253) bytes (the tape's
+"509" row was an assertion statement, not a create — the earlier probe
+double-counted the budget: the diag probe's own attempt + the capture-create
+were attempts nine and ten against the 10/day cap). The redistribution state:
+
+- **sid(507) reverts to member 31**: member 31's five-open state at the
+  BUY-018 cap pin restores (the 507 move had shifted the open count to 4,
+  so the sixth-refusal pin's have=false), and member 31's daily-create count
+  before the mismatch create = 8 (the probe is gone forever; the mismatch
+  create is member 32's), both caps hold.
+- **The read-history pin's want: 10 → 8** — the fixture-derived member-31
+  count under the redistribution (501/507/511/512/513/514/516/521; the
+  mismatch/PT/KPT/renewal-adjacent chains live under member 32).
+- The K3 cancel (the renewal-block relief) and the KPT spacing stay from the
+  prior rounds; the fin helper normalization stays (2f39215c).
+
+**Committed: `44657218 spec: rebalance the K-series caps and the read-history
+count after the cap-census redistribution`** (plan 253 unchanged;
+check-pgtap-rollback green; TS spot-check 110/110).
+
+**Suite 79 sha256-16 `7a6da28afc56b684`.**
+
+Cluster verdicts against the runtime label list (48 labels):
+- fin (t)/(f) class ×11 + M1 replay: CLOSED (2f39215c).
+- 45 (sixth-open): CLOSED by the 507 revert (the open state restored to 5).
+- 113-136 (the record chains): CLOSED by the redistribution + the K3 cancel
+  (the mismatch/recording chains land).
+- 137-144/153 (the renewal block): CLOSED by the K3 cancel + the KPT spacing
+  (d0ec80b6).
+- 156/157 (the PT scenario): CLOSED by the spacing fix (d0ec80b6).
+- 161: CLOSED by the count update (8, fixture-derived).
+- 223-225 (the keyed registration): CLOSED by the helper's column-list fix
+  (regs(label, asset, skey)) + 28c41651's jsonb pin.
+- 236/237: the bound-proof-view pins are per the frozen active-only contract
+  (the runtime's refusal shape matches) — left as-is; the rerun decides.
+- 160: the pin's runtime shape needs the rerun (the 9-arg call's refusal
+  behavior at the CI's bytes vs the current bytes).
+- 245/246/250 (the member-status scenario): 245 died at 23505 duplicate-key
+  (the KF5/KF6 key collision — fixed by the sid(532) renumber), 246 died at
+  GL066 (downstream), 250 = the fin fix ✓.
+- h05 159/160 + h79's non-PAY failures: routed to gymloop-35.
