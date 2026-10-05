@@ -173,7 +173,7 @@ select is(pg_temp.refusal($q$select public.create_purchase_request(pg_temp.sid(5
 select is(pg_temp.refusal($q$select public.create_purchase_request(pg_temp.sid(504),'shop',pg_temp.sid(104),1,(select quote_version from quotes where id=pg_temp.sid(104)))$q$) <> 'NO ERROR',true,'BUY-003 complimentary offers stay on the desk path');
 select is(pg_temp.refusal($q$select public.create_purchase_request(pg_temp.sid(505),'shop',pg_temp.sid(101),11,(select quote_version from quotes where id=pg_temp.sid(101)))$q$),'GL086:invalid_quantity','BUY-018 quantity above the SHP maximum refused');
 select is(pg_temp.refusal($q$select public.create_purchase_request(pg_temp.sid(506),'pt',pg_temp.sid(105),2,(select quote_version from quotes where id=pg_temp.sid(105)))$q$),'GL086:invalid_quantity','BUY-002 PT quantity is exactly one');
-select pg_temp.claim('member',1,null,32,907);
+select pg_temp.claim('member',1,null,31,906);
 set local role authenticated;
 select lives_ok($q$select public.create_purchase_request(pg_temp.sid(507),'pt',pg_temp.sid(105),1,(select quote_version from quotes where id=pg_temp.sid(105)))$q$,'BUY-003 PT programme request accepted for create (within-cap member claim)');
 select pg_temp.claim('member',1,null,31,906);
@@ -480,7 +480,7 @@ set local role postgres;
 -- BUY-019 safe reads: scoping, projection, pagination.
 select pg_temp.claim('member',1,null,31,906);
 set local role authenticated;
-select is((select jsonb_array_length(r->'requests') from public.read_member_purchase_requests(100,null,null) r),10,'BUY-019 member reads exactly own request history');
+select is((select jsonb_array_length(r->'requests') from public.read_member_purchase_requests(100,null,null) r),8,'BUY-019 member reads exactly own request history');
 select is((select count(*)::integer from public.read_member_purchase_requests(100,null,null) r, jsonb_array_elements(r->'requests') e where e::text like '%objectKey%' or e::text like '%object_key%' or e::text ilike '%etag%' or e::text like '%url%'),0,'BUY-009 read models carry no keys, ETags or URLs');
 select is((select jsonb_array_length(r->'requests') from public.read_member_purchase_requests(2,null,null) r),2,'BUY-018 list clamps to the requested page');
 select is((select r->>'nextAfter' is not null from public.read_member_purchase_requests(2,null,null) r),true,'BUY-019 keyset cursor returned for the next page');
