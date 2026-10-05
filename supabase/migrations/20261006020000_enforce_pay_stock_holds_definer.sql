@@ -1,0 +1,19 @@
+-- Money-path fix (sweep 37359420040, h26 exit-3 at line 175 — and a real
+-- production bug it exposed): the BEFORE UPDATE OF stock_quantity trigger on
+-- public.addon_products runs app.enforce_pay_stock_holds as the DML role
+-- (the function is SECURITY INVOKER). Whenever a purchase-request hold
+-- exists for the product, the trigger's DELETE on app.pay_stock_allowance
+-- — a postgres-owned app-schema table with no session-role grants — denies
+-- with 42501: every authenticated stock edit on a held product crashes the
+-- desk surface. It lay dormant in earlier sweeps because the fixture held
+-- no stock at that point (pay_held_view = 0 → the delete arm never ran).
+--
+-- The guard already refuses through app.pay_held_view (SECURITY DEFINER,
+-- stable); making the trigger function SECURITY DEFINER lets its own
+-- housekeeping DELETE run as the owning role without granting
+-- authenticated any privilege on the internal table. The function is
+-- postgres-owned with search_path pinned already; its EXECUTE was revoked
+-- from every session role at creation (2888), and trigger execution is
+-- governed by the DML privilege on addon_products, which the grant matrix
+-- owns — no new surface is opened.
+alter function app.enforce_pay_stock_holds() security definer;
