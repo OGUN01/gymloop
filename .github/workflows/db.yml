@@ -323,7 +323,10 @@ jobs:
         # the session ceiling for this connection only — the project setting
         # is unchanged.
         run: |
-          supabase --experimental pooler-url --linked > /tmp/pooler_url.txt || true
-          supabase db query --linked -c "alter role postgres set statement_timeout = '10min'"
+          printf "alter role postgres set statement_timeout = '10min';
+" > /tmp/raise_timeout.sql
+          supabase db query --linked -f /tmp/raise_timeout.sql
           supabase test db --linked ${{ steps.paths.outputs.dirs }}
-          supabase db query --linked -c "alter role postgres set statement_timeout = '2min'" || true
+          printf "alter role postgres set statement_timeout = '2min';
+" > /tmp/lower_timeout.sql
+          supabase db query --linked -f /tmp/lower_timeout.sql || true
