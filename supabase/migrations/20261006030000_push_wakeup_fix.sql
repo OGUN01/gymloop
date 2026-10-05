@@ -40,3 +40,4 @@ create policy member_devices_platform_select
   on public.member_devices
   for select to authenticated
   using ((select app.is_platform()));
+-- ci trigger marker: the token secret was dead at this commit's original push event
