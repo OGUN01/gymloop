@@ -890,8 +890,19 @@ begin
       and a.attname=p_source_column
   loop
     v_checked:=v_checked+1;
-    execute 'select ('||v_check.expression||') from jsonb_populate_record(null::'||p_table||',$1) currency_facts'
-      into v_pass using v_facts;
+    begin
+      execute 'select ('||v_check.expression||') from jsonb_populate_record(null::'||p_table||',$1) currency_facts'
+        into v_pass using v_facts;
+    exception when others then
+      -- The generated column or the record constructor rejected the write
+      -- (e.g. GENERATED ALWAYS ignores the input); evaluate the CHECK
+      -- expression with the source column's value substituted directly.
+      declare v_expr text := v_check.expression;
+      begin
+        v_expr := replace(v_expr, p_source_column, '('''||p_currency||''')');
+        execute 'select ('||v_expr||')' into v_pass;
+      end;
+    end if;
     if v_pass is false then return true; end if;
   end loop;
   if v_checked=0 then return null; end if;

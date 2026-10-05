@@ -300,10 +300,10 @@ select is_empty($$
           and pa.attname = 'tenant_id'
           and pa.attnum > 0 and not pa.attisdropped)
      and not (
-       array_length(c.conkey, 1) = 2
+       array_length(c.conkey, 1) >= 2
        and (select a.attname from pg_attribute a
              where a.attrelid = c.conrelid and a.attnum = c.conkey[1]) = 'tenant_id')
-$$, 'H-TEN-136: ADR-052, every foreign key whose parent is tenant-scoped is composite and leads with tenant_id - a single-column key does not re-check the tenant, because Postgres runs referential-integrity probes with row security off');
+$$, 'H-TEN-136: ADR-052, every foreign key whose parent is tenant-scoped is composite and leads with tenant_id - a single-column key does not re-check the tenant, because Postgres runs referential-integrity probes with row security off. WSP adds a 3-column key (tenant_id, member_id, channel_consent_id) to whatsapp_channel_consents; the rule is >= 2 leading with tenant_id');
 
 -- The other half of the same rule: a composite key needs a target to match, so
 -- every tenant-scoped table referenced by such a key carries the unique that
@@ -345,7 +345,7 @@ select is_empty($$
         where i.indrelid = rel.oid
           and i.indisunique
           and i.indpred is null
-          and i.indnkeyatts = 2
+          and i.indnkeyatts >= 2
           and (select a.attname from pg_attribute a
                 where a.attrelid = rel.oid and a.attnum = i.indkey[0]) = 'tenant_id'
           and (select a.attname from pg_attribute a
