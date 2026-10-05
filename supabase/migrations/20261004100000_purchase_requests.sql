@@ -820,7 +820,7 @@ begin
   end if;
   v_result := public.register_payment_proof(p_request_id, p_mime, p_bytes);
   perform app.pay_command_record(v_actor.tenant_id, p_request_id, p_command_key, 'register',
-    jsonb_build_object('assetId', (v_result->>'assetId')::uuid, 'mime', p_mime, 'bytes', p_bytes),
+    jsonb_build_object('assetId', ((v_result::jsonb)->>'assetId')::uuid, 'mime', p_mime, 'bytes', p_bytes),
     v_actor.user_id);
   return v_result;
 end
