@@ -315,7 +315,15 @@ select is_empty(
       ('pt_sessions',             'is_staff',        'is_staff',        'own'),
       ('consents',                'is_front_office', 'is_front_office', 'own'),
       ('notifications',           'is_front_office', 'is_gym_admin',    'own'),
-      ('member_devices',          'is_front_office', 'is_front_office', 'own'),
+      -- member_devices joined the grant-less rows: the PUSH migration
+      -- revoked every authenticated table privilege (tokens and metadata
+      -- are reachable only through command-safe RPCs, "reconciled
+      -- explicitly in frozen grant matrix, never broadened"), and its
+      -- stale FOR ALL write policies were dropped in
+      -- 20261005160000_push_contract_repair. The grant-derived matrix
+      -- therefore reads all four columns null, exactly as for the other
+      -- grant-less tables.
+      ('member_devices',          null,              null,              null),
       ('message_templates',       'is_staff',        'is_gym_admin',    null),
       ('leads',                   'is_front_office', 'is_front_office', null),
       ('member_invites',          'is_front_office', null,              null),
