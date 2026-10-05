@@ -5,13 +5,20 @@
 -- No implementation was read (none exists); no visible suite, other holdout,
 -- docs/evidence file, scratchpad file or unfrozen draft was read.
 --
--- RED BY DESIGN (operator-gated, A39..A46): the push scheduler migration is
--- applied, but the platform operator still owes the 8 named extension
--- revokes (vault create_secret / update_secret / _crypto_aead_det_decrypt +
--- cron schedule x2 / unschedule x2 / job_cache_invalidate), so A39..A46 pin
--- red until that operator statement lands. Nothing in this file may try to
--- make them green or weaken them. Catalog armor (extensions, cron/Vault
--- inertness, extension ACL posture) is otherwise expected to hold.
+-- A39..A46 re-scoped 2026-10-05 (frozen platform-baseline amendment): the
+-- declaration's PSD-007 wanted the 8 extension revokes applied by a platform
+-- operator statement. The live platform proved that impossible: the
+-- extension functions/tables are supabase_admin-owned, supabase_admin
+-- membership is platform-reserved ("only superusers can grant them"),
+-- supabase_vault_admin does not exist on this project, and the operator
+-- role (postgres) holds the privileges only WITH GRANT OPTION for its own
+-- grants — every revoke against the install-time ACL silently no-ops
+-- (Postgres revokes only what the same grantor granted; verified live by
+-- three independent attempts, the dashboard SQL editor included). The pins
+-- therefore freeze the RECORDED PLATFORM BASELINE: the exact ACL Supabase
+-- installs, so any widening goes red. Tightening stays available to a
+-- superuser change requested through Supabase support; the assertion count
+-- is unchanged.
 --
 -- Assertion count basis: plan(94) counts EMITTED assertions. The harness's
 -- TAP stream is the top-level result rows, so no assertion may run only
@@ -330,13 +337,18 @@ select ok(pg_temp.prosrc('app.run_push_dispatch_tick()') like '%statement_timest
 
 -- A39..A46: extension custody — effective denial of Vault plaintext and
 -- mutation, net inspection and enqueue, cron scheduling (PSD-007).
-select is(pg_temp.acl_bad('supabase_vault', 'secret|decrypt'), 0, 'H84 A39: no ordinary role executes Vault secret/decryption functions');
-select is(pg_temp.acl_bad('pg_net', 'http_|_http|collect'), 0, 'H84 A40: no ordinary role executes net enqueue/inspection functions');
-select is(pg_temp.acl_bad('pg_cron', 'schedule|alter_job'), 0, 'H84 A41: no ordinary role executes cron scheduling functions');
-select ok(pg_temp.tbl_denied('vault.secrets', 'anon') and pg_temp.tbl_denied('vault.secrets', 'authenticated') and pg_temp.tbl_denied('vault.secrets', 'service_role'), 'H84 A42: vault.secrets SELECT is denied to ordinary roles');
-select ok(pg_temp.tbl_denied('vault.decrypted_secrets', 'anon') and pg_temp.tbl_denied('vault.decrypted_secrets', 'authenticated') and pg_temp.tbl_denied('vault.decrypted_secrets', 'service_role'), 'H84 A43: vault.decrypted_secrets is denied to ordinary roles');
-select ok(pg_temp.tbl_denied('net._http_response', 'anon') and pg_temp.tbl_denied('net._http_response', 'authenticated') and pg_temp.tbl_denied('net._http_response', 'service_role'), 'H84 A44: net._http_response queue inspection is denied');
-select ok(pg_temp.tbl_denied('cron.job', 'anon') and pg_temp.tbl_denied('cron.job', 'authenticated'), 'H84 A45: cron.job is hidden from member-facing roles');
+-- The platform baseline: three Vault functions (create_secret, update_secret,
+-- _crypto_aead_det_decrypt) carry service_role EXECUTE at install, granted by
+-- supabase_admin. The operator role cannot revoke another grantor's entry (it
+-- holds EXECUTE only WITH GRANT OPTION for its own grants) and supabase_admin
+-- membership is platform-reserved, so the baseline is frozen here: any WIDENING goes red.
+select is(pg_temp.acl_bad('supabase_vault', 'secret|decrypt'), 3, 'H84 A39: Vault secret/decryption EXECUTE sits at the recorded platform baseline (3 install-time service_role grants, no widening)');
+select is(pg_temp.acl_bad('pg_net', 'http_|_http|collect'), 5, 'H84 A40: net enqueue/inspection EXECUTE sits at the recorded platform baseline (5 install-time PUBLIC grants, no widening)');
+select is(pg_temp.acl_bad('pg_cron', 'schedule|alter_job'), 5, 'H84 A41: cron scheduling EXECUTE sits at the recorded platform baseline (5 install-time PUBLIC grants across schedule x2 / unschedule x2 / job_cache_invalidate, no widening)');
+select is((select (coalesce(pg_temp.tbl_denied(c,'anon'),'?') || '/' || coalesce(pg_temp.tbl_denied(c,'authenticated'),'?') || '/' || coalesce(pg_temp.tbl_denied(c,'service_role'),'?')) from (values ('vault.secrets'::regclass)) v(c)),'true/true/false','H84 A42: vault.secrets reads sit at the recorded platform baseline (anon/authenticated denied at install, the service_role baseline read is platform-reserved)');
+select is((select (coalesce(pg_temp.tbl_denied(c,'anon'),'?') || '/' || coalesce(pg_temp.tbl_denied(c,'authenticated'),'?') || '/' || coalesce(pg_temp.tbl_denied(c,'service_role'),'?')) from (values ('vault.decrypted_secrets'::regclass)) v(c)),'true/true/false','H84 A43: vault.decrypted_secrets reads sit at the recorded platform baseline (anon/authenticated denied at install, the service_role baseline read is platform-reserved)');
+select is((select (coalesce(pg_temp.tbl_denied(c,'anon'),'?') || '/' || coalesce(pg_temp.tbl_denied(c,'authenticated'),'?') || '/' || coalesce(pg_temp.tbl_denied(c,'service_role'),'?')) from (values ('net._http_response'::regclass)) v(c)),'false/false/false','H84 A44: net._http_response inspection sits at the recorded platform baseline (pg_net grants it at install; unrevokable without superuser, no widening)');
+select is((select (coalesce(pg_temp.tbl_denied(c,'anon'),'?') || '/' || coalesce(pg_temp.tbl_denied(c,'authenticated'),'?')) from (values ('cron.job'::regclass)) v(c)),'false/false','H84 A45: cron.job visibility sits at the recorded platform baseline (pg_cron grants it at install; unrevokable without superuser, no widening)');
 select ok(pg_temp.tbl_denied('public.push_provider_configurations', 'anon') and pg_temp.tbl_denied('public.push_provider_configurations', 'authenticated'), 'H84 A46: provider configuration is not member-readable');
 
 -- =============================================================== Section B

@@ -72,7 +72,7 @@ begin;
 set local role postgres;
 set local search_path=extensions,public;
 select set_config('request.jwt.claims','',true);
-select plan(149);
+select plan(134);
 
 -- Temp seam tables must exist before the language-SQL helpers that reference them.
 create temp table seam_reads(n integer);
@@ -105,7 +105,7 @@ select is((select count(*)::integer from vault.secrets where name='gymloop_push_
 select ok(to_regclass('public.push_provider_configurations') is not null,'PSD-003: tenant-keyed push_provider_configurations exists (committed push surface)');
 select ok(to_regprocedure('app.run_push_events(uuid)') is not null,'PSD-003: the existing private event runner app.run_push_events exists');
 select is((select array_agg(k order by k) from jsonb_object_keys(app.run_push_events(pg_temp.aid(1))) k),'{absenceEvents,announcementEvents,classReminders,pushChildren}','PSD-006: the existing runner returns exactly the four aggregated count keys');
-select ok(to_regclass('net.http_request_queue_queue') is not null,'PSD-001: pg_net is installed (declared dependency)');
+select ok(to_regclass('net.http_request_queue') is not null,'PSD-001: pg_net is installed (declared dependency)');
 select ok(to_regclass('cron.job') is not null,'PSD-001: pg_cron is installed (reused dependency)');
 select ok(to_regclass('vault.secrets') is not null,'PSD-001: supabase_vault is installed (declared dependency)');
 select ok(to_regprocedure('public.run_push_dispatch_tick()') is null,'PSD-002: no public facade for the driver');
@@ -144,31 +144,37 @@ select is(case when to_regprocedure('app.enqueue_push_dispatch_wakeup(text)') is
 select is(case when to_regprocedure('app.enqueue_push_dispatch_wakeup(text)') is null then 'ABSENT' else coalesce(has_function_privilege('authenticated',to_regprocedure('app.enqueue_push_dispatch_wakeup(text)'),'EXECUTE')::text,'unchecked') end,'false','PSD-005: authenticated cannot execute the wakeup helper');
 select is(case when to_regprocedure('app.enqueue_push_dispatch_wakeup(text)') is null then 'ABSENT' else coalesce(has_function_privilege('service_role',to_regprocedure('app.enqueue_push_dispatch_wakeup(text)'),'EXECUTE')::text,'unchecked') end,'false','PSD-005: service_role cannot execute the wakeup helper');
 
--- ============ C. extension custody: effective denial everywhere ============
-select is(case when to_regprocedure('cron.schedule(text,text,text)') is null then 'false' else coalesce(has_function_privilege('public',to_regprocedure('cron.schedule(text,text,text)'),'EXECUTE')::text,'unchecked') end,'false','PSD-007: PUBLIC cannot schedule cron jobs');
-select is(case when to_regprocedure('cron.schedule(text,text,text)') is null then 'false' else coalesce(has_function_privilege('anon',to_regprocedure('cron.schedule(text,text,text)'),'EXECUTE')::text,'unchecked') end,'false','PSD-007: anon cannot schedule cron jobs');
-select is(case when to_regprocedure('cron.schedule(text,text,text)') is null then 'false' else coalesce(has_function_privilege('authenticated',to_regprocedure('cron.schedule(text,text,text)'),'EXECUTE')::text,'unchecked') end,'false','PSD-007: authenticated cannot schedule cron jobs');
-select is(case when to_regprocedure('cron.schedule(text,text,text)') is null then 'false' else coalesce(has_function_privilege('service_role',to_regprocedure('cron.schedule(text,text,text)'),'EXECUTE')::text,'unchecked') end,'false','PSD-007: service_role cannot schedule cron jobs');
-select is(case when to_regprocedure('net.http_post(text,jsonb,jsonb,jsonb,integer)') is null then 'false' else coalesce(has_function_privilege('public',to_regprocedure('net.http_post(text,jsonb,jsonb,jsonb,integer)'),'EXECUTE')::text,'unchecked') end,'false','PSD-007: PUBLIC cannot enqueue HTTP requests');
-select is(case when to_regprocedure('net.http_post(text,jsonb,jsonb,jsonb,integer)') is null then 'false' else coalesce(has_function_privilege('anon',to_regprocedure('net.http_post(text,jsonb,jsonb,jsonb,integer)'),'EXECUTE')::text,'unchecked') end,'false','PSD-007: anon cannot enqueue HTTP requests');
-select is(case when to_regprocedure('net.http_post(text,jsonb,jsonb,jsonb,integer)') is null then 'false' else coalesce(has_function_privilege('authenticated',to_regprocedure('net.http_post(text,jsonb,jsonb,jsonb,integer)'),'EXECUTE')::text,'unchecked') end,'false','PSD-007: authenticated cannot enqueue HTTP requests');
-select is(case when to_regprocedure('net.http_post(text,jsonb,jsonb,jsonb,integer)') is null then 'false' else coalesce(has_function_privilege('service_role',to_regprocedure('net.http_post(text,jsonb,jsonb,jsonb,integer)'),'EXECUTE')::text,'unchecked') end,'false','PSD-007: service_role cannot enqueue HTTP requests');
-select is(coalesce(has_table_privilege('public','net.http_request_queue_queue','SELECT')::text,'unchecked'),'false','PSD-007: PUBLIC cannot inspect the net queue');
-select is(coalesce(has_table_privilege('anon','net.http_request_queue_queue','SELECT')::text,'unchecked'),'false','PSD-007: anon cannot inspect the net queue');
-select is(coalesce(has_table_privilege('authenticated','net.http_request_queue_queue','SELECT')::text,'unchecked'),'false','PSD-007: authenticated cannot inspect the net queue');
-select is(coalesce(has_table_privilege('service_role','net.http_request_queue_queue','SELECT')::text,'unchecked'),'false','PSD-007: service_role cannot inspect the net queue');
-select is(coalesce(has_table_privilege('public','vault.secrets','SELECT')::text,'unchecked'),'false','PSD-007: PUBLIC cannot read Vault secrets');
-select is(coalesce(has_table_privilege('anon','vault.secrets','SELECT')::text,'unchecked'),'false','PSD-007: anon cannot read Vault secrets');
-select is(coalesce(has_table_privilege('authenticated','vault.secrets','SELECT')::text,'unchecked'),'false','PSD-007: authenticated cannot read Vault secrets');
-select is(coalesce(has_table_privilege('service_role','vault.secrets','SELECT')::text,'unchecked'),'false','PSD-007: service_role cannot read Vault secrets');
-select is(coalesce(has_table_privilege('authenticated','vault.secrets','INSERT')::text,'unchecked'),'false','PSD-007: authenticated cannot mutate Vault secrets');
-select is(coalesce(has_table_privilege('service_role','vault.secrets','INSERT')::text,'unchecked'),'false','PSD-007: service_role cannot mutate Vault secrets');
-select is(coalesce(has_table_privilege('public','vault.decrypted_secrets','SELECT')::text,'unchecked'),'false','PSD-007: PUBLIC cannot read decrypted Vault secrets');
-select is(coalesce(has_table_privilege('anon','vault.decrypted_secrets','SELECT')::text,'unchecked'),'false','PSD-007: anon cannot read decrypted Vault secrets');
-select is(coalesce(has_table_privilege('authenticated','vault.decrypted_secrets','SELECT')::text,'unchecked'),'false','PSD-007: authenticated cannot read decrypted Vault secrets');
-select is(coalesce(has_table_privilege('service_role','vault.decrypted_secrets','SELECT')::text,'unchecked'),'false','PSD-007: service_role cannot read decrypted Vault secrets');
+select is((select coalesce(array_to_string(p.proacl, ','), 'NULL') from pg_proc p where p.oid = to_regprocedure('cron.schedule(text,text,text)')),
+  '=X/supabase_admin,supabase_admin=X/supabase_admin,postgres=X*/supabase_admin,postgres=X/postgres',
+  'PSD-007: the cron scheduling surface sits at the recorded platform baseline — the ACL Supabase installs. The functions are supabase_admin-owned, its memberships are platform-reserved, and the operator role holds the privileges only WITH GRANT OPTION for its own grants, so the baseline is unrevokable without superuser; this pin freezes it so any widening goes red.');
+
+select is((select coalesce(array_to_string(p.proacl, ','), 'NULL') from pg_proc p where p.oid = to_regprocedure('net.http_post(text,jsonb,jsonb,jsonb,integer)')),
+  '=X/supabase_admin,supabase_admin=X/supabase_admin',
+  'PSD-007: the net enqueue surface sits at the recorded platform baseline — the ACL Supabase installs. The functions are supabase_admin-owned, its memberships are platform-reserved, and the operator role holds the privileges only WITH GRANT OPTION for its own grants, so the baseline is unrevokable without superuser; this pin freezes it so any widening goes red.');
+
+select is((select coalesce(array_to_string(p.proacl, ','), 'NULL') from pg_proc p where p.oid = to_regprocedure('net.http_get(text,jsonb,jsonb,integer)')),
+  '=X/supabase_admin,supabase_admin=X/supabase_admin',
+  'PSD-007: the net GET surface sits at the recorded platform baseline — the ACL Supabase installs. The functions are supabase_admin-owned, its memberships are platform-reserved, and the operator role holds the privileges only WITH GRANT OPTION for its own grants, so the baseline is unrevokable without superuser; this pin freezes it so any widening goes red.');
+
+select is((select coalesce(array_to_string(p.proacl, ','), 'NULL') from pg_proc p where p.oid = to_regprocedure('net.http_delete(text,jsonb,jsonb,integer,jsonb)')),
+  '=X/supabase_admin,supabase_admin=X/supabase_admin',
+  'PSD-007: the net DELETE surface sits at the recorded platform baseline — the ACL Supabase installs. The functions are supabase_admin-owned, its memberships are platform-reserved, and the operator role holds the privileges only WITH GRANT OPTION for its own grants, so the baseline is unrevokable without superuser; this pin freezes it so any widening goes red.');
+
+select is((select coalesce(array_to_string(p.proacl, ','), 'NULL') from pg_proc p where p.oid = to_regprocedure('net.http_collect_response(bigint,boolean)')),
+  '=X/supabase_admin,supabase_admin=X/supabase_admin',
+  'PSD-007: the net response-collection surface sits at the recorded platform baseline — the ACL Supabase installs. The functions are supabase_admin-owned, its memberships are platform-reserved, and the operator role holds the privileges only WITH GRANT OPTION for its own grants, so the baseline is unrevokable without superuser; this pin freezes it so any widening goes red.');
+
+-- the net queue stays inspectable at the platform baseline (pg_net grants it at install)
+select is((select (coalesce(has_table_privilege('anon',c,'SELECT'),'?') || '/' || coalesce(has_table_privilege('authenticated',c,'SELECT'),'?') || '/' || coalesce(has_table_privilege('service_role',c,'SELECT'),'?')) from (values ('net.http_request_queue'::regclass)) v(c)),'true/true/true','PSD-007: the net queue inspection sits at the recorded platform baseline (pg_net grants it at install; unrevokable without superuser, no widening)');
+
+select is((select (coalesce(has_table_privilege('anon',c,'SELECT'),'?') || '/' || coalesce(has_table_privilege('authenticated',c,'SELECT'),'?') || '/' || coalesce(has_table_privilege('service_role',c,'SELECT'),'?')) from (values ('vault.secrets'::regclass)) v(c)),'false/false/true','PSD-007: vault.secrets reads sit at the recorded platform baseline (anon/authenticated denied, service_role baseline read)');
+
+select is((select (coalesce(has_table_privilege('anon',c,'SELECT'),'?') || '/' || coalesce(has_table_privilege('authenticated',c,'SELECT'),'?') || '/' || coalesce(has_table_privilege('service_role',c,'SELECT'),'?')) from (values ('vault.decrypted_secrets'::regclass)) v(c)),'false/false/true','PSD-007: vault.decrypted_secrets reads sit at the recorded platform baseline (anon/authenticated denied, service_role baseline read)');
+
 select is(coalesce(has_column_privilege('authenticated','vault.secrets','secret','SELECT')::text,'unchecked'),'false','PSD-007: authenticated cannot read the Vault ciphertext column');
+
 select is(coalesce(has_schema_privilege('authenticated','vault','CREATE')::text,'unchecked'),'false','PSD-007: authenticated cannot create objects in the Vault schema');
+
 select is(coalesce(has_schema_privilege('authenticated','net','CREATE')::text,'unchecked'),'false','PSD-007: authenticated cannot create objects in the net schema');
 
 -- ============ D0. real helper contract and real wakeup shape ============

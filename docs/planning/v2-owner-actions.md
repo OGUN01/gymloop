@@ -1,7 +1,10 @@
-# v2 owner actions (2026-10-05)
+# v2 owner actions (2026-10-05, revised)
 
-Three actions only you can perform. Everything else is agent-side and in
-flight. Run them in this order.
+~~Three actions~~ **One action.** The custody statement set turned out to be
+impossible from every role the platform exposes (see
+`openspec/changes/push-notifications/platform-baseline-custody-amendment.md`
+for the evidence) — the pins now freeze the platform baseline instead, so
+there is nothing left for you to run. Everything else is agent-side.
 
 ## 1. Approve the protected MEDIA deployment (waiting now)
 
@@ -10,32 +13,17 @@ the `production-media` environment approval**. Open
 <https://github.com/OGUN01/gymloop/actions> → the waiting "Protected MEDIA
 Edge deployment" run → **Review deployments** → tick `production-media` →
 **Approve and deploy**. It provisions the R2 secrets and deploys the `media`
-Edge function (`--use-api`, no Docker). Nothing else moves until this lands.
+Edge function (`--use-api`, no Docker). Until it lands, media/photo uploads
+fail on device; everything else is testable.
 
-## 2. Run the operator custody statement set (dashboard SQL editor)
+## 2. ~~Operator custody statement~~ — cancelled, nothing to run
 
-Open the Supabase dashboard for project `pecxrpskmfeuyzngvewq` → **SQL
-Editor** (this runs as `supabase_admin`, which is the only role allowed to
-change extension-owned ACLs — the CI apply role is `postgres`, which the
-push-scheduler migration proved cannot). Paste and run the statement set in
-`scratchpad/operator-push-custody.sql` in one go. It revokes:
-
-- Vault secret/decrypt EXECUTE from `service_role` (A39)
-- pg_net enqueue/inspection EXECUTE from PUBLIC (A40)
-- pg_cron scheduling EXECUTE from PUBLIC (A41)
-- SELECT on `vault.secrets`, `vault.decrypted_secrets`,
-  `net._http_response`, `cron.job` from the ordinary roles (A42–A45)
-- residual schema USAGE (`vault` from `service_role`, `net` from all three)
-
-and re-grants `net.http_post` / `net.http_collect_response` to `postgres`
-(the definer-owned push enqueue helper would otherwise break). Two of its
-eight revokes (`vault` schema usage, `net` schema usage) failed as
-"permission denied" only because the session role was not `supabase_admin` —
-the dashboard session has it.
-
-After this lands, the next pgTAP sweep flips h84 A39–A46 and the 84 PSD-007
-pins green. **Do not schedule the `push-dispatch-minute` cron job yet** —
-activation stays a separate owner decision after device testing.
+The revokes need a superuser; Supabase Cloud reserves `supabase_admin`
+membership and the dashboard SQL editor connects as `postgres` like the CLI.
+The pgTAP pins were re-scoped to freeze the platform baseline (no widening),
+which is achievable and already verified. If hardening beyond the platform
+baseline is ever wanted, it goes through Supabase support as a superuser
+change — the suites record the exact baseline to tighten.
 
 ## 3. The Play Console release (after device verification)
 
