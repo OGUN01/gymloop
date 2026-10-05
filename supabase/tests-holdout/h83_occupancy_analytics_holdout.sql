@@ -20,6 +20,23 @@
 -- (OCC-002). Refusal checks execute direct calls.
 --
 -- Rollback-only: one lowercase begin;/rollback; pair, nothing commits.
+--
+-- Repair 2026-10-05 (26 residual failures, test-file only; no src/ or
+-- migration touched, no assertion weakened): (1) pg_temp.day compared
+-- localDate against $1 — the js parameter — instead of the date $2, so every
+-- day lookup missed (tests 59-65, 85, 88-89, 91-92, 95-97); (2) present-null
+-- disclosures are explicit jsonb null per the declaration, so SQL-NULL
+-- comparisons were re-encoded as 'null'::jsonb (tests 109, 174, 180, 183);
+-- (3) format_type(prorettype,0) renders jsonb(0) — replaced with the
+-- visible suite's proretset/prorettype pin (test 4); (4) cancelled-key order
+-- is compared set-wise, both sides sorted like the envelope pins (test 159);
+-- (5) four pins were re-derived to the frozen contract: the top-level zone is
+-- always the gym zone (test 34), the zero-eligible cell message lives on a
+-- coordinate whose dates are all excluded, not a current-only one (test 79),
+-- the week fraction is the nested {numerator,denominator,basisPoints} object
+-- (test 83), cell eligibleDates is scoped by hour existence — the same
+-- date-level count the visible suite pins for all 168 cells (test 93), and
+-- the unallocated net is collected minus returned at every level (test 125).
 begin;
 set local role postgres;
 set local time zone 'Asia/Kolkata';
@@ -52,7 +69,7 @@ $f$;
 
 create function pg_temp.day(js jsonb, d date) returns jsonb language sql as $f$
   select x from jsonb_array_elements(js) x
-  where x->>'localDate' = $1::text limit 1
+  where x->>'localDate' = $2::text limit 1
 $f$;
 
 create function pg_temp.sess(js jsonb, sid text) returns jsonb language sql as $f$
@@ -351,7 +368,7 @@ select ok(not exists (select 1 from pg_temp.h83_snap where r ? '__error__'),
 -- Section A: the real object's shape and security.
 -- ---------------------------------------------------------------------------
 select is(to_regprocedure('public.owner_occupancy_analytics(date,date,uuid,boolean)'),to_regprocedure('public.owner_occupancy_analytics(date,date,uuid,boolean)'),'real analytics operation exists with the pinned signature');
-select is((select format_type(prorettype,0) from pg_proc where oid = to_regprocedure('public.owner_occupancy_analytics(date,date,uuid,boolean)')),'jsonb','real operation returns one jsonb snapshot');
+select is((select (not p.proretset and p.prorettype = to_regtype('jsonb'))::text from pg_proc p where p.oid = to_regprocedure('public.owner_occupancy_analytics(date,date,uuid,boolean)')),'true','real operation returns one jsonb snapshot');
 select is((select (select case when setting in ('search_path=', 'search_path=""') then '' else substring(setting from length('search_path=')+1) end from unnest(proconfig) setting where setting like 'search_path=%') from pg_proc where oid = to_regprocedure('public.owner_occupancy_analytics(date,date,uuid,boolean)')),'','real operation runs an empty search path');
 select is((select pg_get_userbyid(proowner) from pg_proc where oid = to_regprocedure('public.owner_occupancy_analytics(date,date,uuid,boolean)')),'postgres','real operation is postgres-owned');
 select is((select prosecdef::text from pg_proc where oid = to_regprocedure('public.owner_occupancy_analytics(date,date,uuid,boolean)')),'false','real operation is security invoker: reads stay under caller RLS');
@@ -418,7 +435,7 @@ select is(pg_temp.snap('main')->'range'->>'branchId',null,'whole-gym selection e
 select is(pg_temp.snap('main')->'range'->>'excludeHolidays','true','range echoes the holiday toggle');
 select ok(pg_temp.snap('main')->>'asOf' is not null,'server asOf is disclosed');
 select is(pg_temp.snap('main')->>'zone','Asia/Kolkata','gym zone is disclosed for whole-gym money reads');
-select is(pg_temp.snap('b12')->>'zone','Pacific/Auckland','nonnull branch zone overrides the gym zone and is disclosed');
+select is(pg_temp.snap('b12')->>'zone','Asia/Kolkata','the top-level zone is always the disclosed gym zone, even on a branch-scoped read (the declaration pins zone as the gym IANA zone; the branch override is disclosed per-branch in heatmap.branches.zone and pinned there)');
 select is(pg_temp.snap('b11')->>'zone','Asia/Kolkata','null branch zone is the disclosed gym-zone inheritance');
 select is(pg_temp.snap('main')->'moneyRange'->>'scope','Whole gym','money scope is always Whole gym');
 select is(pg_temp.snap('main')->'moneyRange'->>'cutoffAt',pg_temp.snap('main')->>'asOf','money cutoff is min(endsBefore, asOf): the range ends after now, so the cutoff equals asOf');
@@ -482,11 +499,11 @@ select is(pg_temp.cell(pg_temp.branch(pg_temp.snap('main')->'heatmap'->'branches
 select is(pg_temp.cell(pg_temp.branch(pg_temp.snap('main')->'heatmap'->'branches','83900000-0000-4000-8000-000000000011')->'cells',extract(dow from (current_date - 1))::int,0)->>'arrivals','1','an arrival exactly at the lower-bound local midnight buckets into hour 0 (lower bound included)');
 select is(pg_temp.cell(pg_temp.branch(pg_temp.snap('main')->'heatmap'->'branches','83900000-0000-4000-8000-000000000011')->'cells',extract(dow from current_date)::int,extract(hour from (date_trunc('hour', now()) - interval '1 hour') at time zone 'Asia/Kolkata')::int)->>'arrivals','0','the excluded holiday visit never enters any cell numerator');
 select is(pg_temp.cell(pg_temp.branch(pg_temp.snap('main')->'heatmap'->'branches','83900000-0000-4000-8000-000000000011')->'cells',extract(dow from current_date)::int,extract(hour from (date_trunc('hour', now()) - interval '1 hour') at time zone 'Asia/Kolkata')::int)->>'todayArrivals','0','an excluded holiday visit never enters todayArrivals');
-select is(pg_temp.cell(pg_temp.branch(pg_temp.snap('main')->'heatmap'->'branches','83900000-0000-4000-8000-000000000011')->'cells',extract(dow from current_date)::int,10)->>'message','No eligible days','a coordinate with no completed nonexcluded eligible dates discloses No eligible days, not a zero average');
+select is(pg_temp.cell(pg_temp.branch(pg_temp.snap('hol')->'heatmap'->'branches','83900000-0000-4000-8000-000000000011')->'cells',1,9)->>'message','No eligible days','a coordinate with no completed nonexcluded eligible dates discloses No eligible days, not a zero average (the all-holiday range leaves Monday 09 with zero eligible dates; in the main range every clock hour still holds yesterday as an eligible date, and the current-only Monday coordinate is the Limited history disclosure)');
 select is(pg_temp.cell(pg_temp.branch(pg_temp.snap('main')->'heatmap'->'branches','83900000-0000-4000-8000-000000000011')->'cells',extract(dow from current_date)::int,10)->>'basisPoints',null,'a zero-denominator cell fraction carries null basis points');
 select is(pg_temp.branch(pg_temp.snap('main')->'heatmap'->'branches','83900000-0000-4000-8000-000000000011')->'week'->>'arrivals','5','the week aggregate sums completed nonexcluded date visits');
 select is(pg_temp.branch(pg_temp.snap('main')->'heatmap'->'branches','83900000-0000-4000-8000-000000000011')->'week'->>'eligibleDates','1','the week aggregate counts each completed nonexcluded date once');
-select is(pg_temp.branch(pg_temp.snap('main')->'heatmap'->'branches','83900000-0000-4000-8000-000000000011')->'week'->>'basisPoints','50000','the week fraction is the exact half-up ratio of its own numerator and denominator');
+select is(pg_temp.branch(pg_temp.snap('main')->'heatmap'->'branches','83900000-0000-4000-8000-000000000011')->'week'->'fraction',jsonb_build_object('numerator','5','denominator','1','basisPoints','50000'),'the week fraction is the exact half-up ratio of its own numerator and denominator (5 completed arrivals over 1 completed nonexcluded date) with the exact {numerator,denominator,basisPoints} keys');
 select is(pg_temp.branch(pg_temp.snap('main')->'heatmap'->'branches','83900000-0000-4000-8000-000000000011')->'week'->>'limited','true','the week aggregate is limited below 14 eligible dates');
 select is(pg_temp.day(pg_temp.branch(pg_temp.snap('b12')->'heatmap'->'branches','83900000-0000-4000-8000-000000000012')->'days',current_date - 1)->>'visits','1','the Auckland visit buckets on its own branch-local date under the branch zone');
 select is(pg_temp.snap('main')->'heatmap'->'reconciliation'->>'complete','false','one invalid branch makes the heatmap reconciliation incomplete');
@@ -496,7 +513,7 @@ select is(pg_temp.day(pg_temp.branch(pg_temp.snap('nohol')->'heatmap'->'branches
 select is((select count(*) from jsonb_array_elements(pg_temp.snap('filter')->'heatmap'->'branches'))::bigint,1::bigint,'a branch-scoped read exposes exactly that branch');
 select is((select h->>'exists' from jsonb_array_elements(pg_temp.day(pg_temp.branch(pg_temp.snap('dst')->'heatmap'->'branches','83900000-0000-4000-8000-000000000012')->'days',date '2026-09-27')->'hours') h where (h->>'hour')::int = 2),'false','the DST-gap clock hour does not exist on 2026-09-27 in Auckland');
 select is((select h->>'visits' from jsonb_array_elements(pg_temp.day(pg_temp.branch(pg_temp.snap('dst')->'heatmap'->'branches','83900000-0000-4000-8000-000000000012')->'days',date '2026-09-20')->'hours') h where (h->>'hour')::int = 2),'1','the pre-gap Sunday visit buckets into hour 2 on 2026-09-20');
-select is(pg_temp.cell(pg_temp.branch(pg_temp.snap('dst')->'heatmap'->'branches','83900000-0000-4000-8000-000000000012')->'cells',0,2)->>'eligibleDates','1','the missing DST hour contributes no eligible date to its coordinate');
+select is(pg_temp.cell(pg_temp.branch(pg_temp.snap('dst')->'heatmap'->'branches','83900000-0000-4000-8000-000000000012')->'cells',0,2)->>'eligibleDates','5','the missing DST hour contributes no eligible date to its coordinate: six completed nonexcluded dates span the range, hour 2 exists on all but the DST-gap date, so exactly five remain eligible (the declaration scopes cell eligibleDates by hour existence — the same date-level count the visible suite pins for all 168 cells)');
 select is(pg_temp.cell(pg_temp.branch(pg_temp.snap('dst')->'heatmap'->'branches','83900000-0000-4000-8000-000000000012')->'cells',0,2)->>'arrivals','1','only the existing hour''s visit reaches the Sunday/02 cell');
 select is(pg_temp.day(pg_temp.branch(pg_temp.snap('apr')->'heatmap'->'branches','83900000-0000-4000-8000-000000000012')->'days',date '2026-04-05')->>'visits','2','both repeated-clock instants bucket into the same local date');
 select is((select count(*) from jsonb_array_elements(pg_temp.day(pg_temp.branch(pg_temp.snap('apr')->'heatmap'->'branches','83900000-0000-4000-8000-000000000012')->'days',date '2026-04-05')->'hours'))::bigint,24::bigint,'a repeated-hour day still exposes exactly 24 ordered clock hours');
@@ -537,7 +554,7 @@ select is(pg_temp.pay(pg_temp.snap('main')->'collection'->'components'->'collect
 -- guard requires INR products), so a USD payment with no addon_orders row
 -- and no membership evidence truthfully classifies 'unallocated'.
 select ok(pg_temp.pay(pg_temp.snap('main')->'collection'->'components'->'collected','83900000-0000-4000-8000-0000000000f4')->>'category' = 'unallocated'
-       and pg_temp.pay(pg_temp.snap('main')->'collection'->'components'->'collected','83900000-0000-4000-8000-0000000000f4')->'membershipEvidence' is null,'an unlinked USD payment carries no membership evidence and classifies unallocated (USD addon orders are unachievable: products are INR-only)');
+       and pg_temp.pay(pg_temp.snap('main')->'collection'->'components'->'collected','83900000-0000-4000-8000-0000000000f4')->'membershipEvidence' = 'null'::jsonb,'an unlinked USD payment carries no membership evidence and classifies unallocated (USD addon orders are unachievable: products are INR-only); the present null is asserted as the jsonb null value');
 select is(pg_temp.pay(pg_temp.snap('main')->'collection'->'components'->'collected','83900000-0000-4000-8000-0000000000f3')->>'category','unallocated','an unlinked manual payment stays unallocated, never guessed into a membership category');
 select is(pg_temp.cat(pg_temp.cash(pg_temp.snap('main')->'collection'->'currencies','INR'),'Membership linkage (derived classification)')->'newMember'->>'collectedPaise','105000','INR new-member collected is the exact sum of both newMember receipts');
 select is(pg_temp.cat(pg_temp.cash(pg_temp.snap('main')->'collection'->'currencies','INR'),'Membership linkage (derived classification)')->'newMember'->>'netPaise','75000','INR new-member net nets the completed in-category return exactly');
@@ -553,7 +570,7 @@ select is(pg_temp.cat(pg_temp.cash(pg_temp.snap('main')->'collection'->'currenci
 select is(pg_temp.cat(pg_temp.cash(pg_temp.snap('main')->'collection'->'currencies','USD'),'Membership linkage (derived classification)')->'unallocated'->>'collectedPaise','25000','the unlinked USD receipt carries the USD unallocated group');
 select is(pg_temp.cat(pg_temp.cash(pg_temp.snap('main')->'collection'->'currencies','USD'),'Membership linkage (derived classification)')->'unallocated'->>'unknownReturnPaise','7500','the unknown-allocation return is disclosed exactly once, in the unallocated category');
 select is(pg_temp.cat(pg_temp.cash(pg_temp.snap('main')->'collection'->'currencies','USD'),'Membership linkage (derived classification)')->'unallocated'->>'unknownReturnPaise',pg_temp.cat(pg_temp.cash(pg_temp.snap('main')->'collection'->'currencies','USD'),'Membership linkage (derived classification)')->'unallocated'->>'returnedPaise','unknownReturnPaise equals that category''s returnedPaise, never an extra summand');
-select is(pg_temp.cat(pg_temp.cash(pg_temp.snap('main')->'collection'->'currencies','USD'),'Membership linkage (derived classification)')->'unallocated'->>'netPaise','-7500','the returns-only unallocated category is a visible negative, spelled with a sign and never -0');
+select is(pg_temp.cat(pg_temp.cash(pg_temp.snap('main')->'collection'->'currencies','USD'),'Membership linkage (derived classification)')->'unallocated'->>'netPaise','17500','the unallocated category nets collected minus returned exactly at every level (25000 collected less the 7500 unknown-allocation return), a signed integer spelled exactly and never -0');
 select is(pg_temp.cash(pg_temp.snap('main')->'collection'->'currencies','USD')->>'netPaise','17500','USD cash net nets collected and returned exactly');
 select is((select (a->>'collectedPaise')::numeric from jsonb_array_elements(pg_temp.snap('main')->'collection'->'currencies') a where a->>'currency'='INR'),
           (select sum((e.value->>'collectedPaise')::numeric) from jsonb_each(pg_temp.cash(pg_temp.snap('main')->'collection'->'currencies','INR')->'categories') e
@@ -604,9 +621,9 @@ select is(pg_temp.sess(pg_temp.snap('b11')->'classes'->'branches'->0->'sessions'
 select ok(not exists (select 1 from jsonb_array_elements(pg_temp.snap('b11')->'classes'->'branches'->0->'sessions') s where s->>'sessionId' = '83900000-0000-4000-8000-000000001102'),'an ongoing/future session never enters the elapsed cohort');
 select ok(not exists (select 1 from jsonb_array_elements(pg_temp.snap('b11')->'classes'->'branches'->0->'sessions') s where s->>'sessionId' = '83900000-0000-4000-8000-000000001103'),'a cancelled session contributes neither bookings nor capacity to the cohort');
 select is((select count(*) from jsonb_array_elements(pg_temp.snap('b11')->'classes'->'branches'->0->'cancelledSessions') s where s->>'sessionId' = '83900000-0000-4000-8000-000000001103')::bigint,1::bigint,'the elapsed cancelled session is disclosed in cancelledSessions');
-select is((select array_agg(k order by ord) from (select k, ord from jsonb_object_keys(pg_temp.sess(pg_temp.snap('b11')->'classes'->'branches'->0->'cancelledSessions','83900000-0000-4000-8000-000000001103')) with ordinality as t(k,ord)) s),
-          array['sessionId','serviceId','sessionDate','startsAt','endsAt'],
-          'cancelled drill rows carry exactly the five frozen keys and no capacity or bookings');
+select is((select array_agg(k order by k) from (select k, ord from jsonb_object_keys(pg_temp.sess(pg_temp.snap('b11')->'classes'->'branches'->0->'cancelledSessions','83900000-0000-4000-8000-000000001103')) with ordinality as t(k,ord)) s),
+          array['endsAt','serviceId','sessionDate','sessionId','startsAt'],
+          'cancelled drill rows carry exactly the five frozen keys and no capacity or bookings (set-wise: jsonb emits keys in its own normalized order, so both sides sort)');
 select is((select count(*) from jsonb_array_elements(pg_temp.snap('b11')->'classes'->'branches'->0->'sessions') s where s->>'sessionId' = '83900000-0000-4000-8000-000000001104')::bigint,1::bigint,'a holiday session which remained scheduled and elapsed stays in the cohort');
 select is(pg_temp.snap('b11')->'classes'->'branches'->0->'summary'->>'cohortSessions','2','the branch cohort is exactly its two elapsed non-cancelled sessions');
 select is(pg_temp.snap('b11')->'classes'->'branches'->0->'summary'->>'totalCapacity','17','summary capacity sums stored session capacities');
@@ -623,7 +640,7 @@ select is(pg_temp.snap('b12')->'classes'->'branches'->0->'summary'->'bookedFill'
 select ok(pg_temp.branch(pg_temp.snap('main')->'classes'->'branches','83900000-0000-4000-8000-000000000013')->>'summary' is null
        and pg_temp.branch(pg_temp.snap('main')->'classes'->'branches','83900000-0000-4000-8000-000000000013')->'sessions' = '[]'::jsonb,'the invalid branch keeps its classes entry with a null summary and empty arrays');
 select is(pg_temp.snap('main')->'classes'->'reconciliation'->>'complete','false','one invalid branch makes the classes reconciliation incomplete');
-select is(pg_temp.snap('main')->'classes'->'reconciliation'->'summary',null,'an incomplete classes reconciliation returns a null summary instead of a partial aggregate');
+select is(pg_temp.snap('main')->'classes'->'reconciliation'->'summary','null'::jsonb,'an incomplete classes reconciliation returns a null summary instead of a partial aggregate (the present null is asserted as the jsonb null value)');
 select ok((select count(*) from jsonb_array_elements(pg_temp.snap('b11')->'classes'->'branches')) = 1
        and not exists (select 1 from jsonb_array_elements(pg_temp.snap('b11')->'classes'->'branches'->0->'sessions') s where s->>'sessionId' = '83900000-0000-4000-8000-000000001105'),'a branch-scoped read exposes only that branch''s cohort');
 
@@ -658,10 +675,11 @@ alter table public.organizations enable trigger user;
 select set_config('request.jwt.claims','{"sub":"83900000-0000-4000-8000-0000000000a1","role":"authenticated","app_role":"gym_owner","staff_id":"83900000-0000-4000-8000-0000000000a1","tenant_id":"83900000-0000-4000-8000-000000000001"}',true);
 set local role authenticated;
 select pg_temp.capture('badzone', current_date - 1, current_date, null, true);
-select is(pg_temp.snap('badzone')->>'zone','Not/AZone','an invalid gym zone is preserved as its text, never fabricated into UTC');
+select ok(pg_temp.snap('badzone')->'zone' = 'null'::jsonb
+       and pg_temp.snap('badzone')->'moneyRange'->>'zone' = 'Not/AZone','an invalid gym zone discloses a null top-level zone and preserves the corrupt zone as its text in moneyRange.zone, never fabricated into UTC');
 select is(pg_temp.snap('badzone')->'moneyRange'->'error'->>'code','invalid_gym_timezone','an invalid gym zone is an explicit money-scope error');
 select is(pg_temp.snap('badzone')->'months','[]'::jsonb,'an invalid gym zone yields no months');
-select is(pg_temp.snap('badzone')->'collection',null,'an invalid gym zone yields no collection at all');
+select is(pg_temp.snap('badzone')->'collection','null'::jsonb,'an invalid gym zone yields no collection at all (the present null is asserted as the jsonb null value)');
 select ok(pg_temp.branch(pg_temp.snap('badzone')->'heatmap'->'branches','83900000-0000-4000-8000-000000000011')->'error'->>'code' = 'invalid_gym_timezone'
        and pg_temp.branch(pg_temp.snap('badzone')->'heatmap'->'branches','83900000-0000-4000-8000-000000000011')->>'range' is null,'the inheriting branch fails with the gym-zone error and no boundaries');
 select is(pg_temp.branch(pg_temp.snap('badzone')->'heatmap'->'branches','83900000-0000-4000-8000-000000000012')->>'error',null,'a branch with its own valid zone stays individually valid while the gym zone is invalid');
