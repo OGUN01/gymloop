@@ -380,7 +380,12 @@ select is((select stock_quantity from public.addon_products where id=pg_temp.sid
 select pg_temp.claim('front_desk',1,23,null,903);
 set local role authenticated;
 select is(pg_temp.replayed($q$select public.record_purchase_request((select id from req where label='KR1'),pg_temp.rev('KR1'),pg_temp.sid(630),(select price_paise::text from public.addon_products where id=pg_temp.sid(101)),'INR','cash',null,(select pg_temp.aproof('KR1')),pg_temp.rev('KR1'))$q$),'true','BUY-016 recording replay returns the original result read-only');
-select is(pg_temp.refusal($q$select public.record_purchase_request((select id from req where label='KR1'),pg_temp.rev('KR1'),pg_temp.sid(630),'200000','INR','cash')$q$) like 'GL068%',true,'BUY-016 changed amount under the same command key conflicts');
+-- The replay-conflict probe names the frozen nine-arg recording command
+-- explicitly: the six-arg compatibility wrapper's untyped six-arg call
+-- resolves 42725 (ambiguous against the nine-arg defaults overload) before
+-- any replay comparison runs, so the conflict is reachable only through the
+-- frozen surface the contract actually pins.
+select is(pg_temp.refusal($q$select public.record_purchase_request((select id from req where label='KR1'),pg_temp.rev('KR1'),pg_temp.sid(630),'200000','INR','cash',null,null,null)$q$) like 'GL068%',true,'BUY-016 changed amount under the same command key conflicts');
 set local role postgres;
 select is((select count(*)::integer from public.addon_orders where id=(pg_temp.rq('KR1')->>'recorded_order_id')::uuid),1,'BUY-016 replay created no second order');
 select is(pg_temp.audits('purchase_request.recorded','KR1'),1,'BUY-020 replay appended no second audit');
@@ -471,7 +476,7 @@ select ok((select m.periods_granted=0 and m.ends_on=(select b.ends_on from mem_b
 select pg_temp.claim('front_desk',1,23,null,903);
 set local role authenticated;
 select is(pg_temp.replayed($q$select public.record_purchase_request((select id from req where label='KRP'),pg_temp.rev('KRP'),pg_temp.sid(639),'50000','INR','cash',null,null,null)$q$),'true','BUY-016 renewal recording replay returns the original result');
-select is(pg_temp.refusal($q$select public.record_purchase_request((select id from req where label='KRP'),pg_temp.rev('KRP'),pg_temp.sid(639),'60000','INR','cash')$q$) like 'GL068%',true,'BUY-016 renewal command key binds its exact facts');
+select is(pg_temp.refusal($q$select public.record_purchase_request((select id from req where label='KRP'),pg_temp.rev('KRP'),pg_temp.sid(639),'60000','INR','cash',null,null,null)$q$) like 'GL068%',true,'BUY-016 renewal command key binds its exact facts');
 select is(pg_temp.refusal($q$select public.record_purchase_request((select id from req where label='KRP'),pg_temp.rev('KRP'),pg_temp.sid(640),'50000','INR','cash',null,null,null)$q$) <> 'NO ERROR',true,'BUY-005 a recorded renewal cannot be recorded again under a new key');
 set local role postgres;
 
@@ -614,7 +619,11 @@ set local role postgres;
 select set_config('request.jwt.claims','',true);
 select pg_temp.claim('member',1,null,32,907);
 set local role authenticated;
-select is(pg_temp.regn('KF3',4),4,'BUY-018 further proof registrations fill the member rolling hour');
+-- The rolling-hour census counts every member-created payment_proof asset,
+-- so the KR2 fixture proof (141, member 32's registered-then-finalized
+-- proof) stands as the hour's first registration; three further RPC
+-- registrations bring the census to nine and the next line's S3 is the tenth.
+select is(pg_temp.regn('KF3',3),3,'BUY-018 three further proof registrations fill the member rolling hour (the KR2 fixture proof counts as its own registration)');
 select lives_ok($q$select pg_temp.reg('S3','KF3')$q$,'BUY-018 the tenth proof registration in the rolling hour succeeds');
 select is(pg_temp.refusal($q$select pg_temp.reg('S9','KF3')$q$) like '22023:purchase_cap%',true,'BUY-018 the eleventh proof registration in the rolling hour refuses with the stable 22023 purchase_cap marker (no GL126 exists)');
 set local role postgres;
