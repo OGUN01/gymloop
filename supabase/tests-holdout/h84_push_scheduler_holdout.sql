@@ -177,7 +177,12 @@ create function pg_temp.tbl_denied(tbl regclass, who text) returns boolean langu
 declare b boolean;
 begin
   begin
-    execute 'select not has_table_privilege(' || quote_literal($1::text) || '::regclass, ' || quote_literal($2) || ', ''SELECT'')' into b;
+    -- has_table_privilege(role, table, privilege): the role slot is first.
+    -- The original order resolved the role name as a relation (42P01
+    -- "relation ... does not exist"), which logged a staging error and
+    -- returned false for every call.
+    execute 'select not has_table_privilege(' || quote_literal($2) || ', '
+            || quote_literal($1::text) || '::regclass, ''SELECT'')' into b;
   exception when others then
     insert into h84_errors values ('tbl_denied: ' || SQLERRM);
     b := false;
@@ -198,6 +203,15 @@ begin
 end $f$;
 
 -- ---------------------------------------------------------------- fixtures
+-- plan() must precede the first assertion; A7/A8 run here, before anything
+-- is staged: the migration-inertness pins must observe the pre-staging
+-- catalog, and the org/config staging blocks below would otherwise satisfy
+-- (poison) A8 with this suite's own synthetic rows (CI run 37316063876: A8
+-- red from the suite's own fixture, not from any migration-written row).
+select plan(94);
+select is(pg_temp.vault_count(), 0, 'H84 A7: the migration creates no Vault secret');
+select ok(not exists (select 1 from public.push_provider_configurations where firebase_project_id = 'samuraiapi-51996'), 'H84 A8: the migration creates no provider configuration row');
+
 do $orgs$
 begin
   -- gym_code must satisfy organizations_gym_code_format_chk
@@ -237,9 +251,6 @@ select pg_temp.orgid(g) from generate_series(100, 204) g;
 
 insert into h84_marks select 'attempts_pre', pg_temp.att();
 
--- ---------------------------------------------------------------- plan
-select plan(94);
-
 -- =============================================================== Section A
 -- A1..A3: declared extensions are present (PSD-001).
 select ok(exists (select 1 from pg_extension where extname = 'pg_cron'), 'H84 A1: pg_cron is installed');
@@ -252,10 +263,7 @@ select is((select count(*) from cron.job where jobname = 'push-dispatch-minute')
 select ok(not exists (select 1 from cron.job where command like '%run_push_dispatch_tick%'), 'H84 A5: no schedule references the driver before activation');
 select ok(not exists (select 1 from cron.job where jobname ~* 'wsp|whatsapp' or command ~* 'whatsapp'), 'H84 A6: no WSP/WhatsApp schedule exists (PSD-013)');
 
--- A7/A8: no Vault secret and no provider configuration row were created by
--- the migration (PSD-001); asserted before this suite stages anything.
-select is(pg_temp.vault_count(), 0, 'H84 A7: the migration creates no Vault secret');
-select ok(not exists (select 1 from public.push_provider_configurations where firebase_project_id = 'samuraiapi-51996'), 'H84 A8: the migration creates no provider configuration row');
+-- A7/A8 were asserted above, before the fixture staging blocks.
 
 -- A9..A26: private function posture for the driver and both sanctioned
 -- helpers (PSD-002 and the registry section): VOLATILE, SECURITY DEFINER,
@@ -346,13 +354,13 @@ begin
     insert into h84_errors values ('enqueue seam: ' || SQLERRM);
   end;
   begin
-    execute $fn$create or replace function app.push_configuration_ready(p_tenant uuid) returns boolean
+    execute $fn$create or replace function app.push_configuration_ready(p_tenant_id uuid) returns boolean
       language plpgsql stable security definer set search_path = '' as $b$
       begin
-        if exists (select 1 from pg_temp.h84_ready where tenant = p_tenant and poison) then
+        if exists (select 1 from pg_temp.h84_ready where tenant = p_tenant_id and poison) then
           raise exception 'H84 synthetic readiness poison' using errcode = 'P0001';
         end if;
-        return coalesce((select ready from pg_temp.h84_ready where tenant = p_tenant), false);
+        return coalesce((select ready from pg_temp.h84_ready where tenant = p_tenant_id), false);
       end$b$$fn$;
     execute 'revoke all on function app.push_configuration_ready(uuid) from public, anon, authenticated, service_role';
   exception when others then
