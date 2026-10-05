@@ -10,7 +10,7 @@ begin;
 set local role postgres;
 set local search_path = extensions, public;
 select set_config('request.jwt.claims','',true);
-select plan(252);
+select plan(253);
 
 create function pg_temp.sid(n integer) returns uuid language sql immutable as $$select ('79100000-0000-4000-8000-'||lpad(n::text,12,'0'))::uuid$$;
 create function pg_temp.claim(r text, t integer default 1, s integer default null, m integer default null, u integer default null, extra jsonb default '{}'::jsonb) returns void language plpgsql as $$begin perform set_config('request.jwt.claims',(jsonb_strip_nulls(jsonb_build_object('role','authenticated','app_role',r,'tenant_id',pg_temp.sid(t),'staff_id',pg_temp.sid(s),'member_id',pg_temp.sid(m),'sub',pg_temp.sid(u)))||extra)::text,true); end$$;
@@ -410,6 +410,11 @@ set local role authenticated;
 select is(pg_temp.replayed($q$select public.record_purchase_request((select id from req where label='KR2'),pg_temp.rev('KR2'),pg_temp.sid(633),'200000','INR','upi',null,(select aproof('KR2')),pg_temp.rev('KR2'))$q$),'true','BUY-016 mismatch replay resolves read-only');
 set local role postgres;
 
+-- BUY-018 budget relief: K3's still-open request cancels before the renewal
+-- block, so member 31's open-request budget holds the renewal create
+-- (the K-series' own five-open-cap pin has already been asserted above).
+select lives_ok($q$select public.cancel_purchase_request((select id from req where label='K3'),pg_temp.sid(656))$q$,'BUY-018 K3's open request cancels to free the member-31 budget for the renewal block');
+
 -- BUY-012/014 renewal at the recorded sold terms with cumulative-period truth.
 select pg_temp.claim('member',1,null,31,906);
 set local role authenticated;
@@ -460,7 +465,7 @@ set local role service_role;
 -- never strands the request unbound.
 select pg_temp.claim('member',1,null,32,907);
 set local role authenticated;
-select lives_ok($q$select public.create_purchase_request(pg_temp.sid(530),'pt',pg_temp.sid(105),1,(select(select quote_version from public.addon_products where id=pg_temp.sid(105)))$q$,'BUY-003 the PT recording scenario request is created');
+select lives_ok($q$select public.create_purchase_request(pg_temp.sid(530),'pt',pg_temp.sid(105),1,(select (select quote_version from public.addon_products where id=pg_temp.sid(105)))$q$,'BUY-003 the PT recording scenario request is created');
 select pg_temp.cap('KP2',530);
 set local role postgres;
 select pg_temp.claim('front_desk',1,23,null,903);
