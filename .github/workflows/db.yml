@@ -10,11 +10,13 @@ on:
   push:
     branches: [main]
     paths:
-      - 'supabase/**'
+      - 'supabase/migrations/**'
+      - 'supabase/functions/**'
       - 'packages/db/types/**'
       - 'scripts/check-pgtap-rollback.mjs'
       - 'scripts/pgtap/splice.py'
       - '.github/workflows/db.yml'
+  workflow_dispatch: {}
   pull_request:
     paths:
       - 'supabase/**'
