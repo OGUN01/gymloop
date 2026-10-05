@@ -166,14 +166,20 @@ insert into public.addon_orders(id,tenant_id,member_id,addon_product_id,payment_
 (pg_temp.u(501),pg_temp.u(1),pg_temp.u(102),pg_temp.u(401),pg_temp.u(703),'paid',1,5000,5000,'INR');
 -- Returns: 801 completes in a later month against a renewal payment (later-
 -- month reduction, whole-receipt allocation); 802 requested (zero returned
--- cash); 803 completed (its processed_at is stamped by the refund invariant
--- on every write path — the completed-undated state is unreachable; see the
--- round-5 amendment below); 804 returns unallocated money (stays in the
--- unknown-allocation disclosure).
+-- cash); 803 completed with an EXPLICIT processed_at in the far past — the
+-- refund invariant stamps only UNDATED completed rows (app.stamp_refund, the
+-- non-RLS insert path), so an undated 803 would land stamped at
+-- clock_timestamp() on the run day: dated cash in the CURRENT month, which
+-- both defeats the month-to-date pin's cashless premise (OCC-009/013) and
+-- breaks section G's run-date determinism. Dated explicitly outside every
+-- asserted money window (before 2026-01-01), the completed-undated state
+-- remains unreachable and the coupled invariant below still holds: every
+-- staged completed refund carries a stamped processed_at; 804 returns
+-- unallocated money (stays in the unknown-allocation disclosure).
 insert into public.refunds(id,tenant_id,payment_id,kind,amount_paise,currency,status,reason,processed_at) values
 (pg_temp.u(801),pg_temp.u(1),pg_temp.u(702),'refund',5000,'INR','completed','OCC fixture','2026-03-05T05:00:00Z'),
 (pg_temp.u(802),pg_temp.u(1),pg_temp.u(701),'refund',2000,'INR','requested','OCC fixture',null),
-(pg_temp.u(803),pg_temp.u(1),pg_temp.u(701),'reversal',1500,'INR','completed','OCC fixture',null),
+(pg_temp.u(803),pg_temp.u(1),pg_temp.u(701),'reversal',1500,'INR','completed','OCC fixture','2025-12-15T05:00:00Z'),
 (pg_temp.u(804),pg_temp.u(1),pg_temp.u(704),'refund',100,'INR','completed','OCC fixture','2026-03-06T05:00:00Z');
 
 -- Class cohort: two elapsed scheduled sessions (holding three and two
@@ -349,10 +355,20 @@ select ok(pg_temp.snapj('2026-09-14','2026-09-27',pg_temp.u(12))->'collection'->
 -- The disclosed hour is derived from the STORED gate-scan instant (the captured member RPC row), not
 -- from now() at assertion time — the suite may legitimately cross an hour
 -- boundary between the fixture insert and this assertion, and the pin's subject
--- is the recorded arrival's clock hour.
+-- is the recorded arrival's clock hour. The window and the day lookup derive
+-- from that same stored instant converted in the branch's EFFECTIVE zone
+-- ('Asia/Kolkata' — branch 11 inherits the fixture gym zone, the exact
+-- conversion the RPC's arrival bucketing uses), never from the session
+-- TimeZone: CI sessions run in UTC, whose date sits 5.5 hours behind the gym
+-- clock, so a bare checked_in_at::date can name the previous gym day and drop
+-- the arrival out of the window entirely. #56b/c therefore end the window on
+-- the arrival's own gym-local date: a midnight rollover between staging and
+-- assertion cannot move the arrival out of range, and #56a above keeps reading
+-- gym_today() because its subject is the asOf day's state, which is current on
+-- either side of the rollover.
 select is(pg_temp.day(pg_temp.snapj(pg_temp.gym_today()-6,pg_temp.gym_today(),null),pg_temp.u(11),pg_temp.gym_today())->>'state','current','#56a today day state: the asOf day is current in the branch heatmap');
-select is(pg_temp.day(pg_temp.snapj(pg_temp.gym_today()-6,pg_temp.gym_today(),null),pg_temp.u(11),pg_temp.gym_today())->>'visits','1','#56b today day visits: the recorded gate-scan arrival is counted in the day total');
-select is((select e->>'visits' from jsonb_array_elements(pg_temp.day(pg_temp.snapj(pg_temp.gym_today()-6,pg_temp.gym_today(),null),pg_temp.u(11),pg_temp.gym_today())->'hours') e where (e->>'hour')=(select extract(hour from t.checked_in_at at time zone 'Asia/Kolkata')::text from occ_today_arrival t limit 1)),'1','#56c today clock hour: the arrival sits in its own recorded clock-hour cell, never mixed into a completed average');
+select is(pg_temp.day(pg_temp.snapj((select (t.checked_in_at at time zone 'Asia/Kolkata')::date from occ_today_arrival t limit 1)-6,(select (t.checked_in_at at time zone 'Asia/Kolkata')::date from occ_today_arrival t limit 1),null),pg_temp.u(11),(select (t.checked_in_at at time zone 'Asia/Kolkata')::date from occ_today_arrival t limit 1))->>'visits','1','#56b today day visits: the recorded gate-scan arrival is counted in the day total (the window ends on the arrival''s own gym-local date, so a midnight rollover between staging and assertion cannot move the arrival out of range)');
+select is((select e->>'visits' from jsonb_array_elements(pg_temp.day(pg_temp.snapj((select (t.checked_in_at at time zone 'Asia/Kolkata')::date from occ_today_arrival t limit 1)-6,(select (t.checked_in_at at time zone 'Asia/Kolkata')::date from occ_today_arrival t limit 1),null),pg_temp.u(11),(select (t.checked_in_at at time zone 'Asia/Kolkata')::date from occ_today_arrival t limit 1))->'hours') e where (e->>'hour')=(select extract(hour from t.checked_in_at at time zone 'Asia/Kolkata')::text from occ_today_arrival t limit 1)),'1','#56c today clock hour: the arrival sits in its own recorded clock-hour cell, never mixed into a completed average');
 -- 58
 select ok(pg_temp.hb(pg_temp.snapj(pg_temp.gym_today(),pg_temp.gym_today(),null),pg_temp.u(11))->>'availability'='partial' and pg_temp.hb(pg_temp.snapj(pg_temp.gym_today(),pg_temp.gym_today(),null),pg_temp.u(11))->>'noEligibleDays'='false','OCC-006: a current day makes availability partial and is not a no-eligible-days branch');
 -- 59
@@ -428,7 +444,7 @@ select set_config('request.jwt.claims',jsonb_build_object('sub',pg_temp.u(916),'
 -- set immediately before this call, at top level, outside any wrapper.
 select set_config('request.jwt.claims',jsonb_build_object('sub',pg_temp.u(916),'role','authenticated','app_role','gym_owner','tenant_id',pg_temp.u(2),'staff_id',pg_temp.u(26))::text,true);
 select is(pg_temp.zone76()->>'ctxTenant',pg_temp.u(2)::text,'#76/78 routing echo (in-invocation): the claims context at the snapshot''s own point of resolution is the corrupt gym — the set and the read share one function invocation, so no statement-level isolation can separate them');
-select ok((pg_temp.zone76()->>'ctxTenant')=pg_temp.u(2)::text and ((pg_temp.zone76()->'snapshot'))->>'zone' is null and ((pg_temp.zone76()->'snapshot'))->'moneyRange'->>'scope'='Whole gym' and ((pg_temp.zone76()->'snapshot'))->'moneyRange'->>'zone' is null and ((pg_temp.zone76()->'snapshot'))->'moneyRange'->'error'=$j${"code":"invalid_gym_timezone"}$j$::jsonb and ((pg_temp.zone76()->'snapshot'))->'moneyRange'->>'startsAt' is null and ((pg_temp.zone76()->'snapshot'))->'months'=$j$[]$j$::jsonb and ((pg_temp.zone76()->'snapshot'))->'collection' is null,'#76 (in-invocation coupling): the helper invocation sets the claims set and the analytics call from ONE function invocation — ctxTenant is the in-call claims tenant read at the exact point of resolution (a mismatch here names the derivation defect directly), and the invalid gym zone yields explicit derived-field nulls, empty months and null collection');
+select ok((pg_temp.zone76()->>'ctxTenant')=pg_temp.u(2)::text and ((pg_temp.zone76()->'snapshot'))->>'zone' is null and ((pg_temp.zone76()->'snapshot'))->'moneyRange'->>'scope'='Whole gym' and ((pg_temp.zone76()->'snapshot'))->'moneyRange'->>'zone'='Mars/Phobos' and ((pg_temp.zone76()->'snapshot'))->'moneyRange'->'error'=$j${"code":"invalid_gym_timezone"}$j$::jsonb and ((pg_temp.zone76()->'snapshot'))->'moneyRange'->>'startsAt' is null and ((pg_temp.zone76()->'snapshot'))->'months'=$j$[]$j$::jsonb and ((pg_temp.zone76()->'snapshot'))->'collection'='null'::jsonb,'#76 (in-invocation coupling): the helper invocation sets the claims set and the analytics call from ONE function invocation — ctxTenant is the in-call claims tenant read at the exact point of resolution (a mismatch here names the derivation defect directly), and the invalid gym zone yields explicit derived-field nulls, empty months and null collection (moneyRange keeps the preserved corrupt zone text beside its error, the same disclosure discipline the branch envelope pins, and the present null collection is asserted as the jsonb null value)');
 -- 77
 select ok(pg_temp.hb(pg_temp.snapj('2026-09-14','2026-09-27',null),pg_temp.u(14))->>'zone'='Mars/Phobos' and pg_temp.hb(pg_temp.snapj('2026-09-14','2026-09-27',null),pg_temp.u(14))->>'zoneSource'='gym' and pg_temp.hb(pg_temp.snapj('2026-09-14','2026-09-27',null),pg_temp.u(14))->'error'=$j${"code":"invalid_gym_timezone"}$j$::jsonb and pg_temp.hb(pg_temp.snapj('2026-09-14','2026-09-27',null),pg_temp.u(14))->'days'=$j$[]$j$::jsonb and pg_temp.hb(pg_temp.snapj('2026-09-14','2026-09-27',null),pg_temp.u(14))->'cells'=$j$[]$j$::jsonb and pg_temp.hb(pg_temp.snapj('2026-09-14','2026-09-27',null),pg_temp.u(14))->>'availability' is null,'OCC-003: a branch inheriting an invalid gym zone discloses the inherited zone text, its source and the gym-zone error');
 select pg_temp.claim('gym_owner',21,null,901,1);

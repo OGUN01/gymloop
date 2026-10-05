@@ -883,11 +883,14 @@ begin
     v_facts:=v_facts || jsonb_build_object('status','mismatch_recorded','kind','shop');
   end if;
   for v_check in
-    select pg_get_expr(k.conbin,k.conrelid) as expression
+    select distinct pg_get_expr(k.conbin,k.conrelid) as expression
     from pg_constraint k join pg_attribute a on a.attrelid=k.conrelid
       and a.attnum=any(k.conkey)
     where k.conrelid=to_regclass(p_table) and k.contype='c'
-      and a.attname=p_source_column
+      and (a.attname=p_source_column
+        or (a.attname='currency' and p_table='public.purchase_requests'
+            and exists(select 1 from pg_attribute g
+                       where g.attrelid=k.conrelid and g.attname='currency' and g.attgenerated<>'')))
   loop
     v_checked:=v_checked+1;
     begin
