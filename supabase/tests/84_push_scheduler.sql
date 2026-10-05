@@ -105,7 +105,7 @@ select is((select count(*)::integer from vault.secrets where name='gymloop_push_
 select ok(to_regclass('public.push_provider_configurations') is not null,'PSD-003: tenant-keyed push_provider_configurations exists (committed push surface)');
 select ok(to_regprocedure('app.run_push_events(uuid)') is not null,'PSD-003: the existing private event runner app.run_push_events exists');
 select is((select array_agg(k order by k) from jsonb_object_keys(app.run_push_events(pg_temp.aid(1))) k),'{absenceEvents,announcementEvents,classReminders,pushChildren}','PSD-006: the existing runner returns exactly the four aggregated count keys');
-select ok(to_regclass('net.http_request') is not null,'PSD-001: pg_net is installed (declared dependency)');
+select ok(to_regclass('net.http_request_queue_queue') is not null,'PSD-001: pg_net is installed (declared dependency)');
 select ok(to_regclass('cron.job') is not null,'PSD-001: pg_cron is installed (reused dependency)');
 select ok(to_regclass('vault.secrets') is not null,'PSD-001: supabase_vault is installed (declared dependency)');
 select ok(to_regprocedure('public.run_push_dispatch_tick()') is null,'PSD-002: no public facade for the driver');
@@ -153,10 +153,10 @@ select is(case when to_regprocedure('net.http_post(text,jsonb,jsonb,jsonb,intege
 select is(case when to_regprocedure('net.http_post(text,jsonb,jsonb,jsonb,integer)') is null then 'false' else coalesce(has_function_privilege('anon',to_regprocedure('net.http_post(text,jsonb,jsonb,jsonb,integer)'),'EXECUTE')::text,'unchecked') end,'false','PSD-007: anon cannot enqueue HTTP requests');
 select is(case when to_regprocedure('net.http_post(text,jsonb,jsonb,jsonb,integer)') is null then 'false' else coalesce(has_function_privilege('authenticated',to_regprocedure('net.http_post(text,jsonb,jsonb,jsonb,integer)'),'EXECUTE')::text,'unchecked') end,'false','PSD-007: authenticated cannot enqueue HTTP requests');
 select is(case when to_regprocedure('net.http_post(text,jsonb,jsonb,jsonb,integer)') is null then 'false' else coalesce(has_function_privilege('service_role',to_regprocedure('net.http_post(text,jsonb,jsonb,jsonb,integer)'),'EXECUTE')::text,'unchecked') end,'false','PSD-007: service_role cannot enqueue HTTP requests');
-select is(coalesce(has_table_privilege('public','net.http_request_queue','SELECT')::text,'unchecked'),'false','PSD-007: PUBLIC cannot inspect the net queue');
-select is(coalesce(has_table_privilege('anon','net.http_request_queue','SELECT')::text,'unchecked'),'false','PSD-007: anon cannot inspect the net queue');
-select is(coalesce(has_table_privilege('authenticated','net.http_request_queue','SELECT')::text,'unchecked'),'false','PSD-007: authenticated cannot inspect the net queue');
-select is(coalesce(has_table_privilege('service_role','net.http_request_queue','SELECT')::text,'unchecked'),'false','PSD-007: service_role cannot inspect the net queue');
+select is(coalesce(has_table_privilege('public','net.http_request_queue_queue','SELECT')::text,'unchecked'),'false','PSD-007: PUBLIC cannot inspect the net queue');
+select is(coalesce(has_table_privilege('anon','net.http_request_queue_queue','SELECT')::text,'unchecked'),'false','PSD-007: anon cannot inspect the net queue');
+select is(coalesce(has_table_privilege('authenticated','net.http_request_queue_queue','SELECT')::text,'unchecked'),'false','PSD-007: authenticated cannot inspect the net queue');
+select is(coalesce(has_table_privilege('service_role','net.http_request_queue_queue','SELECT')::text,'unchecked'),'false','PSD-007: service_role cannot inspect the net queue');
 select is(coalesce(has_table_privilege('public','vault.secrets','SELECT')::text,'unchecked'),'false','PSD-007: PUBLIC cannot read Vault secrets');
 select is(coalesce(has_table_privilege('anon','vault.secrets','SELECT')::text,'unchecked'),'false','PSD-007: anon cannot read Vault secrets');
 select is(coalesce(has_table_privilege('authenticated','vault.secrets','SELECT')::text,'unchecked'),'false','PSD-007: authenticated cannot read Vault secrets');
@@ -200,17 +200,17 @@ select case
     then is(pg_temp.err('select app.read_push_dispatch_secret()') is not null and coalesce(pg_temp.err('select app.read_push_dispatch_secret()')->>'msg','x') not like '%does not exist%',true,'PSD-005: a blank Vault entry refuses wakeup with an operational error')
   else is(pg_temp.probe($q$select vault.create_secret('','gymloop_push_dispatch_secret')$q$) <> 'OK',true,'PSD-005: the Vault schema itself refuses a blank production-named entry')
 end;
-create temp table d0_qpre as select count(*)::integer c from net.http_request;
+create temp table d0_qpre as select count(*)::integer c from net.http_request_queue;
 select is(pg_temp.probe($q$select app.enqueue_push_dispatch_wakeup('synthetic-dispatch-secret-B')$q$),'OK','PSD-005: the real wakeup helper accepts a secret');
-select is((select count(*)::integer from net.http_request),(select c+1 from d0_qpre),'PSD-005: the real helper enqueues exactly one wakeup row');
-select is((select url from net.http_request order by id desc limit 1),'https://pecxrpskmfeuyzngvewq.supabase.co/functions/v1/push-dispatch','PSD-005: the wakeup targets the exact frozen endpoint');
-select is((select position('?' in url) from net.http_request order by id desc limit 1),0,'PSD-005: the wakeup URL carries no query string');
-select is((select headers->>'Content-Type' from net.http_request order by id desc limit 1),'application/json','PSD-005: the wakeup carries the JSON content type');
-select is((select headers->>'x-gymloop-push-dispatch-secret' from net.http_request order by id desc limit 1),'synthetic-dispatch-secret-B','PSD-005: the wakeup carries exactly the dedicated secret header');
-select is((select headers ? 'authorization' from net.http_request order by id desc limit 1),false,'PSD-005: the wakeup carries no authorization JWT');
-select is((select body::text from net.http_request order by id desc limit 1),'{}','PSD-005: the wakeup body is the empty JSON object');
-select is((select timeout_msec from net.http_request order by id desc limit 1),5000,'PSD-005: the wakeup timeout is 5000 ms');
-select is(pg_temp.probe($q$delete from net.http_request$q$),'OK','PSD-005: the inspected wakeup row is removed inside the transaction');
+select is((select count(*)::integer from net.http_request_queue),(select c+1 from d0_qpre),'PSD-005: the real helper enqueues exactly one wakeup row');
+select is((select url from net.http_request_queue order by id desc limit 1),'https://pecxrpskmfeuyzngvewq.supabase.co/functions/v1/push-dispatch','PSD-005: the wakeup targets the exact frozen endpoint');
+select is((select position('?' in url) from net.http_request_queue order by id desc limit 1),0,'PSD-005: the wakeup URL carries no query string');
+select is((select headers->>'Content-Type' from net.http_request_queue order by id desc limit 1),'application/json','PSD-005: the wakeup carries the JSON content type');
+select is((select headers->>'x-gymloop-push-dispatch-secret' from net.http_request_queue order by id desc limit 1),'synthetic-dispatch-secret-B','PSD-005: the wakeup carries exactly the dedicated secret header');
+select is((select headers ? 'authorization' from net.http_request_queue order by id desc limit 1),false,'PSD-005: the wakeup carries no authorization JWT');
+select is((select encode(body,'escape') from net.http_request_queue order by id desc limit 1),'{}','PSD-005: the wakeup body is the empty JSON object');
+select is((select timeout_milliseconds from net.http_request_queue order by id desc limit 1),5000,'PSD-005: the wakeup timeout is 5000 ms');
+select is(pg_temp.probe($q$delete from net.http_request_queue$q$),'OK','PSD-005: the inspected wakeup row is removed inside the transaction');
 rollback to savepoint d0;
 
 -- ============ D1. zero eligible tenants: zero Vault and network work ============
