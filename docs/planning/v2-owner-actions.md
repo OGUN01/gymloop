@@ -25,6 +25,15 @@ which is achievable and already verified. If hardening beyond the platform
 baseline is ever wanted, it goes through Supabase support as a superuser
 change — the suites record the exact baseline to tighten.
 
+Both Edge functions verified live 2026-10-05: `media` refuses unauthenticated
+calls (403, JWT-verified), `no-show-scan` refuses with
+`{"ok":false,"error":"CRON_SECRET is not configured"}` — the designed guard.
+That last one has a small owner step when the nightly scan should go live:
+set `CRON_SECRET` in the project's function secrets (Dashboard → Edge
+Functions → no-show-scan → Secrets) with a strong random value — the
+function refuses to serve until it is set, by design, because a scheduled
+job with a public URL is a public URL.
+
 ## 3. The Play Console release (after device verification)
 
 Per `docs/planning/v2-device-testing-handoff.md`: the release build uses the
