@@ -89,8 +89,8 @@ create function pg_temp.event_tenant(n integer) returns void language plpgsql as
   insert into public.notification_push_campaigns(id,tenant_id,announcement_id,version_no,request_key,created_by_staff_id,reviewed_by_staff_id,reviewed_at) values (pg_temp.aid(n+7000),pg_temp.aid(n),pg_temp.aid(n+5000),1,pg_temp.aid(n+7500),pg_temp.aid(n+3000),pg_temp.aid(n+3000),now()-interval '1 hour');
 end$$;
 create function pg_temp.config(n integer, activated timestamptz) returns void language sql as $$insert into public.push_provider_configurations(tenant_id,firebase_project_id,activated_at) values (pg_temp.aid(n),'samuraiapi-51996',activated)$$;
-create function pg_temp.reads_now() returns integer language sql as $$select coalesce((select max(n) from pg_temp.seam_reads),0)$$;
-create function pg_temp.sends_now() returns integer language sql as $$select coalesce((select max(n) from pg_temp.seam_sends),0)$$;
+create function pg_temp.reads_now() returns integer language plpgsql as $$begin return coalesce((select max(n) from pg_temp.seam_reads),0); end$$;
+create function pg_temp.sends_now() returns integer language plpgsql as $$begin return coalesce((select max(n) from pg_temp.seam_sends),0); end$$;
 
 -- ============ A. inert migration and installed infrastructure ============
 insert into public.organizations(id,name,gym_code,status) values (pg_temp.aid(1),'PUSH Runner Probe','PS0001','active');

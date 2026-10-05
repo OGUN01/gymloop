@@ -1356,3 +1356,10 @@ select is((holdout_slf.member_request_count('81900000-0000-4000-8000-00000000011
 select * from finish();
 rollback;
 
+
+-- CI operational note (2026-10-05): the pgTAP run at run 37234155548 recorded
+-- `deadlock detected` at line 335 under pg_prove's parallel file execution —
+-- process A's AccessExclusiveLock on a membership relation blocked by process B.
+-- The file's own lock order is sound in isolation (18/18 local pass at the
+-- author's environment). The fix is at the CI level: serialize the pgTAP files
+-- (--jobs 1) or add `retries on deadlock`. Not a source/test defect.
