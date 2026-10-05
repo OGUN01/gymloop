@@ -905,7 +905,7 @@ begin
         v_expr := replace(v_expr, p_source_column, '('''||p_currency||''')');
         execute 'select ('||v_expr||')' into v_pass;
       end;
-    end if;
+    end;
     if v_pass is false then return true; end if;
   end loop;
   if v_checked=0 then return null; end if;

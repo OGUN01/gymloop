@@ -153,10 +153,10 @@ select is(case when to_regprocedure('net.http_post(text,jsonb,jsonb,jsonb,intege
 select is(case when to_regprocedure('net.http_post(text,jsonb,jsonb,jsonb,integer)') is null then 'false' else coalesce(has_function_privilege('anon',to_regprocedure('net.http_post(text,jsonb,jsonb,jsonb,integer)'),'EXECUTE')::text,'unchecked') end,'false','PSD-007: anon cannot enqueue HTTP requests');
 select is(case when to_regprocedure('net.http_post(text,jsonb,jsonb,jsonb,integer)') is null then 'false' else coalesce(has_function_privilege('authenticated',to_regprocedure('net.http_post(text,jsonb,jsonb,jsonb,integer)'),'EXECUTE')::text,'unchecked') end,'false','PSD-007: authenticated cannot enqueue HTTP requests');
 select is(case when to_regprocedure('net.http_post(text,jsonb,jsonb,jsonb,integer)') is null then 'false' else coalesce(has_function_privilege('service_role',to_regprocedure('net.http_post(text,jsonb,jsonb,jsonb,integer)'),'EXECUTE')::text,'unchecked') end,'false','PSD-007: service_role cannot enqueue HTTP requests');
-select is(coalesce(has_table_privilege('public','net.http_request','SELECT')::text,'unchecked'),'false','PSD-007: PUBLIC cannot inspect the net queue');
-select is(coalesce(has_table_privilege('anon','net.http_request','SELECT')::text,'unchecked'),'false','PSD-007: anon cannot inspect the net queue');
-select is(coalesce(has_table_privilege('authenticated','net.http_request','SELECT')::text,'unchecked'),'false','PSD-007: authenticated cannot inspect the net queue');
-select is(coalesce(has_table_privilege('service_role','net.http_request','SELECT')::text,'unchecked'),'false','PSD-007: service_role cannot inspect the net queue');
+select is(coalesce(has_table_privilege('public','net.http_request_queue','SELECT')::text,'unchecked'),'false','PSD-007: PUBLIC cannot inspect the net queue');
+select is(coalesce(has_table_privilege('anon','net.http_request_queue','SELECT')::text,'unchecked'),'false','PSD-007: anon cannot inspect the net queue');
+select is(coalesce(has_table_privilege('authenticated','net.http_request_queue','SELECT')::text,'unchecked'),'false','PSD-007: authenticated cannot inspect the net queue');
+select is(coalesce(has_table_privilege('service_role','net.http_request_queue','SELECT')::text,'unchecked'),'false','PSD-007: service_role cannot inspect the net queue');
 select is(coalesce(has_table_privilege('public','vault.secrets','SELECT')::text,'unchecked'),'false','PSD-007: PUBLIC cannot read Vault secrets');
 select is(coalesce(has_table_privilege('anon','vault.secrets','SELECT')::text,'unchecked'),'false','PSD-007: anon cannot read Vault secrets');
 select is(coalesce(has_table_privilege('authenticated','vault.secrets','SELECT')::text,'unchecked'),'false','PSD-007: authenticated cannot read Vault secrets');
