@@ -325,10 +325,8 @@ jobs:
         # the session ceiling for this connection only — the project setting
         # is unchanged.
         run: |
-          printf "alter role postgres set statement_timeout = '10min';
-" > /tmp/raise_timeout.sql
+          printf "alter role postgres set statement_timeout = '10min';" > /tmp/raise_timeout.sql
           supabase db query --linked -f /tmp/raise_timeout.sql
           supabase test db --linked ${{ steps.paths.outputs.dirs }}
-          printf "alter role postgres set statement_timeout = '2min';
-" > /tmp/lower_timeout.sql
+          printf "alter role postgres set statement_timeout = '2min';" > /tmp/lower_timeout.sql
           supabase db query --linked -f /tmp/lower_timeout.sql || true
