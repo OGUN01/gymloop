@@ -29,6 +29,8 @@ The independent held author completed and committed the three existing native fi
 
 Implementation is committed locally at **a4d1481f**. C:/gc is safely detached at that commit after preserving and verifying its two previous local deltas in an owner-only backup; the direct Gradle v2check/debug-signed build is running. Nothing has been installed or pushed yet. Compact reference matching still requires device and visual review.
 
+**Later checkpoint:** isolated unchanged campaign12/12 passed after the build; earlier failures remain above. First safe a4d1481f APK installed only over v2check after package/certificate/hash verification, leaving the Play pilot unchanged. Before the new RPC exists, [stable retry](../screens/2026-10-06-device-nav-pending-schema.png) is expected and not acceptance of final layout. Compact refinements **a21731ce** follow independent red tests945758b9 and fixturee1a46a2c: **707/707** full mobile, **135/135** affected held,60/60 focused pass. Registry/mobilelint/escape963/strictOpenSpec/immutability21commits passed before the latest source commit. Rebuild of the refined artifact is running; SQL runtime, generated metadata, fresh visual verdict and green main CI remain pending.
+
 ## Deployment boundary
 
 Prior DB run 37409145394 is still active. No competing local SQL sweep, manual migration apply or generated-type edit has occurred. The new schema metadata intentionally remains unavailable until CI applies the migration and the authorized CLI regenerates it. Expo generated the local announcements route types through its offline development command; mobile typecheck now reports only the four new RPC metadata errors. Final CI, SQL runtime and exact-artifact OnePlus evidence remain required.
