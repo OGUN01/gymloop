@@ -133,7 +133,8 @@ describe('BIZ-012/021 rendered native vocabulary and accessible names', () => {
   });
   it('dance Home exposes an academy scanner hint and keeps stored messages literal', async () => {
     const tree = await render('home'); expect(accessible(tree)).toContain('Opens the camera to scan your academy QR code');
-    expect(text(tree)).toContain('Latest from your academy'); expect(text(tree)).toContain(stored);
+    // NAVC-009 uses the distinct personal heading; stored business copy stays literal.
+    expect(text(tree)).toContain('Messages for you'); expect(text(tree)).toContain(stored);
   });
   it('dance Gym renders classes used and the student scanner hint', async () => {
     const tree = await render('gym'); expect(text(tree)).toContain('Academy code');
@@ -150,7 +151,7 @@ describe('BIZ-012/021 rendered native vocabulary and accessible names', () => {
     expect(accessible(tree)).toMatch(/Academy,\s*BIZ Academy/);
   });
   it('gym preserves the specified Home, Gym and You legacy wording', async () => {
-    state.type = 'gym'; const home = await render('home'); expect(text(home)).toContain('Latest from your gym'); expect(accessible(home)).toContain('Opens the camera to scan your gym QR code');
+    state.type = 'gym'; const home = await render('home'); expect(text(home)).toContain('Messages for you'); expect(accessible(home)).toContain('Opens the camera to scan your gym QR code');
     state.slots = []; const gym = await render('gym'); expect(text(gym)).toContain('Gym code'); expect(accessible(gym)).toContain('Opens the member check-in scanner');
     state.slots = []; const you = await render('you'); expect(text(you)).toContain('Verified member'); expect(accessible(you)).toMatch(/gym code BIZ70A/i);
     expect(nodes(you).some((node) => text(node) === 'Gym')).toBe(true);

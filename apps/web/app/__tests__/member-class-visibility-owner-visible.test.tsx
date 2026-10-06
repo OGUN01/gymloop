@@ -28,7 +28,7 @@ const settingLabel = 'Show Classes to members';
 const settingHelp = 'Show a Classes tab in the member app. Manage availability and new bookings in the class catalogue.';
 let enabled: boolean | null = false;
 let nodes: Node[] = [];
-let editor: (props: { enabled: boolean | null }) => unknown;
+let editor: ((props: { enabled: boolean | null }) => unknown) | undefined;
 function visit(value: unknown, path: string): void {
   if (Array.isArray(value)) { value.forEach((child, index) => visit(child, `${path}/${index}`)); return; }
   if (value === null || typeof value !== 'object' || !('type' in value) || !('props' in value)) return;
@@ -61,7 +61,10 @@ const save = /^Save Classes visibility$/;
 const successCopy = /saved|successfully|visibility updated|Classes (?:are|is|will be) (?:shown|hidden|enabled|disabled)/i;
 
 beforeEach(() => {
-  cleanup(); vi.clearAllMocks(); enabled = false; nodes = []; editor = undefined as unknown as typeof editor;
+  cleanup(); vi.clearAllMocks(); enabled = false; nodes = []; editor = undefined;
+  // The declared browser command hook subscribes to online/offline events.
+  // Supply real EventTarget listener/removal semantics in the Node harness.
+  vi.stubGlobal('window', new EventTarget());
   vi.stubGlobal('navigator', { onLine: true });
   vi.stubGlobal('fetch', h.fetch);
   h.fetch.mockResolvedValue(response({ ok: true, data: { enabled: true, changed: true } }));

@@ -8,7 +8,7 @@ type Node = { type: unknown; props: Props; path?: string };
 type Slot = { value?: unknown; deps?: readonly unknown[] | undefined; cleanup?: (() => void) | undefined };
 const seam = vi.hoisted(() => ({
   stores: new Map<string, Slot[]>(), path: '', cursor: 0, effects: [] as Array<() => void>,
-  loadMember: vi.fn(), loadTimetable: vi.fn(), loadRoster: vi.fn(), search: vi.fn(),
+  loadMember: vi.fn(), loadUpcoming: vi.fn(), loadTimetable: vi.fn(), loadRoster: vi.fn(), search: vi.fn(),
   book: vi.fn(), cancel: vi.fn(), deskBook: vi.fn(), deskCancel: vi.fn(), mark: vi.fn(),
   network: true, probe: vi.fn(), insideHelper: false, finalWait: null as Promise<{ isConnected: boolean; isInternetReachable: boolean }> | null, networkListener: null as null | ((state: { isConnected: boolean; isInternetReachable: boolean }) => void),
   context: {} as Props,
@@ -42,7 +42,9 @@ vi.mock('../../lib/mobile-context', () => ({ useMobile: () => seam.context }));
 vi.mock('../../lib/use-business-nouns', () => ({ useBusinessNouns: () => seam.context.nouns }));
 vi.mock('../../lib/classes', async importOriginal => {
   const actual = await importOriginal<Record<string, unknown>>();
-  return { ...actual, loadMemberClasses: seam.loadMember, loadDeskTimetable: seam.loadTimetable, loadDeskRoster: seam.loadRoster,
+  // NAVC-013 moves cancellation preparation to the separate own projection;
+  // the actual final-send helper and exact-cutoff assertions stay real.
+  return { ...actual, loadMemberClasses: seam.loadMember, loadMemberUpcomingClassBookings: seam.loadUpcoming, loadDeskTimetable: seam.loadTimetable, loadDeskRoster: seam.loadRoster,
     cancelClassBooking: (...args: unknown[]) => {
       seam.insideHelper = true;
       if (typeof actual.cancelClassBooking !== 'function') throw new Error('Public cancellation helper absent');
@@ -111,7 +113,7 @@ function context(identity: unknown) {
 beforeEach(() => {
   cleanup(); vi.clearAllMocks(); vi.useFakeTimers(); vi.setSystemTime(new Date('2026-10-03T10:00:00+05:30'));
   desk = false; seam.network = true; seam.networkListener = null; seam.context = context(memberA);
-  seam.loadMember.mockReset().mockResolvedValue([session]); seam.loadTimetable.mockResolvedValue([]); seam.loadRoster.mockResolvedValue([]); seam.search.mockResolvedValue([]);
+  seam.loadMember.mockReset().mockResolvedValue([session]); seam.loadUpcoming.mockReset().mockResolvedValue([]); seam.loadTimetable.mockResolvedValue([]); seam.loadRoster.mockResolvedValue([]); seam.search.mockResolvedValue([]);
   seam.insideHelper = false; seam.finalWait = null;
   seam.probe.mockReset().mockImplementation(async () => seam.insideHelper && seam.finalWait ? seam.finalWait : { isConnected: true, isInternetReachable: true });
 
@@ -204,7 +206,7 @@ describe('CLS approved actual native booking confirmation', () => {
 
 describe('CLS actual pane plus actual cancellation helper final-send cutoff', () => {
   it.each(['exact cutoff', 'one millisecond after', 'caller revoked'] as const)('resumes final asynchronous preflight at %s', async boundary => {
-    seam.loadMember.mockResolvedValue([booked]); draw(); await settle(); await press(/^Cancel(?: booking)?$/);
+    seam.loadUpcoming.mockResolvedValue([booked]); draw(); await settle(); await press(/^Cancel(?: booking)?$/);
     const waiting = deferred<{ isConnected: boolean; isInternetReachable: boolean }>();
     seam.finalWait = waiting.promise;
     const confirm = control(/^Confirm(?: cancellation)?$|^Cancel booking$/); expect(confirm).toBeDefined();

@@ -7,7 +7,7 @@ type Node = { type: unknown; props: Props; path?: string };
 type Slot = { value?: unknown; deps?: readonly unknown[] | undefined; cleanup?: (() => void) | undefined };
 const seam = vi.hoisted(() => ({
   stores: new Map<string, Slot[]>(), path: '', cursor: 0, effects: [] as Array<() => void>,
-  loadMember: vi.fn(), loadTimetable: vi.fn(), loadRoster: vi.fn(), search: vi.fn(),
+  loadMember: vi.fn(), loadUpcoming: vi.fn(), loadTimetable: vi.fn(), loadRoster: vi.fn(), search: vi.fn(),
   book: vi.fn(), cancel: vi.fn(), deskBook: vi.fn(), deskCancel: vi.fn(), mark: vi.fn(),
   network: true, networkListener: null as null | ((state: { isConnected: boolean; isInternetReachable: boolean }) => void),
   context: {} as Props,
@@ -39,7 +39,9 @@ vi.mock('react', async importOriginal => {
 });
 vi.mock('../../lib/mobile-context', () => ({ useMobile: () => seam.context }));
 vi.mock('../../lib/use-business-nouns', () => ({ useBusinessNouns: () => seam.context.nouns }));
-vi.mock('../../lib/classes', () => ({ loadMemberClasses: seam.loadMember, loadDeskTimetable: seam.loadTimetable, loadDeskRoster: seam.loadRoster, bookClass: seam.book, cancelClassBooking: seam.cancel, deskBookClass: seam.deskBook, deskCancelClassBooking: seam.deskCancel, markClassAttendance: seam.mark }));
+// NAVC-011/013: own commitments have their independent caller reader;
+// cancellation authority and preparation assertions below remain unchanged.
+vi.mock('../../lib/classes', () => ({ loadMemberClasses: seam.loadMember, loadMemberUpcomingClassBookings: seam.loadUpcoming, loadDeskTimetable: seam.loadTimetable, loadDeskRoster: seam.loadRoster, bookClass: seam.book, cancelClassBooking: seam.cancel, deskBookClass: seam.deskBook, deskCancelClassBooking: seam.deskCancel, markClassAttendance: seam.mark }));
 vi.mock('../../lib/mobile-data', () => ({ loadDeskMembers: seam.search }));
 vi.mock('expo-network', () => ({
   getNetworkStateAsync: async () => ({ isConnected: seam.network, isInternetReachable: seam.network }),
@@ -109,7 +111,7 @@ function context(identity: unknown) {
 beforeEach(() => {
   cleanup(); vi.clearAllMocks(); vi.useFakeTimers(); vi.setSystemTime(new Date('2026-10-03T10:00:00+05:30'));
   desk = false; seam.network = true; seam.networkListener = null; seam.context = context(memberA);
-  seam.loadMember.mockResolvedValue([session]); seam.loadTimetable.mockResolvedValue([timetable]); seam.loadRoster.mockResolvedValue([roster]); seam.search.mockResolvedValue([]);
+  seam.loadMember.mockReset().mockResolvedValue([session]); seam.loadUpcoming.mockReset().mockResolvedValue([]); seam.loadTimetable.mockResolvedValue([timetable]); seam.loadRoster.mockResolvedValue([roster]); seam.search.mockResolvedValue([]);
   seam.cancel.mockResolvedValue({ ok: true, data: { bookingId: booked.myBookingId, status: 'cancelled_by_member' } });
 });
 afterEach(() => { cleanup(); vi.useRealTimers(); });
@@ -121,11 +123,11 @@ describe('CLS rendered native contract', () => {
     { name: 'changed branch timezone in the displayed commitment', updated: { ...booked, timezone: 'UTC' }, expected: /10:30\s*[aA][mM]|10:30/ },
   ])('requires renewed explicit cancellation confirmation for $name', async ({ updated, expected }) => {
     vi.setSystemTime(new Date('2026-10-03T14:30:00+05:30'));
-    seam.loadMember.mockResolvedValue([booked]);
+    seam.loadUpcoming.mockResolvedValue([booked]);
     draw(); await settle(); await press(/^Cancel(?: booking)?$/);
     expect(visible(), 'prepared confirmation displays original local deadline').toMatch(/16:00|4:00\s*[pP][mM]/);
     expect(seam.cancel, 'preparation alone never sends cancellation').not.toHaveBeenCalled();
-    seam.loadMember.mockResolvedValue([updated]);
+    seam.loadUpcoming.mockResolvedValue([updated]);
     await press(/^Confirm(?: cancellation)?$|^Cancel booking$/);
     expect(seam.cancel, 'changed still-valid facts require renewed explicit confirmation').not.toHaveBeenCalled();
     const sheet = nodes.find(node => node.type === 'Sheet');
@@ -168,7 +170,7 @@ describe('CLS rendered native contract', () => {
     expect(visible(contents), 'old selected capacity discarded').not.toMatch(/9\s*(?:of|\/)\s*13/);
   });
   it('revokes retained confirmation during an authentication transition before identity resolves', async () => {
-    seam.loadMember.mockResolvedValue([booked]); draw(); await settle(); await press(/^Cancel(?: booking)?$/);
+    seam.loadUpcoming.mockResolvedValue([booked]); draw(); await settle(); await press(/^Cancel(?: booking)?$/);
     const retained = control(/^Confirm(?: cancellation)?$|^Cancel booking$/)?.props.onPress;
     expect(retained, 'authenticated confirmation exists').toBeTypeOf('function');
     seam.context = { ...seam.context, ready: false, session: null }; draw(); await settle();
@@ -176,7 +178,7 @@ describe('CLS rendered native contract', () => {
     expect(seam.cancel, 'authentication transition revokes old command authority').not.toHaveBeenCalled();
   });
   it('revokes an existing confirmation callback on unmount', async () => {
-    seam.loadMember.mockResolvedValue([booked]); draw(); await settle(); await press(/^Cancel(?: booking)?$/);
+    seam.loadUpcoming.mockResolvedValue([booked]); draw(); await settle(); await press(/^Cancel(?: booking)?$/);
     const retained = control(/^Confirm(?: cancellation)?$|^Cancel booking$/)?.props.onPress;
     expect(retained, 'mounted confirmation callback exists').toBeTypeOf('function');
     cleanup();
@@ -184,7 +186,7 @@ describe('CLS rendered native contract', () => {
     expect(seam.cancel, 'unmounted confirmation cannot mutate').not.toHaveBeenCalled();
   });
   it('renders the exact refusal after an existing booking cancellation without claiming success', async () => {
-    seam.loadMember.mockResolvedValue([booked]);
+    seam.loadUpcoming.mockResolvedValue([booked]);
     seam.cancel.mockResolvedValue({ ok: false, error: { code: 'cancel_window_closed', message: 'Untrusted diagnostic sentinel' } });
     draw(); await settle(); await press(/^Cancel(?: booking)?$/); await press(/^Confirm(?: cancellation)?$|^Cancel booking$/);
     expect(seam.cancel, 'explicit confirmation sent one command').toHaveBeenCalledTimes(1);
@@ -215,12 +217,14 @@ describe('CLS rendered native contract', () => {
     expect(seam.mark, 'adding a booking never marks attendance').not.toHaveBeenCalled();
   });
   it('loads local today, shows session facts and ignores surplus member fields', async () => {
-    seam.loadMember.mockResolvedValue([Object.assign({}, session, { memberName: 'Privacy sentinel', memberPhone: 'Phone sentinel' }), { ...session, sessionDate: '2026-10-04', serviceName: 'Tomorrow sentinel' }]);
+    seam.loadMember.mockResolvedValue([Object.assign({}, session, { memberName: 'Privacy sentinel', memberPhone: 'Phone sentinel' }), { ...session, sessionId: '74000000-0000-4000-8000-000000000019', serviceId: '74000000-0000-4000-8000-000000000020', sessionDate: '2026-10-04', startsAt: '2026-10-04T18:00:00+05:30', endsAt: '2026-10-04T19:00:00+05:30', serviceName: 'Tomorrow sentinel' }]);
     draw(); await settle();
     expect(seam.loadMember, 'caller read was requested').toHaveBeenCalled();
     expect(seam.loadMember.mock.calls[0]?.[1], 'window begins on gym local today').toMatchObject({ from: '2026-10-03' });
     for (const fact of ['Evening mobility', 'Coach Kavya', '4 spots left']) expect(visible(), `visible fact ${fact}`).toContain(fact);
-    expect(visible(), 'tomorrow is not the initial day').not.toContain('Tomorrow sentinel');
+    // NAVC-011 permits future-window activity chips; the current occurrence
+    // list still obeys its selected branch-local session date.
+    expect(visible(nodes.filter(node => node.type === 'Row')), 'tomorrow is not an initial-day occurrence').not.toContain('Tomorrow sentinel');
     expect(visible(), 'counts-only output').not.toMatch(/Privacy sentinel|Phone sentinel/);
     expect(visible(), 'local class time').toMatch(/18:00|6:00\s*[pP][mM]/);
   });
@@ -241,14 +245,14 @@ describe('CLS rendered native contract', () => {
     expect(visible(), 'no invented default deadline').not.toMatch(/16:00|4:00\s*[pP][mM]/);
   });
   it('refreshes an existing cancellation and respects the newly closed window', async () => {
-    seam.loadMember.mockResolvedValueOnce([booked]).mockResolvedValue([{ ...booked, canCancel: false, cancelBy: '2026-10-03T09:00:00+05:30' }]);
+    seam.loadUpcoming.mockResolvedValueOnce([booked]).mockResolvedValue([{ ...booked, canCancel: false, cancelBy: '2026-10-03T09:00:00+05:30' }]);
     draw(); await settle(); await press(/^Cancel(?: booking)?$/);
-    expect(seam.loadMember.mock.calls.length, 'cancel preparation refreshes read facts').toBeGreaterThan(1);
+    expect(seam.loadUpcoming.mock.calls.length, 'cancel preparation refreshes independent own facts').toBeGreaterThan(1);
     expect(visible(), 'closed window explains next action').toContain("It's too close to the start time to cancel online. Speak to the front desk if you can't make it.");
     expect(seam.cancel, 'closed window never mutates').not.toHaveBeenCalled();
   });
   it('shows local authoritative deadline and prevents duplicate pending cancellation', async () => {
-    seam.loadMember.mockResolvedValue([booked]); const pending = deferred<unknown>(); seam.cancel.mockReturnValue(pending.promise);
+    seam.loadUpcoming.mockResolvedValue([booked]); const pending = deferred<unknown>(); seam.cancel.mockReturnValue(pending.promise);
     draw(); await settle(); await press(/^Cancel(?: booking)?$/);
     expect(visible(), 'confirmation names class').toContain('Evening mobility');
     expect(visible(), 'confirmation names supplied local deadline').toMatch(/16:00|4:00\s*[pP][mM]/);
@@ -260,7 +264,7 @@ describe('CLS rendered native contract', () => {
     pending.resolve({ ok: true, data: { bookingId: booked.myBookingId, status: 'cancelled_by_member' } }); await settle();
   });
   it('keeps loaded facts offline and refuses cancellation without queueing', async () => {
-    seam.loadMember.mockResolvedValue([booked]); draw(); await settle();
+    seam.loadUpcoming.mockResolvedValue([booked]); draw(); await settle();
     seam.network = false; seam.networkListener?.({ isConnected: false, isInternetReachable: false }); await settle();
     expect(visible(), 'loaded schedule remains available').toContain('Evening mobility');
     expect(visible(), 'offline next action').toContain("You're offline. Connect and try again — bookings can't be saved offline.");
@@ -269,7 +273,7 @@ describe('CLS rendered native contract', () => {
     expect(seam.cancel, 'offline command not queued').not.toHaveBeenCalled();
   });
   it('revokes retained callbacks after caller A to B to A instead of restoring old authority', async () => {
-    seam.loadMember.mockResolvedValue([booked]); draw(); await settle(); await press(/^Cancel(?: booking)?$/);
+    seam.loadUpcoming.mockResolvedValue([booked]); draw(); await settle(); await press(/^Cancel(?: booking)?$/);
     const retained = control(/^Confirm(?: cancellation)?$|^Cancel booking$/)?.props.onPress;
     expect(retained, 'a cancellation callback can be retained').toBeTypeOf('function');
     seam.context = context(memberB); draw(); await settle(); seam.context = context(memberA); draw(); await settle();
