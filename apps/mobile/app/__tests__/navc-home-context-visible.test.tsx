@@ -7,7 +7,7 @@ import { UI_TOKENS } from '@gymloop/shared';
 const { state } = vi.hoisted(() => ({ state: {
   type: 'dance' as 'dance' | 'gym' | 'yoga' | 'martial_arts' | 'studio', slots: [] as unknown[], cursor: 0,
   effects: [] as Array<() => unknown>, error: false, loading: false,
-  empty: false, desk: false, trainer: false, count: 1, section: undefined as string | string[] | undefined, push: vi.fn(), browser: vi.fn(), plans: vi.fn(),
+  empty: false, desk: false, trainer: false, longHeader: false, largeText: false, count: 1, section: undefined as string | string[] | undefined, push: vi.fn(), browser: vi.fn(), plans: vi.fn(),
 } }));
 const nouns = {
   yoga: { place: 'studio', session: 'class', sessions: 'classes', class: 'class', classes: 'classes', member: 'member', members: 'members', trainer: 'teacher' },
@@ -18,8 +18,8 @@ const nouns = {
 };
 function snapshot() {
   return {
-    member: { fullName: 'Aarav Sharma', memberCode: 'BIZ-101', email: 'aarav@example.test', phone: '+917000000101', goal: 3, restDays: [] },
-    gym: { name: 'IA Fitness', displayName: 'IA Fitness', code: 'BIZ70A', timezone: 'Asia/Kolkata', city: 'Mumbai', state: null, branchName: 'Main', branchAddress: null },
+    member: { fullName: state.longHeader ? 'Aarav Deshpande' : 'Aarav Sharma', memberCode: 'BIZ-101', email: 'aarav@example.test', phone: '+917000000101', goal: 3, restDays: [] },
+    gym: { name: state.longHeader ? 'IronBox Fitness' : 'IA Fitness', displayName: state.longHeader ? 'IronBox Fitness · Vijay Nagar' : 'IA Fitness', code: 'BIZ70A', timezone: 'Asia/Kolkata', city: 'Mumbai', state: null, branchName: state.longHeader ? 'Vijay Nagar' : 'Main', branchAddress: null },
     membership: { status: 'active', startsOn: '2026-10-01', endsOn: '2026-10-31', planName: 'Monthly' },
     visits: state.empty ? [] : [{ id: 'v1', checkedInAt: '2026-10-01T06:00:00Z', source: 'qr' }],
     weekVisits: 1, weekStart: '2026-09-28', streak: { current: 1, unit: 'week', missed: [] }, receipts: [],
@@ -44,7 +44,7 @@ vi.mock('react-native', () => ({
   View: host('view'), Text: host('text'), Pressable: host('button'), TextInput: host('input'), ScrollView: host('scroll'), Image: host('image'), Modal: host('modal'), ActivityIndicator: host('loading'), KeyboardAvoidingView: host('keyboard'),
   StyleSheet: { create: (value: unknown) => value, hairlineWidth: 1, absoluteFillObject: {}, flatten: (value: unknown) => value },
   Platform: { OS: 'android', select: (value: Record<string, unknown>) => value.android },
-  Linking: { openURL: async () => undefined }, Dimensions: { get: () => ({ width: 390, height: 844 }) }, useWindowDimensions: () => ({ width: 390, height: 844, fontScale: 1, scale: 1 }),
+  Linking: { openURL: async () => undefined }, Dimensions: { get: () => ({ width: 390, height: 844 }) }, useWindowDimensions: () => ({ width: 390, height: 844, fontScale: state.largeText ? 1.35 : 1, scale: 1 }),
   useColorScheme: () => 'light', AccessibilityInfo: { announceForAccessibility: () => undefined, isReduceMotionEnabled: async () => false, addEventListener: () => ({ remove: () => undefined }) },
   AppState: { currentState: 'active', addEventListener: () => ({ remove: () => undefined }) },
   Animated: { View: host('animated-view'), ScrollView: host('animated-scroll'), event: () => () => undefined, Value: class { value: number; constructor(value: number) { this.value = value; } interpolate() { return 0; } setValue() {} }, timing: () => ({ start: () => undefined, stop: () => undefined }), spring: () => ({ start: () => undefined, stop: () => undefined }), loop: () => ({ start: () => undefined, stop: () => undefined }), parallel: () => ({ start: () => undefined, stop: () => undefined }) },
@@ -112,7 +112,7 @@ async function render(name: keyof typeof routes) {
   }
   return tree;
 }
-beforeEach(() => { state.type = 'gym'; state.slots = []; state.cursor = 0; state.effects = []; state.error = false; state.loading = false; state.empty = false; state.desk = false; state.trainer = false; state.section = undefined; state.push.mockClear(); state.browser.mockClear(); state.plans.mockClear(); });
+beforeEach(() => { state.type = 'gym'; state.slots = []; state.cursor = 0; state.effects = []; state.error = false; state.loading = false; state.empty = false; state.desk = false; state.trainer = false; state.longHeader = false; state.largeText = false; state.section = undefined; state.push.mockClear(); state.browser.mockClear(); state.plans.mockClear(); });
 beforeEach(() => { mountedRoute = null; });
 vi.mock('../../components/classes-pane', () => ({ ClassesPane: (props: Record<string, unknown>) => createElement('classes-pane', props) }));
 vi.mock('../../components/training-section', () => ({ TrainingSection: () => createElement('training-section') }));
@@ -150,6 +150,33 @@ describe('NAVC compact Home and contextual actions', () => {
   it('personal preview opens the business-hub messages section', async () => {
     const tree = await render('home'); press(tree, /Messages for you|Personal newest invitation/i);
     expect(destination('/(member)/gym', 'messages')).toBe(true);
+  });
+  it('large text gives a long business header remaining width while preserving the complete You touch target', async () => {
+    state.longHeader = true; state.largeText = true;
+    const tree = await render('home');
+    const business = nodes(tree).find(node => node.type === 'button' && /^IronBox Fitness(?: · Vijay Nagar)?, open gym$/.test(String(node.props.accessibilityLabel ?? '')));
+    const you = nodes(tree).find(node => node.type === 'button' && node.props.accessibilityLabel === 'Aarav Deshpande, open You');
+    expect(business).toBeDefined(); expect(you).toBeDefined();
+    const businessRawStyle = typeof business!.props.style === 'function' ? business!.props.style({ pressed: false }) : business!.props.style;
+    const youRawStyle = typeof you!.props.style === 'function' ? you!.props.style({ pressed: false }) : you!.props.style;
+    const businessStyle = Object.assign({}, ...[businessRawStyle].flat(Infinity).filter(value => value && typeof value === 'object'));
+    const youStyle = Object.assign({}, ...[youRawStyle].flat(Infinity).filter(value => value && typeof value === 'object'));
+    expect.soft(businessStyle).toMatchObject({ flex: 1, minWidth: 0 });
+    expect.soft(youStyle).toMatchObject({ width: UI_TOKENS.geometry.targets.touch, height: UI_TOKENS.geometry.targets.touch, flexShrink: 0 });
+  });
+  it('a visually shortened long Home header retains complete accessible wording, text scaling and canonical destinations', async () => {
+    state.longHeader = true; state.largeText = true;
+    const tree = await render('home');
+    const business = nodes(tree).find(node => node.type === 'button' && /^IronBox Fitness(?: · Vijay Nagar)?, open gym$/.test(String(node.props.accessibilityLabel ?? '')));
+    const you = nodes(tree).find(node => node.type === 'button' && node.props.accessibilityLabel === 'Aarav Deshpande, open You');
+    expect(business).toBeDefined(); expect(you).toBeDefined();
+    expect(text(business)).toContain('IronBox Fitness'); expect(text(business)).toContain('Vijay Nagar');
+    const businessText = nodes(business).find(node => node.type === 'text' && text(node).includes('IronBox Fitness'));
+    expect(businessText).toBeDefined(); expect(businessText!.props.numberOfLines).toBe(1);
+    expect(businessText!.props.allowFontScaling).not.toBe(false);
+    nodes(you).filter(node => node.type === 'text').forEach(node => expect(node.props.allowFontScaling).not.toBe(false));
+    (business!.props.onPress as () => void)(); expect(destination('/(member)/gym')).toBe(true);
+    (you!.props.onPress as () => void)(); expect(destination('/(member)/you')).toBe(true);
   });
   it('View all opens the separate announcement route without marking unseen cards read', async () => {
     const tree = await render('home'); expect(feed.markRead).not.toHaveBeenCalled(); press(tree, /^View all$/i);
