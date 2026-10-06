@@ -77,6 +77,8 @@ Internal parsing, serialization and adapter details are private; contract tests 
 
 CLI interface is limited to `manifest`, `run`, `verify`, and `restore` subcommands with named `--manifest`, `--receipt`, `--out-dir`, `--source-sha` arguments as applicable. `restore` is the guardian path: it validates the bound receipt, changes only the captured timeout parameter and verifies exact restoration. No arbitrary query/command override is public. Root freezes all receipt/version/error-code bytes before independent authors start; authors must raise an incomplete declaration rather than change it while other authors are running.
 
+The adapter mapping is explicit: `manifest --manifest <output> --receipt <hosted-schema-receipt> --source-sha <revision>`; `run --manifest <input> --receipt <final-output> --out-dir <protected-retention> --source-sha <revision>`; `verify` takes the same named paths for already-retained evidence; `restore --manifest <input> --receipt <outside-recovery-receipt> --out-dir <protected-retention> --source-sha <revision>`. Each subcommand refuses unknown, duplicated or missing flags before its effect. Hosted schema receipt custody is tied to the successful migration/drift proof; arbitrary guessed hashes cannot establish a benchmark. Frozen dependency installation is permitted in trusted jobs and setup time is reported separately. A short-lived readiness variable contains only an operator's source/run/attempt-bound actual API observation, with expiry; it contains no privileged token, and the pre-job verifier remains the authorization boundary.
+
 ### Restore the catalog fact, not an assumed effective value
 
 ### Separate operational boundary (frozen before its test authors)
@@ -108,6 +110,17 @@ Use the single full hosted native run already required after the Shop/main migra
 Compare complete native wall time separately from link/client setup, queue and total job time. A valid faster pair is required to complete the performance objective; a failed or slower trial remains useful evidence and keeps hosted routing. No baseline/trial may compete with a local sweep, seed or migration. Generated-types/UI skip behavior stays ADR-177; new harness/config inputs must trigger fresh full confirmation.
 
 ## Risks / Trade-offs
+
+### Frozen private native-output custody boundary
+
+The retained hosted transcript needs confidentiality after the hosted filesystem disappears. `scripts/phase8-protected-backup.mjs` has a private AES-GCM primitive, but its public archive operation requires a genuine four-part Cloud export; native TAP cannot masquerade as that archive. Reuse its established AES-256-GCM wire widths through `PHASE8_BACKUP_LIMITS`, not the Cloud-export format. The new pure module is `scripts/pgtap/private-output.mjs`, with exactly these two exports, independently tested before implementation:
+
+- `protectNativePgtapOutput({runId, manifestSha256, plaintext, encryptionKey}) -> Buffer`
+- `recoverNativePgtapOutput({runId, manifestSha256, ciphertext, encryptionKey}) -> Buffer`
+
+Arguments are exact ordinary objects, including Object.prototype or null prototype, with four own enumerable data properties and no symbols, accessors or unknown properties. `runId` is a positive decimal string without a leading zero, `manifestSha256` is exactly 64 lowercase hexadecimal characters, and `encryptionKey` is a Buffer of exactly 32 bytes. Plaintext is a Buffer, may be empty, and is bounded by `NATIVE_DB_VALIDATION.maxProcessBytes`. Ciphertext is a Buffer bounded by that maximum plus the fixed envelope overhead. Inputs remain byte-for-byte unchanged.
+
+The ciphertext envelope is `UTF8('NDBTAP01') || fresh random 12-byte IV || 16-byte authentication tag || encrypted plaintext`. Authentication additionally binds exactly `UTF8(JSON.stringify(['NDBTAP01', runId, manifestSha256]))` as AAD. AES-256-GCM is the only accepted format; no compression, legacy format, plaintext fallback, environment read, filesystem/network effect or public diagnostic text is allowed. Recovery returns the exact plaintext bytes only after authentication; altered envelope, ciphertext, tag, key, run or manifest, truncation and invalid arguments all throw a generic Error with code `PRIVATE_OUTPUT_INVALID` and message `Private native output refused.`. No input or underlying crypto error is reflected. Protection and recovery use the existing ivBytes/tagBytes/keyBytes constants and the central native bounds; fresh nonces must prevent repeat calls producing identical envelopes. The adapter checks encrypted upload/read-back identity and round-trip bytes before accepting custody. Only the encrypted object and sanitized metadata may enter public Actions artifacts.
 
 - Windows Docker Desktop host networking/mount semantics are unproven -> independent client-only smoke first; keep hosted default and do not enable settings silently.
 - Raw verbose TAP may contain fixture details -> retain it in an owner-protected directory; publish only sanitized metadata, durations and failure codes.
