@@ -15,7 +15,7 @@ type SmokeRuntime = { GITHUB_RUN_ID: string; GITHUB_RUN_ATTEMPT: string; RUNNER_
 type SmokeBoundary = (runtime: SmokeRuntime, sourceSha: string, workdir: string, directory: string) => Promise<unknown>;
 type FileMetadata = { path: string; sha256: string; byteLength: number };
 type SmokeCase = { name: string; exitCode: number | null; completed: boolean; signal: string | null; nativeMs: number; stdoutSha256: string; stderrSha256: string; timerCount: number; rawTapPresent: boolean; inputsUnchanged: boolean; fileMetadata: FileMetadata[]; checkPassed: boolean };
-type SmokeReceipt = { formatVersion: number; sourceSha: string; cliVersion: string; clientDigest: string; runnerOs: string; network: string; firstDirectoryCwd: boolean; readonlyBinds: boolean; reportingLines: string[]; stubSha256: string; cases: SmokeCase[]; accepted: boolean };
+type SmokeReceipt = { formatVersion: number; sourceSha: string; cliVersion: string; clientDigest: string; runnerOs: string; network: string; firstDirectoryCwd: boolean; readOnlyBinds: boolean; reportingLines: string[]; stubSha256: string; cases: SmokeCase[]; accepted: boolean };
 
 describe('DBV-002/003 concrete native client-only stub boundary', () => {
   let retainedRoot = '';
@@ -174,7 +174,7 @@ describe('DBV-002/003 concrete native client-only stub boundary', () => {
         const result = await nativeProcess(command, args, options);
         const after = await snapshots(caseRoot());
         await retain('actual-native-client', result);
-        nativeCases.push({ result, unchanged: JSON.stringify(before) === JSON.stringify(after), hostNetwork: args[args.indexOf('--network') + 1] === 'host', pinnedImage: args.includes(NATIVE_DB_VALIDATION.clientImage) || args.includes(NATIVE_DB_VALIDATION.nativeClientImage), readOnlyBind: args.some(argument => argument.endsWith(':ro') || argument.includes('readonly')) });
+        nativeCases.push({ result, unchanged: JSON.stringify(before) === JSON.stringify(after), hostNetwork: args[args.indexOf('--network') + 1] === 'host', pinnedImage: args.includes(`supabase/pg_prove@${NATIVE_DB_VALIDATION.clientDigest}`), readOnlyBind: args.some(argument => argument.endsWith(':ro') || argument.includes('readonly')) });
         return result;
       })(runtime, sourceSha, workdir, directory);
     } catch (error) {
@@ -219,7 +219,7 @@ describe('DBV-002/003 concrete native client-only stub boundary', () => {
       expect(metadata.stdoutSha256 === hash(item.result.stdout) && metadata.stderrSha256 === hash(item.result.stderr)).toBe(true);
     }
     expect(receipt.sourceSha === sourceSha && receipt.cliVersion === NATIVE_DB_VALIDATION.cliVersion && receipt.clientDigest === NATIVE_DB_VALIDATION.clientDigest).toBe(true);
-    expect(receipt.network === 'host' && receipt.firstDirectoryCwd && receipt.readonlyBinds).toBe(true);
+    expect(receipt.network === 'host' && receipt.firstDirectoryCwd && receipt.readOnlyBinds).toBe(true);
     expect(receipt.reportingLines).toEqual(NATIVE_DB_VALIDATION.reportingLines);
     expect(receipt.stubSha256).toBe(hash(opaqueStub));
     expect(receipt.accepted).toBe(true);
