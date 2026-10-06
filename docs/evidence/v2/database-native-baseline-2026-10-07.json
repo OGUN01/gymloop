@@ -1,0 +1,229 @@
+{
+  "schemaVersion": 1,
+  "recordedAtUtc": "2026-10-06T21:48:25.1724721Z",
+  "purpose": "Completed source-pinned native pgTAP and serial seed evidence for a later Windows regional trial",
+  "repository": "OGUN01/gymloop",
+  "branch": "main",
+  "run": {
+    "id": 37519113387,
+    "attempt": 1,
+    "sourceSha": "6802d201df51afc4adc77ade6fa8394dfea5f9f0",
+    "url": "https://github.com/OGUN01/gymloop/actions/runs/37519113387",
+    "status": "completed",
+    "conclusion": "failure",
+    "createdAt": "2026-10-06T19:27:31Z",
+    "startedAt": "2026-10-06T19:27:31Z",
+    "updatedAt": "2026-10-06T21:47:28Z"
+  },
+  "baselineAdoption": {
+    "eligible": true,
+    "nativePassVerified": true,
+    "serialSeedPassVerified": true,
+    "sourceTreeEquivalenceVerified": true,
+    "expectedNativeFiles": 163,
+    "expectedNativeAssertions": 16329,
+    "aggregateExpectationsProvenance": "Root supplied expected final native aggregate; observed counts come only from protected CI stdout",
+    "overallRunGreen": false,
+    "schemaDrift": {
+      "jobId": 112460049898,
+      "conclusion": "failure",
+      "expectedOldSnapshotFailure": true,
+      "baselineCommittedTypesDifferFromFreshGeneration": true,
+      "explanation": "Baseline applied the additive Shop RPC migration before comparing an older committed types snapshot. The source-pinned full run conclusion remains recorded separately."
+    }
+  },
+  "native": {
+    "jobId": 112460049913,
+    "jobUrl": "https://github.com/OGUN01/gymloop/actions/runs/37519113387/job/112460049913",
+    "status": "completed",
+    "conclusion": "success",
+    "createdAt": "2026-10-06T19:28:39Z",
+    "startedAt": "2026-10-06T19:28:43Z",
+    "completedAt": "2026-10-06T21:46:40Z",
+    "queueSeconds": 4.0,
+    "setupSeconds": 20.0,
+    "fullJobSeconds": 8277.0,
+    "nativeStepStartedAt": "2026-10-06T19:29:03Z",
+    "nativeStepCompletedAt": "2026-10-06T21:46:37Z",
+    "nativeStepSeconds": 8254.0,
+    "nativeCommand": "supabase test db --linked",
+    "nativeCommandObserved": true,
+    "aggregateReports": [
+      {
+        "files": 163,
+        "tests": 16329,
+        "wallclockSeconds": 8242
+      }
+    ],
+    "finalResult": "PASS",
+    "resultMarkerCount": 1,
+    "allTestsSuccessfulMarkerObserved": true,
+    "failureCodes": [],
+    "pins": {
+      "supabaseCli": "2.110.0",
+      "supabaseCliVersionTokenObserved": true,
+      "pgProve": "3.36",
+      "pgProveVersionTokenObserved": true,
+      "clientImage": "public.ecr.aws/supabase/pg_prove:3.36",
+      "clientImageUriObserved": true,
+      "clientImageDigest": "sha256:eda7c5e68719e9c8287e78c017118407b48df904a51c935f5ab6098b8c0bc6bc",
+      "clientImageDigestObserved": true,
+      "suppliedPinProvenance": "Orchestrator independently checked baseline workflow pins; token flags above distinguish actual log observations"
+    }
+  },
+  "seed": {
+    "jobId": 112517801045,
+    "jobUrl": "https://github.com/OGUN01/gymloop/actions/runs/37519113387/job/112517801045",
+    "status": "completed",
+    "conclusion": "success",
+    "createdAt": "2026-10-06T21:46:40Z",
+    "startedAt": "2026-10-06T21:46:42Z",
+    "completedAt": "2026-10-06T21:47:27Z",
+    "queueSeconds": 2.0,
+    "fullJobSeconds": 45.0,
+    "rollbackStepConclusion": "success",
+    "verifierStepConclusion": "success",
+    "rollbackVerdict": "seed and scenarios ran clean against this schema, nothing committed",
+    "rollbackVerdictObserved": true,
+    "verifierOutputReports": [
+      {
+        "proofPath": "supabase/tests/support/v2-batch2-demo-seed-visible.fragment",
+        "ran": 34,
+        "expected": 34,
+        "countsMatch": true,
+        "rolledBackMarkerObserved": true
+      },
+      {
+        "proofPath": "supabase/tests-holdout/support/v2-batch2-demo-seed-held.fragment",
+        "ran": 26,
+        "expected": 26,
+        "countsMatch": true,
+        "rolledBackMarkerObserved": true
+      }
+    ],
+    "verifierCounterRuleProvenBySuccess": true,
+    "verifierCounterRule": "The pinned workflow requires failures=0 and ran=literal positive plan before each reported rolled-back PASS",
+    "counterFieldsObserved": {
+      "failures": [],
+      "ran": [],
+      "plan": []
+    },
+    "serialAfterNativeCompleted": true
+  },
+  "supportingJobs": [
+    {
+      "id": 112459565807,
+      "name": "pgtap-rollback",
+      "status": "completed",
+      "conclusion": "success",
+      "created_at": "2026-10-06T19:27:32Z",
+      "started_at": "2026-10-06T19:27:35Z",
+      "completed_at": "2026-10-06T19:27:50Z"
+    },
+    {
+      "id": 112459566140,
+      "name": "migrate",
+      "status": "completed",
+      "conclusion": "success",
+      "created_at": "2026-10-06T19:27:32Z",
+      "started_at": "2026-10-06T19:27:35Z",
+      "completed_at": "2026-10-06T19:28:39Z"
+    },
+    {
+      "id": 112460049898,
+      "name": "schema-drift",
+      "status": "completed",
+      "conclusion": "failure",
+      "created_at": "2026-10-06T19:28:39Z",
+      "started_at": "2026-10-06T19:28:41Z",
+      "completed_at": "2026-10-06T19:29:04Z"
+    }
+  ],
+  "sqlInputs": {
+    "sourceSha": "6802d201df51afc4adc77ade6fa8394dfea5f9f0",
+    "method": "SHA-256 over exact Git blob bytes; test filter .sql/.pg; all blobs under migration tree; no SQL or plan parsing",
+    "manifestHashMethod": "SHA-256 UTF-8 no-BOM, sorted path<TAB>sha256<LF>",
+    "manifestSha256": "a867ac307595e8514658940fbabc1fecf53bb5be3aa858764e8518e2d1fd1c05",
+    "fileCount": 269,
+    "counts": {
+      "visible": 91,
+      "holdout": 72,
+      "migrations": 106
+    },
+    "categoryFingerprints": [
+      {
+        "area": "holdout",
+        "fileCount": 72,
+        "sha256": "9cfc9e850a005bdc29d8a57e3c0d19269b7d6786749fd6bda56eac1f257dc4a4"
+      },
+      {
+        "area": "migrations",
+        "fileCount": 106,
+        "sha256": "46f38c6a40fed7b55f24b6fa9bb44ec3d5837951e9ccc4ce8167311ce0020190"
+      },
+      {
+        "area": "visible",
+        "fileCount": 91,
+        "sha256": "38fd27e81f83246fb6b812b1ae2631b8d2eb08d005af2de65e22abcd3efd1693"
+      }
+    ],
+    "sourceTreeComparison": {
+      "baselineSourceSha": "6802d201df51afc4adc77ade6fa8394dfea5f9f0",
+      "comparisonSourceSha": "c77cfbaf60054951fae707bc5bdb62f801d43b41",
+      "comparisonMethod": "Git blob object IDs and paths only against baseline SHA-256 manifest",
+      "equivalent": true,
+      "comparedFileCount": 269,
+      "changedPaths": [],
+      "addedPaths": [],
+      "baselineManifestSha256": "a867ac307595e8514658940fbabc1fecf53bb5be3aa858764e8518e2d1fd1c05"
+    },
+    "sqlBodiesOrPlansInspected": false,
+    "windowsTrialCheckoutBytesVerifiedByThisObserver": false
+  },
+  "generatedTypes": {
+    "path": "packages/db/types/database.ts",
+    "baselineCommitted": {
+      "sourceSha": "6802d201df51afc4adc77ade6fa8394dfea5f9f0",
+      "bytes": 225343,
+      "sha256": "0ffa76a6a4aee77b07275cfd04c281a49224680d8cd8ccbed3ca07f082b8ebd1"
+    },
+    "freshGenerationCommitted": {
+      "generationCommitSha": "f3453f74591fc4792e39fe8904e34fb4402ff759",
+      "comparisonCommitSha": "c77cfbaf60054951fae707bc5bdb62f801d43b41",
+      "bytes": 225648,
+      "sha256": "047f8d994fd04cf0affbc8452453cdce93f16bcdb376671b0fd97b0bfe31ed7f",
+      "generator": "supabase gen types typescript --linked",
+      "cloudProjectRef": "pecxrpskmfeuyzngvewq",
+      "provenance": "Parent confirms generation after baseline CI migration success; observer only hashes committed and actual checkout bytes."
+    },
+    "actualRootCheckout": {
+      "bytes": 225648,
+      "sha256": "047f8d994fd04cf0affbc8452453cdce93f16bcdb376671b0fd97b0bfe31ed7f",
+      "matchesFreshGenerationCommit": true
+    }
+  },
+  "protectedEvidence": {
+    "directory": "%LOCALAPPDATA%/fitcruxx-db-trial-preflight-20261007/baseline-observer",
+    "access": "Owner-only ACL, inheritance removed",
+    "rawLogFiles": [
+      {
+        "name": "native-job-112460049913.log",
+        "bytes": 86793,
+        "sha256": "3db0d3060deb904d34f906cfc013dfe7d43e4edcc991a014443e0827abdb3234"
+      },
+      {
+        "name": "run-37519113387-logs.zip",
+        "bytes": 89310,
+        "sha256": "cb74946a943c6361c681815f421bddfdfaddccf8c6b3d17fcc9544c60dbde899"
+      },
+      {
+        "name": "seed-job-112517801045.log",
+        "bytes": 38636,
+        "sha256": "e2a45caa71a1948eb891451a61f8bf4d9a6c82d9aa7e16d1d9b695b2c754d51a"
+      }
+    ],
+    "inputManifest": "input-hashes-6802d201df51afc4adc77ade6fa8394dfea5f9f0.json",
+    "privateMetadataSummary": "completion-safe-extraction.json",
+    "publicContent": "Only API metadata, controlled stdout verdicts, aggregate counters, durations and hashes; no raw TAP, assertion texts, passwords or member data"
+  }
+}

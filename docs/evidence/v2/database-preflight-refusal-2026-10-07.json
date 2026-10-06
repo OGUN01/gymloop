@@ -1,0 +1,94 @@
+{
+  "observedAt": "2026-10-06T21:51:43.939Z",
+  "runId": "37528725159",
+  "runAttempt": 1,
+  "sourceSha": "c77cfbaf60054951fae707bc5bdb62f801d43b41",
+  "status": "completed",
+  "conclusion": "failure",
+  "preflight": {
+    "jobId": "112518129191",
+    "verdict": "failure",
+    "safeErrorCode": "OCTOKIT_NORMALIZED_COLLECTION_MISREAD",
+    "safeError": "TypeError: page.data.workflow_runs is not iterable",
+    "privateLogSha256": "3fe8d3a0eea60636a4ae7ec7d456253dc76cbf5f101a0583906f722a2b057e55"
+  },
+  "jobs": [
+    {
+      "jobId": 112518128895,
+      "name": "pgtap-rollback",
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "jobId": 112518129191,
+      "name": "database-recovery-preflight",
+      "status": "completed",
+      "conclusion": "failure"
+    },
+    {
+      "jobId": 112518224527,
+      "name": "migrate",
+      "status": "completed",
+      "conclusion": "skipped"
+    },
+    {
+      "jobId": 112518226653,
+      "name": "schema-drift",
+      "status": "completed",
+      "conclusion": "skipped"
+    },
+    {
+      "jobId": 112518230687,
+      "name": "native-selector",
+      "status": "completed",
+      "conclusion": "skipped"
+    },
+    {
+      "jobId": 112518231076,
+      "name": "pgtap",
+      "status": "completed",
+      "conclusion": "skipped"
+    },
+    {
+      "jobId": 112518232574,
+      "name": "timeout-guardian",
+      "status": "completed",
+      "conclusion": "skipped"
+    },
+    {
+      "jobId": 112518232940,
+      "name": "native-job-metadata",
+      "status": "completed",
+      "conclusion": "skipped"
+    },
+    {
+      "jobId": 112518233581,
+      "name": "seed-dry-run",
+      "status": "completed",
+      "conclusion": "skipped"
+    }
+  ],
+  "cloudSqlIssued": false,
+  "nativeWorkerAssigned": false,
+  "readinessVariableRemoved": true,
+  "runner25Teardown": {
+    "formatVersion": 1,
+    "proofSha256": "69756a4ed45ae91db5e766f1b1d2ead2b338c7c55fc5729031a50352d5d61ea6",
+    "probeOnly": false,
+    "ownershipAssigned": true,
+    "stopReason": "OWNED_PROCESS_EXITED",
+    "nativeProcessesStopped": true,
+    "ownedContainersStopped": true,
+    "runnerDeregistered": true,
+    "jobBindingVerified": false,
+    "verifiedAt": "2026-10-06T21:48:55.953Z",
+    "receiptAvailable": false,
+    "errors": []
+  },
+  "acceptance": {
+    "newProtocolFullNativePass": false,
+    "performanceGainProven": false,
+    "baselineNativeAndSeedPass": true
+  },
+  "repair": "Independent transport integration tests first, then minimal official normalized-array correction; no app/schema/test weakening"
+}

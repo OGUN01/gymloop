@@ -1,0 +1,335 @@
+{
+  "observedAt": "2026-10-06T21:14:22.8846659Z",
+  "sourceSha": "c77cfbaf60054951fae707bc5bdb62f801d43b41",
+  "probeRunId": "37529143694",
+  "probeRunExpectedConclusion": "failure",
+  "intendedDbRunId": "37528725159",
+  "approvedGuardSha256": "7ce1606447a9ceffa339ace0c2a90906cf1a320005551360d3f5acac4049ee33",
+  "approvedHookSha256": "438d84b0dc988549babd31da23ee5e5e4fdd1f6591b58c2e68d4ab33385942a8",
+  "launcherSha256": "a31bb9d68001e4df1162b2f390e5a2694c99a1e11b5a68ffefea8949b3570b71",
+  "watchdogSha256": "e5f19c316c8203323d39ba77841f2144b9b957d80f80d1b7dccb3fc5134b8969",
+  "runnerId": 22,
+  "registrationIncludedInFourHourDeadline": true,
+  "resumedAfterKernelOwnership": true,
+  "guardFailedBeforeCheckout": true,
+  "checkoutSkipped": true,
+  "unreachableMarkerSkipped": true,
+  "teardown": {
+    "formatVersion": 1,
+    "runId": "37529143694-1",
+    "sourceSha": "c77cfbaf60054951fae707bc5bdb62f801d43b41",
+    "jobId": "112494007424",
+    "runnerId": 22,
+    "runnerEnvironment": "self-hosted",
+    "privateProofSha256": "e07bc95264391ea23394b7b2aa09031b054ab55c1cb7b1951ee0b41f3758d807",
+    "nativeProcessesStopped": true,
+    "ownedContainersStopped": true,
+    "runnerDeregistered": true,
+    "verifiedAt": "2026-10-06T21:13:34.06Z"
+  },
+  "privateProofSha256": "e07bc95264391ea23394b7b2aa09031b054ab55c1cb7b1951ee0b41f3758d807",
+  "physicalFixtureChecks": {
+    "status": "all five required cases passed",
+    "controlledStop": {
+      "case": "kernel-controlled",
+      "registrationUtc": "2026-10-06T21:17:53.246Z",
+      "actualCompletedAt": "2026-10-06T21:17:56.046Z",
+      "watchdogExitCode": 0,
+      "watchdogStatus": {
+        "formatVersion": 1,
+        "proofSha256": "b78797fab786a4d9af0c5813252e388c1409d43b8030fef9c7b9a9f274501ace",
+        "probeOnly": true,
+        "ownershipAssigned": true,
+        "stopReason": "OWNER_CONTROLLED_STOP",
+        "nativeProcessesStopped": true,
+        "ownedContainersStopped": false,
+        "runnerDeregistered": false,
+        "jobBindingVerified": false,
+        "verifiedAt": "2026-10-06T21:17:55.99Z",
+        "receiptAvailable": false,
+        "errors": []
+      },
+      "processFacts": [
+        {
+          "role": "primary",
+          "processId": 46540,
+          "creationFileTimeUtc": "134357950732354270",
+          "executablePath": "C:/Program Files/nodejs/node.exe"
+        }
+      ],
+      "primaryExited": true,
+      "orphanSurvivedBranchExit": false,
+      "sentinelSurvived": true,
+      "privateProofSha256": "b78797fab786a4d9af0c5813252e388c1409d43b8030fef9c7b9a9f274501ace"
+    },
+    "inheritedDeadline": {
+      "case": "kernel-deadline",
+      "registrationUtc": "2026-10-06T17:19:16.08Z",
+      "actualCompletedAt": "2026-10-06T21:18:17.081Z",
+      "watchdogExitCode": 0,
+      "watchdogStatus": {
+        "formatVersion": 1,
+        "proofSha256": "f9fd8931ef4d2669cd676921a40b880e304a29593d10e1c3d80666bc726d99cd",
+        "probeOnly": true,
+        "ownershipAssigned": true,
+        "stopReason": "REGISTRATION_LIFETIME_CLEANUP",
+        "nativeProcessesStopped": true,
+        "ownedContainersStopped": false,
+        "runnerDeregistered": false,
+        "jobBindingVerified": false,
+        "verifiedAt": "2026-10-06T21:18:17.042Z",
+        "receiptAvailable": false,
+        "errors": []
+      },
+      "processFacts": [
+        {
+          "role": "primary",
+          "processId": 40008,
+          "creationFileTimeUtc": "134357950760758621",
+          "executablePath": "C:/Program Files/nodejs/node.exe"
+        },
+        {
+          "role": "branch",
+          "parentProcessId": 40008,
+          "identity": {
+            "processId": 28696,
+            "creationFileTimeUtc": "134357950782205626",
+            "executablePath": "C:\\Program Files\\nodejs\\node.exe",
+            "observedAt": "2026-10-06T21:17:59.171Z"
+          }
+        },
+        {
+          "role": "leaf",
+          "parentProcessId": 28696,
+          "identity": {
+            "processId": 36736,
+            "creationFileTimeUtc": "134357950782989353",
+            "executablePath": "C:\\Program Files\\nodejs\\node.exe",
+            "observedAt": "2026-10-06T21:17:59.173Z"
+          }
+        }
+      ],
+      "primaryExited": true,
+      "orphanSurvivedBranchExit": true,
+      "sentinelSurvived": true,
+      "privateProofSha256": "f9fd8931ef4d2669cd676921a40b880e304a29593d10e1c3d80666bc726d99cd",
+      "orphanStoppedByWatchdog": true
+    },
+    "containerCases": [
+      {
+        "case": "docker-controlled",
+        "registrationUtc": "2026-10-06T21:21:09.186Z",
+        "actualCompletedAt": "2026-10-06T21:21:29.66Z",
+        "watchdogExitCode": 0,
+        "watchdogStatus": {
+          "formatVersion": 1,
+          "proofSha256": "b985cb75c384cb8d387c534c604a13fd4129a5061b8c6170ab2d3b2e68731702",
+          "probeOnly": true,
+          "ownershipAssigned": true,
+          "stopReason": "OWNER_CONTROLLED_STOP",
+          "nativeProcessesStopped": true,
+          "ownedContainersStopped": true,
+          "runnerDeregistered": false,
+          "jobBindingVerified": false,
+          "verifiedAt": "2026-10-06T21:21:29.621Z",
+          "receiptAvailable": false,
+          "errors": []
+        },
+        "processFacts": [
+          {
+            "role": "primary",
+            "processId": 57108,
+            "creationFileTimeUtc": "134357952691757824",
+            "executablePath": "C:/Program Files/nodejs/node.exe"
+          }
+        ],
+        "primaryExited": true,
+        "orphanSurvivedBranchExit": false,
+        "sentinelSurvived": true,
+        "privateProofSha256": "b985cb75c384cb8d387c534c604a13fd4129a5061b8c6170ab2d3b2e68731702"
+      },
+      {
+        "case": "rw-mount",
+        "registrationUtc": "2026-10-06T21:21:31.183Z",
+        "actualCompletedAt": "2026-10-06T21:21:34.733Z",
+        "watchdogExitCode": 1,
+        "watchdogStatus": {
+          "formatVersion": 1,
+          "proofSha256": "5fee9f0538b071ddd91e6d9998172d591324323f4bb47cef3d90a672087003f6",
+          "probeOnly": true,
+          "ownershipAssigned": true,
+          "stopReason": "STARTUP_REFUSED",
+          "nativeProcessesStopped": true,
+          "ownedContainersStopped": false,
+          "runnerDeregistered": false,
+          "jobBindingVerified": false,
+          "verifiedAt": "2026-10-06T21:21:34.693Z",
+          "receiptAvailable": false,
+          "errors": [
+            "WATCHDOG_OPERATION_UNVERIFIED",
+            "OWNED_CONTAINER_INVENTORY_UNVERIFIED"
+          ]
+        },
+        "processFacts": [
+          {
+            "role": "primary",
+            "processId": 21700,
+            "creationFileTimeUtc": "134357952911784180",
+            "executablePath": "C:/Program Files/nodejs/node.exe"
+          }
+        ],
+        "primaryExited": true,
+        "orphanSurvivedBranchExit": false,
+        "sentinelSurvived": true,
+        "privateProofSha256": "5fee9f0538b071ddd91e6d9998172d591324323f4bb47cef3d90a672087003f6"
+      },
+      {
+        "case": "wrong-image",
+        "registrationUtc": "2026-10-06T21:21:36.137Z",
+        "actualCompletedAt": "2026-10-06T21:21:39.562Z",
+        "watchdogExitCode": 1,
+        "watchdogStatus": {
+          "formatVersion": 1,
+          "proofSha256": "77ba4aeca07db87a71c89b4137a06a3d24512097c2726f8b566495e3dc6f67e1",
+          "probeOnly": true,
+          "ownershipAssigned": true,
+          "stopReason": "STARTUP_REFUSED",
+          "nativeProcessesStopped": true,
+          "ownedContainersStopped": false,
+          "runnerDeregistered": false,
+          "jobBindingVerified": false,
+          "verifiedAt": "2026-10-06T21:21:39.523Z",
+          "receiptAvailable": false,
+          "errors": [
+            "WATCHDOG_OPERATION_UNVERIFIED",
+            "OWNED_CONTAINER_INVENTORY_UNVERIFIED"
+          ]
+        },
+        "processFacts": [
+          {
+            "role": "primary",
+            "processId": 55688,
+            "creationFileTimeUtc": "134357952961326004",
+            "executablePath": "C:/Program Files/nodejs/node.exe"
+          }
+        ],
+        "primaryExited": true,
+        "orphanSurvivedBranchExit": false,
+        "sentinelSurvived": true,
+        "privateProofSha256": "77ba4aeca07db87a71c89b4137a06a3d24512097c2726f8b566495e3dc6f67e1"
+      }
+    ],
+    "privateConsolidatedSha256": "d113461fba871ce1d51d59d3970cd2995e2efdf3e2846fe940e28f1f096accb7",
+    "fixtureOwnerCleanup": "exact fixture processes/containers and fixture volume removed; seven pre-existing containers remain running",
+    "setupFailuresRetained": [
+      "PS5 bundled module auto-import in private wrapper corrected without global changes",
+      "Controller argument/exit-handle and Node orphan fixture setup corrected; their earlier failures retained"
+    ],
+    "liveNativeCloudCoverage": false,
+    "nativeWorkloadReceiptProduced": false
+  },
+  "matchingFullNativePerformance": "pending",
+  "cloudSqlIssuedByProbe": false,
+  "notes": [
+    "Probe-only receipt cannot substitute for native DB job teardown proof",
+    "Prior startup refusal stopped its exact process and deregistered21; no job accepted",
+    "PowerShell automatic Matches inventory collision corrected in private helper; tracked source unchanged"
+  ],
+  "operationalDeltaAfterGuardProbe": {
+    "observedAt": "2026-10-06T21:47:11.956Z",
+    "reviewedWatchdogSha256": "68a535c52d7846ca133b1161ce52b6287e46bc30e651d947182943e2ab271eeb",
+    "pendingJobParseProof": {
+      "scope": "Private readonly mocked job API shape correction only",
+      "beforeSha256": "e5f19c316c8203323d39ba77841f2144b9b957d80f80d1b7dccb3fc5134b8969",
+      "afterSha256": "68a535c52d7846ca133b1161ce52b6287e46bc30e651d947182943e2ab271eeb",
+      "onlyGetBoundJobFunctionChanged": true,
+      "beforeReplay": {
+        "sha256": "5b1e03ef4ba777b7eb9f098e94c5548f73fcdcb95dce6160d377a45a82506806",
+        "passCount": 5,
+        "failCount": 1
+      },
+      "afterReplay": {
+        "sha256": "989ab4c5498cf5ddb204520e3dbfa15d12e6c5ce4b0045543bc508febf21a84c",
+        "passCount": 6,
+        "failCount": 0
+      },
+      "powershellVersion": "5.1.26100.9444",
+      "apiAccessed": false,
+      "officialRunnerStarted": false,
+      "sqlExecuted": false,
+      "physicalFixtureProofsModified": false,
+      "verifiedAt": "2026-10-06T21:33:11.155Z",
+      "privateDeltaReceiptSha256": "5861d859ae95be2fb21b3372fac922c1ffb6935cb14aadc26c06c7a6d3a2669f"
+    },
+    "runner23StartupRefusal": {
+      "formatVersion": 1,
+      "proofSha256": "4784bca4d3dbb2b20ac65fa6e5022b4d55bd5acf7142a94c70bd9242ed8a23d6",
+      "probeOnly": false,
+      "ownershipAssigned": true,
+      "stopReason": "STARTUP_REFUSED",
+      "nativeProcessesStopped": true,
+      "ownedContainersStopped": true,
+      "runnerDeregistered": true,
+      "jobBindingVerified": false,
+      "verifiedAt": "2026-10-06T21:29:45.345Z",
+      "receiptAvailable": false,
+      "errors": [
+        "WATCHDOG_OPERATION_UNVERIFIED",
+        "JOB_METADATA_UNVERIFIED"
+      ]
+    },
+    "runner24CustomLabelRefusalAndRetirement": {
+      "formatVersion": 1,
+      "proofSha256": "b473c73734dc86fbc870d23aca8e264c542ae8e1538ab559d9f1fb2ce0b531f0",
+      "probeOnly": false,
+      "ownershipAssigned": true,
+      "stopReason": "OWNED_PROCESS_EXITED",
+      "nativeProcessesStopped": true,
+      "ownedContainersStopped": true,
+      "runnerDeregistered": true,
+      "jobBindingVerified": false,
+      "verifiedAt": "2026-10-06T21:42:15.286Z",
+      "receiptAvailable": false,
+      "errors": []
+    },
+    "runner24ReadinessPublished": false,
+    "runner25": {
+      "id": 25,
+      "name": "fitcruxx-db-trial3-20261007-c77",
+      "registeredAt": "2026-10-06T21:43:06.629Z",
+      "oneJob": true,
+      "runId": "37528725159",
+      "runAttempt": "1",
+      "sourceSha": "c77cfbaf60054951fae707bc5bdb62f801d43b41",
+      "configSha256": "601e555198318e145a6bd0df30ff9f4d69e430e8b10f0d3358883499951a42e4",
+      "bindingSha256": "c0d5fc54d7cfe72aa84f02a07f8da702cfa544d1932d9f22dcbac18456a9a8dd",
+      "label": "fitcruxx-db-win-x64-37528725159-1-c77cfbaf6005",
+      "defaultSystemLabelsVerified": true,
+      "officialApiOs": "Windows",
+      "resumedAfterOwnedKernelAssignment": true
+    },
+    "fullNativeWorkloadStarted": false,
+    "notes": [
+      "Guard probe and five physical fixtures used earlier reviewed helper; later pending-job parse has a distinct reviewed six-case proof",
+      "Runner24 OS unknown arose from manually registering system names as custom labels; never selected or published",
+      "Runner25 uses official default system labels and only its unique label is custom",
+      "No Cloud SQL occurred in refused startup/operator registration checks"
+    ],
+    "latestVerifiedReadiness": {
+      "formatVersion": 1,
+      "verifiedAt": "2026-10-06T21:46:29.736Z",
+      "expiresAt": "2026-10-06T21:51:29.736Z",
+      "runner": {
+        "id": 25,
+        "status": "online",
+        "busy": false,
+        "ephemeral": true,
+        "guardVerified": true,
+        "label": "fitcruxx-db-win-x64-37528725159-1-c77cfbaf6005",
+        "sourceSha": "c77cfbaf60054951fae707bc5bdb62f801d43b41",
+        "runId": "37528725159",
+        "runAttempt": "1"
+      }
+    }
+  }
+}
