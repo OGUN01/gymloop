@@ -33,7 +33,7 @@ vi.mock('react-native-safe-area-context', () => ({ useSafeAreaInsets: () => ({ t
 vi.mock('lucide-react-native', () => new Proxy({}, { get: (_target, name) => name === 'then' ? undefined : () => null, has: () => true }));
 vi.mock('expo-router', () => ({
   Redirect: (props: Record<string, unknown>) => createElement('redirect', props),
-  usePathname: () => '/(member)/index', useSegments: () => ['(member)', 'index'], useLocalSearchParams: () => ({}),
+  usePathname: () => '/(member)/index', useSegments: () => ['(member)', 'index'], useLocalSearchParams: () => ({}), useGlobalSearchParams: () => ({}),
   useRouter: () => ({ replace: h.replace, push: vi.fn() }), router: { replace: h.replace, push: vi.fn() },
 }));
 type Node = { type: unknown; props: Record<string, unknown> };

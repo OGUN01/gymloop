@@ -7,7 +7,10 @@ const h = vi.hoisted(() => ({
   identity: { kind: 'member', userId: 'nav-user', tenantId: 'nav-tenant', memberId: 'nav-member' } as GymloopIdentity,
   type: 'gym' as 'gym' | 'dance' | 'yoga' | 'martial_arts' | 'studio',
   visibility: { enabled: true as boolean | null, loading: false, error: null as string | null, reload: vi.fn(async () => undefined) },
-  pathname: '/(member)/index', section: undefined as string | string[] | undefined, replace: vi.fn(), effects: [] as Array<() => unknown>,
+  pathname: '/(member)/index',
+  localSection: undefined as string | string[] | undefined,
+  globalSection: undefined as string | string[] | undefined,
+  replace: vi.fn(), effects: [] as Array<() => unknown>,
 }));
 vi.mock('react', async original => ({ ...await original<typeof import('react')>(), useEffect: (effect: () => unknown) => { h.effects.push(effect); } }));
 vi.mock('../mobile-context', () => ({ useMobile: () => ({ ready: true, identity: h.identity, session: { user: { id: 'nav-user' } }, palette: UI_TOKENS.colors.light, businessType: h.type, nouns: businessNouns(h.type) }) }));
@@ -23,7 +26,10 @@ vi.mock('expo-router', () => ({
   Redirect: (props: Record<string, unknown>) => createElement('redirect', props),
   usePathname: () => h.pathname, useSegments: () => ['(member)', h.pathname.split('/').at(-1)],
   useRouter: () => ({ replace: h.replace, push: vi.fn() }), router: { replace: h.replace, push: vi.fn() },
-  useLocalSearchParams: () => ({ section: h.section }),
+  // A mounted layout's local parameters can lag behind the focused child.
+  // Keep the two public router hooks independent to reproduce that behavior.
+  useLocalSearchParams: () => ({ section: h.localSection }),
+  useGlobalSearchParams: () => ({ section: h.globalSection }),
 }));
 function nodes(value: ReactNode): Array<{ type: unknown; props: Record<string, unknown> }> {
   const found: Array<{ type: unknown; props: Record<string, unknown> }> = [];
@@ -57,7 +63,7 @@ function shown(list: Awaited<ReturnType<typeof tabs>>) {
 }
 beforeEach(() => {
   h.identity = { kind: 'member', userId: 'nav-user', tenantId: 'nav-tenant', memberId: 'nav-member' }; h.type = 'gym';
-  h.visibility = { enabled: true, loading: false, error: null, reload: vi.fn(async () => undefined) }; h.pathname = '/(member)/index'; h.section = undefined; h.effects = []; h.replace.mockReset();
+  h.visibility = { enabled: true, loading: false, error: null, reload: vi.fn(async () => undefined) }; h.pathname = '/(member)/index'; h.localSection = undefined; h.globalSection = undefined; h.effects = []; h.replace.mockReset();
 });
 describe('NAVC primary and secondary native navigation', () => {
   it.each(['gym', 'dance', 'yoga', 'martial_arts', 'studio'] as const)('enabled %s shows the exact five destinations with fixed Classes label', async type => {
@@ -121,13 +127,59 @@ describe('NAVC authorized member layout', () => {
     expect(h.replace.mock.calls.some(([path]) => path === '/(member)' || path === '/(member)/' || path === '/(member)/index') || result.some(node => node.type === 'redirect' && ['/(member)', '/(member)/', '/(member)/index'].includes(String(node.props.href)))).toBe(true);
   });
   it.each(['bookings', 'training'])('confirmed Off treats malformed array [%s, anything] as primary Classes and returns Home', async section => {
-    h.pathname = '/(member)/classes'; h.section = [section, 'anything']; h.visibility.enabled = false;
+    h.pathname = '/(member)/classes'; h.localSection = [section, 'anything']; h.globalSection = [section, 'anything']; h.visibility.enabled = false;
     const result = await layout();
     expect(h.replace.mock.calls.some(([path]) => path === '/(member)' || path === '/(member)/' || path === '/(member)/index') || result.some(node => node.type === 'redirect' && ['/(member)', '/(member)/', '/(member)/index'].includes(String(node.props.href)))).toBe(true);
   });
   it.each(['bookings', 'training'])('confirmed Off preserves contextual %s access on the hidden Classes route', async section => {
-    h.pathname = '/(member)/classes'; h.section = section; h.visibility.enabled = false;
+    h.pathname = '/(member)/classes'; h.localSection = section; h.globalSection = section; h.visibility.enabled = false;
     const result = await layout(); expect(h.replace).not.toHaveBeenCalled(); expect(result.some(node => node.type === 'redirect')).toBe(false);
     expect(shown(result.filter(node => node.type === 'tab'))).toEqual([['index', 'Home'], ['shop', 'Shop'], ['you', 'You'], ['activity', 'Activity']]);
+  });
+
+  it.each(['bookings', 'training'])('confirmed Off preserves focused child %s when layout-local parameters are absent', async section => {
+    h.pathname = '/(member)/classes'; h.globalSection = section; h.visibility.enabled = false;
+    const result = await layout();
+    expect(h.localSection).toBeUndefined(); expect(h.replace).not.toHaveBeenCalled(); expect(result.some(node => node.type === 'redirect')).toBe(false);
+    expect(shown(result.filter(node => node.type === 'tab'))).toEqual([['index', 'Home'], ['shop', 'Shop'], ['you', 'You'], ['activity', 'Activity']]);
+  });
+  it.each(['bookings', 'training'])('confirmed Off preserves focused child %s despite stale unrelated layout-local parameters', async section => {
+    h.pathname = '/(member)/classes'; h.localSection = 'messages'; h.globalSection = section; h.visibility.enabled = false;
+    const result = await layout(); expect(h.replace).not.toHaveBeenCalled(); expect(result.some(node => node.type === 'redirect')).toBe(false);
+    expect(shown(result.filter(node => node.type === 'tab'))).toEqual([['index', 'Home'], ['shop', 'Shop'], ['you', 'You'], ['activity', 'Activity']]);
+  });
+  it.each(['bookings', 'training'])('confirmed Off preserves focused child scalar %s despite stale layout-local arrays', async section => {
+    h.pathname = '/(member)/classes'; h.localSection = [section, 'anything']; h.globalSection = section; h.visibility.enabled = false;
+    const result = await layout(); expect(h.replace).not.toHaveBeenCalled(); expect(result.some(node => node.type === 'redirect')).toBe(false);
+  });
+  it.each(['bookings', 'training'])('confirmed Off redirects current primary Classes despite stale layout-local %s', async section => {
+    h.pathname = '/(member)/classes'; h.localSection = section; h.visibility.enabled = false;
+    const result = await layout();
+    expect(h.globalSection).toBeUndefined();
+    expect(h.replace.mock.calls.some(([path]) => path === '/(member)' || path === '/(member)/' || path === '/(member)/index') || result.some(node => node.type === 'redirect' && ['/(member)', '/(member)/', '/(member)/index'].includes(String(node.props.href)))).toBe(true);
+  });
+  it.each([
+    { localSection: 'bookings', globalSection: ['bookings'] },
+    { localSection: 'training', globalSection: ['training', 'anything'] },
+    { localSection: 'bookings', globalSection: ['bookings', 'bookings'] },
+    { localSection: 'training', globalSection: [] },
+  ])('confirmed Off refuses focused child array $globalSection despite valid layout-local $localSection', async ({ localSection, globalSection }) => {
+    h.pathname = '/(member)/classes'; h.localSection = localSection; h.globalSection = globalSection; h.visibility.enabled = false;
+    const result = await layout();
+    expect(h.replace.mock.calls.some(([path]) => path === '/(member)' || path === '/(member)/' || path === '/(member)/index') || result.some(node => node.type === 'redirect' && ['/(member)', '/(member)/', '/(member)/index'].includes(String(node.props.href)))).toBe(true);
+  });
+  it.each(['bookings', 'training'])('confirmed Off refuses unrelated focused child section despite stale layout-local %s', async section => {
+    h.pathname = '/(member)/classes'; h.localSection = section; h.globalSection = 'messages'; h.visibility.enabled = false;
+    const result = await layout();
+    expect(h.replace.mock.calls.some(([path]) => path === '/(member)' || path === '/(member)/' || path === '/(member)/index') || result.some(node => node.type === 'redirect' && ['/(member)', '/(member)/', '/(member)/index'].includes(String(node.props.href)))).toBe(true);
+  });
+  it.each(['shop', 'gym', 'buy', 'freeze-requests', 'announcements'])('confirmed Off leaves focused non-Classes %s route intact even with invalid global parameters', async route => {
+    h.pathname = `/(member)/${route}`; h.localSection = 'bookings'; h.globalSection = ['training', 'anything']; h.visibility.enabled = false;
+    const result = await layout(); expect(h.replace).not.toHaveBeenCalled(); expect(result.some(node => node.type === 'redirect')).toBe(false);
+  });
+  it('confirmed On preserves current primary Classes regardless of stale layout-local commitments', async () => {
+    h.pathname = '/(member)/classes'; h.localSection = 'bookings';
+    const result = await layout(); expect(h.replace).not.toHaveBeenCalled(); expect(result.some(node => node.type === 'redirect')).toBe(false);
+    expect(shown(result.filter(node => node.type === 'tab'))).toEqual([['index', 'Home'], ['classes', 'Classes'], ['shop', 'Shop'], ['you', 'You'], ['activity', 'Activity']]);
   });
 });
