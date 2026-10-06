@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 // SHP-PAGE-006, SHP-PAGE-007, SHP-PAGE-008: frozen hook state at the rendered screen.
 type Node = { type: unknown; props: Record<string, unknown> };
-const h = vi.hoisted(() => ({ cursor: 0, slots: [] as unknown[], effects: [] as Array<() => unknown>, changed: false, online: true, pages: null as unknown, api: null as unknown, post: vi.fn(), loadMore: vi.fn(), reload: vi.fn(), scroll: vi.fn() }));
+const h = vi.hoisted(() => ({ cursor: 0, slots: [] as unknown[], effects: [] as Array<() => unknown>, changed: false, online: true, pages: null as unknown, api: null as unknown, post: vi.fn(), preflight: vi.fn(), loadMore: vi.fn(), reload: vi.fn(), scroll: vi.fn() }));
 vi.mock('react', async original => {
   const actual = await original<Record<string, unknown>>();
   const memo = (factory: () => unknown, deps?: unknown[]) => { const index = h.cursor++; const old = h.slots[index] as { deps?: unknown[]; value: unknown } | undefined; if (!old || !deps || deps.some((value, offset) => !Object.is(value, old.deps?.[offset]))) h.slots[index] = { deps, value: factory() }; return (h.slots[index] as { value: unknown }).value; };
@@ -18,7 +18,7 @@ vi.mock('../mobile-context', () => ({ useMobile: () => ({ identity, api: h.api, 
 vi.mock('../use-member-shop-pages', () => ({ useMemberShopPages: () => h.pages }));
 vi.mock('../use-member-snapshot', () => ({ useMemberSnapshot: () => ({ data: { gym: { name: 'Page Gym', displayName: 'Page Gym', timezone: 'Asia/Kolkata' } }, error: null, loading: false, reload: vi.fn() }) }));
 vi.mock('../use-member-plans', () => ({ useMemberPlans: () => ({ state: { phase: 'ready', view: { plans: [], truncated: false, heldUnavailable: false, held: null }, loadedAt: null, staleReason: null, offline: false }, reload: vi.fn(async () => undefined) }) }));
-vi.mock('expo-network', () => ({ useNetworkState: () => ({ isConnected: h.online, isInternetReachable: h.online }), getNetworkStateAsync: async () => ({ isConnected: h.online, isInternetReachable: h.online }), addNetworkStateListener: () => ({ remove: vi.fn() }) }));
+vi.mock('expo-network', () => ({ useNetworkState: () => ({ isConnected: h.online, isInternetReachable: h.online }), getNetworkStateAsync: h.preflight, addNetworkStateListener: () => ({ remove: vi.fn() }) }));
 vi.mock('expo-router', () => ({ useRouter: () => ({ push: vi.fn(), replace: vi.fn() }), useLocalSearchParams: () => ({}), Link: 'Link', Redirect: 'Redirect' }));
 vi.mock('expo-secure-store', () => ({ setItemAsync: vi.fn(), getItemAsync: async () => null, deleteItemAsync: vi.fn() }));
 vi.mock('react-native', () => ({ View: 'View', Text: 'Text', Pressable: 'Pressable', Image: 'Image', ScrollView: (props: Record<string, unknown>) => { const ref = props.ref as { current: unknown } | undefined; if (ref) ref.current = { scrollTo: h.scroll }; return { type: 'ScrollView', props }; }, Modal: 'Modal', ActivityIndicator: 'ActivityIndicator', TextInput: 'TextInput', StyleSheet: { create: (styles: unknown) => styles }, AppState: { addEventListener: () => ({ remove: vi.fn() }) }, useColorScheme: () => 'light' }));
@@ -52,6 +52,7 @@ async function openSheet(kind: 'reserve' | 'cancel') {
 }
 beforeEach(async () => {
   vi.resetModules(); h.cursor = 0; h.slots = []; h.effects = []; h.changed = false; h.online = true; h.api = api; h.scroll.mockReset(); h.reload.mockReset().mockResolvedValue(undefined);
+  h.preflight.mockReset().mockImplementation(async () => ({ isConnected: h.online, isInternetReachable: h.online }));
   h.loadMore.mockReset().mockImplementation(async () => { pages.visibleCount = 8; pages.hasMore = false; });
   pages = { view: { scope: 'page-screen-user:page-screen-tenant:page-screen-member', response, savedAt: '2026-10-07T00:00:00Z', stale: false }, loading: false, loadingMore: false, error: null, visibleCount: 3, hasMore: true, reload: h.reload, loadMore: h.loadMore }; h.pages = pages;
   h.post.mockReset().mockImplementation(async (path: string) => path === '/api/shop/catalogue' ? { ok: true, data: response } : { ok: false, status: 409, error: { code: 'reservation_expired', message: 'Expired' } });
@@ -128,5 +129,20 @@ describe('SHP-PAGE-008 open sheets follow current page authorization', () => {
     expect(sheetText()).not.toContain(opened.name); expect(text()).not.toContain(opened.name);
     expect(await cache.readShopCache(cache.nativeShopCache, 'page-screen-user:page-screen-tenant:page-screen-member')).toBeNull();
     h.online = false; await render(); expect(text()).not.toContain(opened.name);
+  });
+  it.each(['reserve', 'cancel'] as const)('%s rechecks current fresh authorization after the awaited network preflight', async kind => {
+    const opened = await openSheet(kind); const calls = h.post.mock.calls.length;
+    let release!: (value: { isConnected: boolean; isInternetReachable: boolean }) => void;
+    const pending = new Promise<{ isConnected: boolean; isInternetReachable: boolean }>(done => { release = done; });
+    h.preflight.mockClear().mockReturnValueOnce(pending);
+    const command = (opened.control.props.onPress as () => Promise<void>)(); await render();
+    expect(h.preflight).toHaveBeenCalledTimes(1); expect(h.post).toHaveBeenCalledTimes(calls);
+    pages.view = { ...pages.view!, stale: true }; pages.error = 'The latest read failed. Refresh the shop before trying again.'; draw();
+    release({ isConnected: true, isInternetReachable: true }); await command; await render();
+    expect(h.post, 'Connected transport cannot authorize a view that became stale during its await').toHaveBeenCalledTimes(calls);
+    await (opened.control.props.onPress as () => unknown)(); await render(); expect(h.post).toHaveBeenCalledTimes(calls);
+    pages.view = { scope: 'page-screen-user:page-screen-tenant:page-screen-member', response, savedAt: '2026-10-07T00:01:00Z', stale: false }; pages.error = null;
+    const refreshed = await openSheet(kind); await (refreshed.control.props.onPress as () => unknown)(); await render();
+    expect(h.post, 'A new confirmation may submit after an authorized fresh initial read').toHaveBeenCalledTimes(calls + 1);
   });
 });
