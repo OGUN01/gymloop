@@ -1,0 +1,45 @@
+FitCruxx navigation Shop and Home reference
+6 October 2026
+Tool: built-in imagegen, followed by one targeted edit.
+
+GENERATION PROMPT
+
+Use case: ui-mockup.
+Asset type: a high-fidelity FitCruxx Android UI reference board for a navigation, Shop and Home rearrangement. This is a proposal, not a screenshot of implemented software.
+Primary request: one wide board containing three tall, flat, front-facing app screens, clearly readable, no perspective, no hands, no photographic phone hardware. Label columns outside their screens "Home", "Shop · browse", "Shop · further down". Place a separate compact five-tab navigation variant below them. All screens share the same 390-wide Android proportions and practical native-app density.
+Preserve Chalkline: warm canvas exactly #F2EFE9, burnt-clay primary exactly #B34724, near-black text, muted warm-gray supporting text, fine warm-gray dividing rules. Use existing Chalkline visual language: bold condensed display headings resembling Barlow Condensed, simple Inter-like body text, Lucide-style outline icons, clay active-tab marker above the icon, restrained corner rounding, no heavy shadows, no gradients, no new accent colors. Success appears only as a small existing green status dot with a readable word. Keep typography legible and touch controls generous.
+HOME screen, from top to bottom:
+Small status bar 9:41. Compact header "Iron Box Fitness" and smaller "Vijay Nagar", an outline bell at the upper right with a tiny clay unread dot. A narrow, understated notification row "New studio updates" with a chevron; this opens studio announcements, not a fictional push inbox.
+"Good morning, Aarav". Large expressive "1 of 4", smaller "visits this week". Seven clean weekday circles M T W T F S S, only Monday filled clay. "3 more visits to your weekly goal."
+A compact ruled ledger: "Monthly" with "Ends 10 Oct" and "Active"; then "Last visit" with "Mon, 5 Oct · 11:47 pm".
+Below Last visit, a small heading "FROM YOUR STUDIO" with clay "View all" aligned right. Exactly TWO compact announcement rows, no large preview cards: "Studio hours this week", "Notice · 6 Oct · New", and one short preview line; "Member update", "Notice · 5 Oct", and one short preview line. Announcement copy is illustrative, not claimed live tenant data.
+At the bottom, a prominent clay button "Scan to check in", with scan outline icon. Beneath it four labeled navigation items in exactly this order: Home, Shop, You, Activity. Home is active. No Classes because this illustrated studio has no class sessions. No Buy or Freeze tab.
+SHOP BROWSE screen:
+Status bar. Small "IRON BOX FITNESS" eyebrow, condensed "Shop" heading with small refresh outline icon at the right, not a full-width refresh button. One compact supporting line "Reserve now. Pay at the front desk."
+Three clearly separated in-page browse links "Products", "Plans", "Services" acting as section jump links, not bottom-navigation items. Products active.
+A "PRODUCTS" section, with light category chip "Protein" and tiny muted label "Example category". Do not invent a large inventory. One strong, spacious product card for the real sample "Whey Protein", secondary "1 kg · Chocolate", prominent "₹2,400", dot plus "Available". Large neutral package-icon placeholder in a warm-gray image area, honestly reflecting the current missing product photo; no fake supplement brand, no AI product photography. A clay outlined action "Reserve". Image, product text, price and action fit without truncation.
+Then a compact "PLANS" section row/card "Monthly membership", "₹1,500 · 30 days", with "View plans" and "Buy" clearly visible; these are navigation actions into existing plan/request surfaces, not an in-app payment claim.
+Then a separate compact "SERVICES" row/card "Fat-Loss Diet Plan", "8 weeks · ₹2,500", with a simple service outline icon and "View".
+Small "Purchase requests" utility row with chevron. At the lower edge, show the start of "YOUR RESERVATIONS" so it is clear this is below the catalogue; do not place history above products.
+Bottom bar exactly Home, Shop, You, Activity; Shop active.
+SHOP FURTHER DOWN screen:
+Status bar, compact sticky heading "Shop". "YOUR RESERVATIONS" at top with compact "Active" and "History" section selectors. Show THREE compact ruled rows, avoiding repeat oversized photos:
+"Whey Protein · Chocolate", "1 × ₹2,400", "Reserved", "Collect by 6 Oct, 11:59 pm", quiet "Cancel reservation";
+"Whey Protein · Chocolate", "1 × ₹2,400", "Expired · 5 Oct";
+"Whey Protein · Chocolate", "1 × ₹2,400", "Cancelled · 5 Oct".
+An understated outlined "Load more" button. A very small outside-screen annotation says "3 initially · Load 5 more on tap". Keep these controls honest: manual loading, no endless automatic spinner.
+Below that, a compact context card "Your membership", "Monthly · Ends 10 Oct", a "Renew plan" link and a row "Freeze requests", with small helper "You → Studio → Membership". Freeze is a membership action, not merchandise.
+Bottom bar exactly Home, Shop, You, Activity; Shop active.
+At the bottom of the board, outside the three screens, label "When classes are available" and render ONE equally spaced five-item navigation strip in exactly this order: Home, Classes, Shop, You, Activity. All labels complete, never abbreviated. No Buy or Freeze tab.
+Outside-screen footer: "FitCruxx · Chalkline layout study · illustrative content".
+Composition: clean and dense enough to be usable, generous but not wasteful spacing, align all text and rules to consistent gutters. Do not make a decorative dashboard. Do not duplicate notification rows, obscure content behind navigation, show seven tabs, invent payment completion, use stock quantities, or change the theme.
+
+EDIT PROMPT
+
+Edit this FitCruxx Chalkline UI reference board. Preserve its exact three-column composition, warm canvas #F2EFE9, clay actions #B34724, typography, icons, layouts, four-tab bars and separate five-tab variant. Make only these corrections:
+1. In Home change the large "1 of 4" metric to near-black #171512, matching the real Chalkline app. Product prices should also be near-black, reserving clay for actionable controls and selected navigation.
+2. In the third "Shop · further down" screen, REMOVE the entire "Your membership / Renew plan / Freeze requests" card. Freeze must NOT appear inside Shop. Keep the remaining space calm; Shop history can end after Load more. At the lower part of the board OUTSIDE all app screens add a small clearly labeled annotation: "STUDIO ENTRY POINTS" and beneath it "You → Studio → Membership" and "Renew plan · Freeze requests". This is a design-board annotation, not another tab or a Shop control.
+3. In the third screen replace the Active/History segmented selector with a small heading "Active reservation" above the first Reserved row and a small "History" heading above the Expired and Cancelled rows, so history is not displayed under an Active filter. Keep exactly three visible reservation rows and the "Load more" button.
+4. Remove the tiny line "3 initially · Load 5 more on tap" from inside the app screen. Place "3 reservations initially · Load 5 more on tap" as a small external board annotation outside the app.
+5. Remove "Example category" from inside the Shop UI. Keep the Protein category chip. Add a small external board footer note "Protein category and announcement text are illustrative".
+All control labels remain clear and complete. Home has exactly two compact announcements BELOW Last visit. Buy stays a contextual button in the Plans section and Purchase requests stays a utility row. No false in-app paid or checkout-success claims, no additional navigation tabs, no theme changes.
