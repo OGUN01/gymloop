@@ -41,6 +41,7 @@ This declaration is fixed before fan-out. Authors read these contracts/specs, no
 - `AnnouncementsSection` accepts optional `previewLimit: number`, `onViewAll: () => void`, `showAll: boolean`. Existing default behavior remains available; Home sets the new native limit and opens the non-tab route, full route uses showAll.
 - `Display` adds optional `accent: boolean` (default false), using the existing palette primaryAction.
 - `NATIVE_MEMBER_LAYOUT` in shared constants: `homeAnnouncementCards: 2`, `reservationPreview: 3`, `reservationLoadMore: 5`. Register this and every added exported hook/helper/schema/screen.
+- Home's business-header target must take only remaining row width (`flex: 1`, `minWidth: 0`), while the existing You avatar target keeps its token-sized touch area (`flexShrink: 0`). Long business/branch text may ellipsize visually but retains the full accessible label, ordinary text scaling and canonical routes. This fixes NAVC-012 device overflow at OnePlus font_scale1.35 without shrinking or recoloring the avatar.
 
 ## Risks / Trade-offs
 
