@@ -128,7 +128,7 @@ export default function MemberHome() {
     <View style={styles.homeContent}>
     <View style={styles.header}>
       <View style={styles.gymLine}>
-        <Pressable accessibilityRole="button" accessibilityLabel={`${gymName}, open ${nouns.place}`} onPress={() => router.push('/(member)/gym')}><Text style={[styles.gymText, { color: palette.secondaryText }]} numberOfLines={1}><Text style={{ color: palette.primaryText, fontFamily: FONT.semibold }}>{gymName}</Text> · {data.gym.branchName}</Text></Pressable>
+        <Pressable style={styles.businessTarget} accessibilityRole="button" accessibilityLabel={`${gymName}, open ${nouns.place}`} onPress={() => router.push('/(member)/gym')}><Text style={[styles.gymText, { color: palette.secondaryText }]} numberOfLines={1}><Text style={{ color: palette.primaryText, fontFamily: FONT.semibold }}>{gymName}</Text> · {data.gym.branchName}</Text></Pressable>
         <Pressable accessibilityRole="button" accessibilityLabel={`${data.member.fullName}, open You`} onPress={() => router.push('/(member)/you')} style={({ pressed }) => [styles.avatarTarget, pressed && styles.pressed]}><Initials name={data.member.fullName} size="header" /></Pressable>
       </View>
       <Text accessibilityRole="header" numberOfLines={1} adjustsFontSizeToFit style={[styles.greeting, { color: palette.primaryText }]}>{greeting}, {firstName}</Text>
@@ -166,9 +166,10 @@ const styles = StyleSheet.create({
   homeContent: { gap: space[3] },
   header: { gap: space[2] },
   gymLine: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: space[3] },
+  businessTarget: { flex: 1, minWidth: 0 },
   gymText: { flex: 1, minWidth: 0, fontFamily: FONT.regular, fontSize: UI_TOKENS.typography.mobileBody.size, lineHeight: UI_TOKENS.typography.mobileBody.lineHeight },
   // A 48 target around the 36 ring, the ring on the right gutter.
-  avatarTarget: { width: UI_TOKENS.geometry.targets.touch, height: UI_TOKENS.geometry.targets.touch, alignItems: 'flex-end', justifyContent: 'center' },
+  avatarTarget: { width: UI_TOKENS.geometry.targets.touch, height: UI_TOKENS.geometry.targets.touch, flexShrink: 0, alignItems: 'flex-end', justifyContent: 'center' },
   pressed: { opacity: UI_TOKENS.opacity.pressed },
   greeting: { fontFamily: FONT.medium, fontSize: UI_TOKENS.typography.mobileSection.size, lineHeight: UI_TOKENS.typography.mobileSection.lineHeight },
   lower: { gap: space[3] },
