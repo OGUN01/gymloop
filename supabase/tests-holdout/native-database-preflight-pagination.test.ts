@@ -51,6 +51,7 @@ type Job = {
 type Scenario = {
   pages?: unknown[];
   baseline?: Partial<Run>;
+  currentMetadata?: Partial<Run> | null;
   currentAttempt?: number;
   baselineJobs?: Job[];
   jobs?: Map<string, Job[]>;
@@ -159,7 +160,9 @@ async function execute(scenario: Scenario = {}) {
     updated_at: '2026-10-07T03:00:00Z',
     ...scenario.baseline,
   });
-  const current = run(currentId, { status: 'in_progress', conclusion: null, run_attempt: attempt });
+  const current = run(currentId, {
+    status: 'in_progress', conclusion: null, run_attempt: attempt, ...(scenario.currentMetadata ?? {}),
+  });
   const records = new Map([[baselineId, baseline], [currentId, current], ...(scenario.runRecords ?? [])]);
   for (const page of scenario.pages ?? []) {
     if (!Array.isArray(page)) continue;
@@ -182,6 +185,9 @@ async function execute(scenario: Scenario = {}) {
   const listJobsForWorkflowRun = vi.fn();
   const listWorkflowRunArtifacts = vi.fn();
   const getWorkflowRun = vi.fn(async ({ run_id }: { run_id: number }) => {
+    if (Number(run_id) === currentId && scenario.currentMetadata === null) {
+      throw Object.assign(new Error('Current workflow metadata is unavailable.'), { status: 404 });
+    }
     const record = records.get(Number(run_id));
     if (!record) {
       fixturePortErrors += 1;
@@ -339,9 +345,9 @@ describe('DBV-005/007/008/012 held Actions preflight pagination contract', () =>
     expect(result.jobsRequested).toContainEqual({ runId: baselineId, attempt: 1 });
   });
 
-  it('rejects history exhaustion without the exact baseline', async () => {
+  it('accepts verified cutover metadata and fully exhausted newer history without baseline listing membership', async () => {
     const result = await execute({ pages: [[run(previousId)], []] });
-    expect(result.refused).toBe(true);
+    expect(result.refused).toBe(false);
     expect(result.runtimeTypeError).toBe(false);
     expect(result.pagesVisited).toBe(2);
   });
@@ -386,8 +392,36 @@ describe('DBV-005/007/008/012 held Actions preflight pagination contract', () =>
   it('permits an unarmed earlier current attempt without operator teardown declarations', async () => {
     const result = await execute({ currentAttempt: 2, pages: [[], [run(baselineId)]] });
     expect(result.refused).toBe(false);
+    expect(result.getWorkflowRun.mock.calls.some(([parameters]) => Number(parameters.run_id) === currentId)).toBe(true);
     expect(result.jobsRequested).toContainEqual({ runId: currentId, attempt: 1 });
     expect(result.downloads).toBe(0);
+
+    const unavailableOrMismatched: (Partial<Run> | null)[] = [
+      null,
+      { id: previousId },
+      { head_sha: baselineSha },
+      { event: 'pull_request' },
+      { head_branch: 'release' },
+      { run_attempt: 1 },
+    ];
+    for (const currentMetadata of unavailableOrMismatched) {
+      const invalid = await execute({ currentAttempt: 2, currentMetadata, pages: [[], [run(baselineId)]] });
+      expect(invalid.refused).toBe(true);
+      expect(invalid.runtimeTypeError).toBe(false);
+      expect(invalid.getWorkflowRun.mock.calls.some(([parameters]) => Number(parameters.run_id) === currentId)).toBe(true);
+      expect(invalid.jobsRequested.some(request => request.runId === currentId)).toBe(false);
+      expect(invalid.downloads).toBe(0);
+    }
+
+    const unresolved = await execute({ currentAttempt: 2, pages: [[], [run(baselineId)]], jobs: new Map([
+      [`${currentId}-1`, [job('pgtap', { head_sha: currentSha, conclusion: 'cancelled' }),
+        job('timeout-guardian', { head_sha: currentSha, conclusion: 'skipped', steps: [] })]],
+    ]) });
+    expect(unresolved.refused).toBe(true);
+    expect(unresolved.runtimeTypeError).toBe(false);
+    expect(unresolved.getWorkflowRun.mock.calls.some(([parameters]) => Number(parameters.run_id) === currentId)).toBe(true);
+    expect(unresolved.jobsRequested).toContainEqual({ runId: currentId, attempt: 1 });
+    expect(unresolved.downloads).toBe(0);
   });
 
   it('inspects prior attempts of a newer skipped workflow', async () => {

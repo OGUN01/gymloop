@@ -34,6 +34,7 @@ type Fixture = {
   attempt?: number;
   pages?: unknown[];
   baseline?: Partial<Run>;
+  current?: Partial<Run> | null;
   baselineJobs?: Job[];
   jobs?: Record<string, unknown>;
   artifacts?: Record<string, unknown>;
@@ -96,7 +97,7 @@ beforeAll(() => {
 async function executePreflight(fixture: Fixture = {}) {
   const attempt = fixture.attempt ?? 1;
   const baseline = run(IDS.baseline, fixture.baseline);
-  const current = run(IDS.current, { run_attempt: attempt });
+  const current = fixture.current === null ? null : run(IDS.current, { run_attempt: attempt, ...fixture.current });
   const pages = fixture.pages ?? [[baseline]];
   const jobsByAttempt: Record<string, unknown> = {
     [`${IDS.baseline}-1`]: fixture.baselineJobs ?? baselineJobs(),
@@ -295,6 +296,68 @@ describe('DBV-005/007/008/012 hosted predecessor preflight under normalized Octo
     expect(result.paginate.mock.calls.some(([, parameters]) =>
       String(parameters.run_id) === String(IDS.current) && parameters.attempt_number === 1,
     )).toBe(true);
+    expectNoExternalAction(result);
+  });
+
+  it.each([
+    ['empty', []],
+    ['skipped', skippedJobs()],
+  ] satisfies [string, Job[]][])('independently fetches an omitted current run and checks its %s earlier jobs after exhausting history', async (_, earlierJobs) => {
+    const result = await executePreflight({
+      attempt: 3,
+      pages: [[], []],
+      current: { status: 'in_progress', conclusion: null },
+      jobs: { [`${IDS.current}-1`]: earlierJobs, [`${IDS.current}-2`]: earlierJobs },
+    });
+    expect({ refused: result.refused, error: result.error }).toEqual({ refused: false, error: null });
+    expect(result.visitedPages).toEqual([[], []]);
+    expect(result.getWorkflowRun.mock.calls.some(([parameters]) =>
+      String(parameters.run_id) === String(IDS.current),
+    )).toBe(true);
+    for (const attempt_number of [1, 2]) expect(result.paginate.mock.calls.some(([, parameters]) =>
+      String(parameters.run_id) === String(IDS.current) && parameters.attempt_number === attempt_number,
+    )).toBe(true);
+    expectNoExternalAction(result);
+  });
+
+  it('blocks an unresolved prior worker when the current run was omitted from history', async () => {
+    const result = await executePreflight({
+      attempt: 2,
+      pages: [[], [run()]],
+      current: { status: 'in_progress', conclusion: null },
+      jobs: { [`${IDS.current}-1`]: [job('pgtap', 'cancelled'), job('timeout-guardian', 'skipped')] },
+    });
+    expect(result.refused).toBe(true);
+    expect(result.getWorkflowRun.mock.calls.some(([parameters]) =>
+      String(parameters.run_id) === String(IDS.current),
+    )).toBe(true);
+    expect(result.paginate.mock.calls.some(([, parameters]) =>
+      String(parameters.run_id) === String(IDS.current) && parameters.attempt_number === 1,
+    )).toBe(true);
+    expectNoExternalAction(result);
+  });
+
+  it.each([
+    ['missing run', null],
+    ['different run ID', { id: IDS.recent }],
+    ['different source SHA', { head_sha: 'b'.repeat(40) }],
+    ['different trusted event', { event: 'workflow_dispatch' }],
+    ['different branch', { head_branch: 'feature' }],
+    ['different attempt', { run_attempt: 1 }],
+  ] satisfies [string, Partial<Run> | null][])('refuses omitted-current metadata with %s before checking prior jobs', async (_, current) => {
+    const result = await executePreflight({
+      attempt: 2,
+      pages: [[], [run()]],
+      current,
+      jobs: { [`${IDS.current}-1`]: skippedJobs() },
+    });
+    expect(result.refused).toBe(true);
+    expect(result.getWorkflowRun.mock.calls.some(([parameters]) =>
+      String(parameters.run_id) === String(IDS.current),
+    )).toBe(true);
+    expect(result.paginate.mock.calls.some(([, parameters]) =>
+      String(parameters.run_id) === String(IDS.current) && parameters.attempt_number === 1,
+    )).toBe(false);
     expectNoExternalAction(result);
   });
 
