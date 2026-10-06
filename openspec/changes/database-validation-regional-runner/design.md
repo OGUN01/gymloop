@@ -123,6 +123,10 @@ Compare complete native wall time separately from link/client setup, queue and t
 
 ## Risks / Trade-offs
 
+### Windows protected-directory invocation boundary (7 October clarification)
+
+The existing DBV-004/007 protected-output prerequisite applies to the concrete Windows PowerShell 5.1 process boundary as well as the Unix mode check. Before any schema query, timeout change or native Cloud execution, the adapter must check the exact absolute diagnostics directory with native Windows ACL semantics. A directory granting access only to the current owner, Local System and Administrators is accepted; any other allowed principal, unavailable ACL or command error is refused. Ordinary paths, spaces, apostrophes and command-like filename text must remain inert literal path data. Child process success alone cannot substitute for the exact successful ACL verdict; incidental output or a non-terminating ACL error cannot produce acceptance. Tests exercise that native invocation boundary without Cloud access, using only independently created owned scratch paths or process-port fixtures. This clarifies the already-required protected custody and fail-closed behavior; it does not change the EARS requirements or waive prior failures.
+
 ### Frozen private native-output custody boundary
 
 The retained hosted transcript needs confidentiality after the hosted filesystem disappears. `scripts/phase8-protected-backup.mjs` has a private AES-GCM primitive, but its public archive operation requires a genuine four-part Cloud export; native TAP cannot masquerade as that archive. Reuse its established AES-256-GCM wire widths through `PHASE8_BACKUP_LIMITS`, not the Cloud-export format. The new pure module is `scripts/pgtap/private-output.mjs`, with exactly these two exports, independently tested before implementation:
