@@ -1,6 +1,6 @@
 # FitCruxx classes and navigation implementation plan
 
-6 October 2026. Proposed implementation, following the owner's request for the fastest reliable approach. The approved Home and Shop design choices remain in force. This plan does not authorize database implementation in the current UI-only session.
+6 October 2026. Owner-approved implementation contract, frozen in `openspec/changes/v2-native-navigation`. The owner subsequently approved the narrow Classes visibility/own-bookings migration and implementation today, superseding the original UI-only restriction for that contract alone. The approved Home and Shop design choices remain in force. Payment, freeze-command and unrelated backend changes remain outside this task.
 
 FitCruxx already models Gym, Yoga studio, Dance academy, Martial arts academy and Fitness studio. A tenant has one business type for its identity and wording, but can have several class services. A Gym can therefore offer Yoga, Dance and group fitness together without becoming a different business type. Reuse that structure and its scheduling engine. The only new persistent behavior required for an independent member Classes switch is a saved tenant setting and a safe member read.
 

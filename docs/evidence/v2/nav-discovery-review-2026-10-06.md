@@ -25,6 +25,10 @@ The wider root suite initially passed **4,712/4,760** across 125 files. Forty-si
 
 Fresh old-artifact captures [Home](../screens/2026-10-06-device-nav-before-awake.png) and [Shop](../screens/2026-10-06-device-shop-before-awake.png) confirm the seven-tab bar and reservation-first clutter on the connected test app. They are before evidence, not acceptance of the new implementation.
 
+The independent held author completed and committed the three existing native fixture/IA amendments at **5d1db4d2**; their focused result is **135/135**, with no implementation or visible-suite reads. The subsequent full root diagnostic run passed **4,761/4,763**, 124/125 files. Both remaining failures were explicit 20-second timeouts in an unchanged HARD-004 campaign held suite during the native build; no assertion mismatch was reported. Isolated re-verification is pending after the build. The earlier default-budget failure remains recorded; no test or timeout policy was changed.
+
+Implementation is committed locally at **a4d1481f**. C:/gc is safely detached at that commit after preserving and verifying its two previous local deltas in an owner-only backup; the direct Gradle v2check/debug-signed build is running. Nothing has been installed or pushed yet. Compact reference matching still requires device and visual review.
+
 ## Deployment boundary
 
 Prior DB run 37409145394 is still active. No competing local SQL sweep, manual migration apply or generated-type edit has occurred. The new schema metadata intentionally remains unavailable until CI applies the migration and the authorized CLI regenerates it. Expo generated the local announcements route types through its offline development command; mobile typecheck now reports only the four new RPC metadata errors. Final CI, SQL runtime and exact-artifact OnePlus evidence remain required.

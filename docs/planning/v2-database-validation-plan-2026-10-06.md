@@ -53,4 +53,4 @@ As the suite grows, introduce test-owner-maintained dependency metadata for focu
 - A recorded comparison demonstrates the actual performance gain; unchanged or worse performance does not qualify as completion.
 - UI-only and types-only skip behavior continues to follow the existing decisions.
 
-The Classes feature plan remains [separate](v2-classes-and-navigation-plan-2026-10-06.md). The current UI-only session does not edit supabase, generated database types or CI. Paid runner provisioning and any change to the independent test arrangement remain reviewable proposals.
+The Classes feature plan remains [separate](v2-classes-and-navigation-plan-2026-10-06.md). The owner subsequently approved that narrow feature migration and its CLI-generated types; this performance proposal does not authorize CI changes, paid runner provisioning or a change to the independent test arrangement. Those remain reviewable proposals.
