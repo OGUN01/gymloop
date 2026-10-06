@@ -123,6 +123,27 @@ function press(tree: ReactNode, label: RegExp) {
 }
 describe('frozen native member IA public screens', () => {
   it('Home business caption opens Gym', async () => { const tree = await render('home'); press(tree, /IA Fitness/); expect(state.push).toHaveBeenCalledWith('/(member)/gym'); });
+  it('NAVC-007 keeps Freeze requests beside membership before catalogue and activity actions', async () => {
+    const tree = await render('gym');
+    const rendered = nodes(tree);
+    const controls = rendered.filter(node => node.type === 'button' && typeof node.props.onPress === 'function');
+    const freeze = controls.find(node => /\bFreeze requests\b/.test(text(node)));
+    expect(freeze, 'complete native Freeze requests action').toBeDefined();
+    expect(text(freeze)).toContain('Freeze requests');
+    expect(freeze?.props.accessibilityRole).toBe('button');
+    (freeze!.props.onPress as () => void)();
+    expect(state.push).toHaveBeenCalledWith('/(member)/freeze-requests');
+    const membershipIndex = rendered.findIndex(node => node.type === 'text' && text(node).includes(snapshot().membership.planName));
+    expect(membershipIndex, 'current membership facts').toBeGreaterThanOrEqual(0);
+    const freezeIndex = rendered.indexOf(freeze!);
+    expect(freezeIndex, 'Freeze follows the current membership facts').toBeGreaterThan(membershipIndex);
+    for (const label of [/Plans.*prices/i, /My (?:classes|batches)/i, /Trainers.*programmes/i, /Other services/i]) {
+      const unrelated = controls.find(node => label.test(text(node)));
+      expect(unrelated, `unrelated hub action ${label}`).toBeDefined();
+      expect(freezeIndex, `Freeze belongs to membership before ${label}`).toBeLessThan(rendered.indexOf(unrelated!));
+    }
+  });
+
   it('Gym opens Training with public section parameter, Shop and legal', async () => {
     let tree = await render('gym'); press(tree, /Trainers.*programmes/i); expect(state.push).toHaveBeenCalledWith({ pathname: '/(member)/classes', params: { section: 'training' } });
     press(tree, /Other services/i); expect(state.push).toHaveBeenCalledWith('/(member)/shop');
