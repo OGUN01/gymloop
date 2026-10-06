@@ -36,8 +36,8 @@ export async function loadMemberShop(supabase: SupabaseClient<Database>, _tenant
 export async function loadMemberShopPage(supabase: SupabaseClient<Database>, input: ShopPageRequest): Promise<ShopPageResponse> {
   const request = shopPageRequestSchema.parse(input);
   const after = request.mode === 'more' ? request.after : null;
-  // This fixed literal bridge is removed after CI applies the migration and types are regenerated.
-  const reservationRead = supabase.rpc('read_member_shop_reservation_page' as keyof Database['public']['Functions'], { p_after_created_at: after?.createdAt ?? null, p_after_id: after?.id ?? null } as never);
+  // The SQL defaults are nullable; generation represents defaulted arguments as optional strings.
+  const reservationRead = supabase.rpc('read_member_shop_reservation_page', { p_after_created_at: after?.createdAt ?? null, p_after_id: after?.id ?? null } as Database['public']['Functions']['read_member_shop_reservation_page']['Args']);
   const [page, catalogue] = await Promise.all([reservationRead, request.mode === 'initial' ? supabase.rpc('read_member_shop') : Promise.resolve(null)]);
   if (page.error) throw page.error;
   if (catalogue?.error) throw catalogue.error;

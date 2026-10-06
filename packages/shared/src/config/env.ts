@@ -200,3 +200,23 @@ export function pushDispatchEnv(readEnvironment: (name: string) => string | unde
     FCM_SERVICE_ACCOUNT_JSON: required('FCM_SERVICE_ACCOUNT_JSON'),
   };
 }
+
+/** Uncached CI metadata; the native gate validates exact job and receipt shapes. */
+export function nativeDatabaseValidationEnv() {
+  const names = [
+    'GITHUB_ACTIONS', 'GITHUB_REPOSITORY', 'GITHUB_EVENT_NAME', 'GITHUB_REF', 'GITHUB_SHA',
+    'GITHUB_RUN_ID', 'GITHUB_RUN_ATTEMPT', 'GITHUB_WORKFLOW_REF', 'GITHUB_JOB', 'RUNNER_OS',
+    'RUNNER_ENVIRONMENT', 'RUNNER_TEMP', 'RUNNER_WORKSPACE', 'GITHUB_WORKSPACE', 'GITHUB_API_URL',
+    'GITHUB_TOKEN', 'GITHUB_OUTPUT', 'GITHUB_STEP_SUMMARY', 'ACTIONS_RUNTIME_TOKEN',
+    'ACTIONS_RESULTS_URL', 'ACTIONS_RUNTIME_URL', 'ACTIONS_CACHE_URL', 'DBV_SCHEMA_RECEIPT',
+    'DBV_SMOKE_RECEIPT', 'DBV_RECOVERY_ARTIFACT', 'DBV_RUN_COMMAND', 'DBV_MANIFEST',
+    'DBV_RECEIPT', 'DBV_OUT_DIR', 'DBV_SOURCE_SHA', 'DBV_SETUP_STARTED_AT', 'DBV_LINK_MS',
+    'INPUT_COMMAND', 'INPUT_MANIFEST', 'INPUT_RECEIPT', 'INPUT_OUT-DIR', 'INPUT_SOURCE-SHA',
+  ] as const;
+  return Object.fromEntries(names.map(name => [name, process.env[name]])) as Record<(typeof names)[number], string | undefined>;
+}
+
+/** Opaque inheritance for approved native/action child processes; never log it. */
+export function nativeDatabaseProcessEnv(): Record<string, string | undefined> {
+  return { ...process.env };
+}

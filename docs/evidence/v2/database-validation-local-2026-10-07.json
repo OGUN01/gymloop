@@ -1,0 +1,84 @@
+{
+  "recordedAt": "2026-10-06T20:36:48.386Z",
+  "scope": "Local and static proof only; actual CI, runner hook/lifetime/teardown and speed comparison remain open",
+  "testsFirstCommit": "3b33fa5f",
+  "independentHeldBodiesReadByImplementer": false,
+  "broad": {
+    "suites": 565,
+    "tests": 6058,
+    "passed": 6058,
+    "failed": 0
+  },
+  "afterFinalCryptoBounds": {
+    "visible": 148,
+    "held": 132
+  },
+  "sourceCritic": "GO",
+  "adapterCritic": "GO with conservative operational recovery limitation",
+  "gates": {
+    "workspaceTypecheck": "5/5 pass",
+    "workspaceLint": "5/5 pass",
+    "rootLint": "pass",
+    "registry": "pass",
+    "escapeHatches": "993 files pass",
+    "knip": "pass",
+    "jscpd": "zero clones",
+    "depcruise": "955 modules pass",
+    "strictOpenSpec": "both changes pass",
+    "yaml": "3 files pass"
+  },
+  "client": {
+    "supabase": "2.110.0",
+    "pgProve": "3.36",
+    "effectiveImage": "public.ecr.aws/supabase/pg_prove:3.36",
+    "digest": "sha256:eda7c5e68719e9c8287e78c017118407b48df904a51c935f5ab6098b8c0bc6bc",
+    "independentClientSmoke": "9 cases: success zero, eight deliberate failures nonzero, unchanged bytes"
+  },
+  "baseline": {
+    "runId": "37519113387",
+    "sourceSha": "6802d201df51afc4adc77ade6fa8394dfea5f9f0",
+    "status": "native live; migrate pass; type drift reconciled by CLI generation in pending source"
+  },
+  "sources": [
+    {
+      "path": "scripts/pgtap/native.mjs",
+      "sha256": "cdad27749f65139672d13268fd4500145d1f23c9e8c57e81f1bd36510e458d8d"
+    },
+    {
+      "path": "scripts/pgtap/runner-job.mjs",
+      "sha256": "4913e80954a1ea860056262f9874075a270430a4d494c6ed00fa20b323362bc2"
+    },
+    {
+      "path": "scripts/pgtap/private-output.mjs",
+      "sha256": "6682ce2f5affcdcfb0e2d85b8082f20ab8c7ce53ab97069c52edc9e65380816a"
+    },
+    {
+      "path": "scripts/pgtap/workload-teardown.mjs",
+      "sha256": "f91b1583448d1f85b84a6c37b892a7738b0f03da59c69154a74460c717f1383d"
+    },
+    {
+      "path": "scripts/native-runner-guard.mjs",
+      "sha256": "b7c4ffc6d87d7277e6faa63ff05df2653cb7017a246d860e0eb81592c9f7d034"
+    },
+    {
+      "path": "scripts/native-runner-hook.mjs",
+      "sha256": "24ce5887aad5053d5015207ed991201e28c3e15eeef0e908011c6eec7edbcb15"
+    },
+    {
+      "path": "scripts/native-database-validation.mjs",
+      "sha256": "be08858bcc16baebd60c17fd1844e49fe53c514e28f703f25075080dbb950150"
+    },
+    {
+      "path": ".github/workflows/db.yml",
+      "sha256": "2123f44b5480f088caaf69e57fd5de5e4e61ccf944b1cb0a0639412dba0c0ab2"
+    },
+    {
+      "path": ".github/workflows/native-database-preflight.yml",
+      "sha256": "b682ceadc85e568307726efc6240f71d26ae8274adb0a0289b6c5345e34b4318"
+    },
+    {
+      "path": ".github/actions/native-database-validation/action.yml",
+      "sha256": "7d9ed14eec3ff847e745f3462e57e95c172a5edbc6301b23dc3ecbbe7343725c"
+    }
+  ]
+}

@@ -2,9 +2,9 @@ name: DB
 
 # The one final pgTAP per the owner's batched-verification directive.
 
-# **Path-filtered, for billing.** The `pgtap` job runs 47 files against Cloud
-# and takes about twenty minutes; a push that touches only docs or the web app
-# cannot change what it measures, and paying twenty minutes to prove that is
+# **Path-filtered, for billing.** The `pgtap` job runs both full suites against
+# Cloud; a push that touches only docs or the web app cannot change what it
+# measures, and repeating the full native run to prove that is
 # waste. Everything that CAN change the answer is listed here — the migrations
 # and suites themselves, the generated types `schema-drift` diffs, the rollback
 # checker, and this file.
@@ -14,9 +14,25 @@ on:
     paths:
       - 'supabase/migrations/**'
       - 'supabase/functions/**'
+      - 'supabase/tests/**/*.sql'
+      - 'supabase/tests/**/*.pg'
+      - 'supabase/tests-holdout/**/*.sql'
+      - 'supabase/tests-holdout/**/*.pg'
       - 'packages/db/types/**'
       - 'scripts/check-pgtap-rollback.mjs'
       - 'scripts/pgtap/splice.py'
+      - 'scripts/pgtap/native.mjs'
+      - 'scripts/pgtap/private-output.mjs'
+      - 'scripts/pgtap/runner-job.mjs'
+      - 'scripts/pgtap/workload-teardown.mjs'
+      - 'scripts/native-database-validation.mjs'
+      - 'scripts/native-runner-guard.mjs'
+      - 'scripts/native-runner-hook.mjs'
+      - 'packages/shared/src/config/env.ts'
+      - 'packages/shared/src/config/constants.ts'
+      - '.github/actions/native-database-validation/**'
+      - '.github/workflows/native-database-preflight.yml'
+      - 'pnpm-lock.yaml'
       - '.github/workflows/db.yml'
   workflow_dispatch: {}
   pull_request:
@@ -25,10 +41,22 @@ on:
       - 'packages/db/types/**'
       - 'scripts/check-pgtap-rollback.mjs'
       - 'scripts/pgtap/splice.py'
+      - 'scripts/pgtap/native.mjs'
+      - 'scripts/pgtap/private-output.mjs'
+      - 'scripts/pgtap/runner-job.mjs'
+      - 'scripts/pgtap/workload-teardown.mjs'
+      - 'scripts/native-database-validation.mjs'
+      - 'scripts/native-runner-guard.mjs'
+      - 'scripts/native-runner-hook.mjs'
+      - 'packages/shared/src/config/env.ts'
+      - 'packages/shared/src/config/constants.ts'
+      - '.github/actions/native-database-validation/**'
+      - '.github/workflows/native-database-preflight.yml'
+      - 'pnpm-lock.yaml'
       - '.github/workflows/db.yml'
 
 # Database strategy (docs/decisions.md ADR-030): one Supabase Cloud project,
-# no Docker, no branching. Migrations are applied by CI only, on merge to
+# no local database, no branching. Migrations are applied by CI only, on merge to
 # main, in merge order — never by a session and never during fan-out. The
 # drift check and pgTAP run AFTER that apply. On a pull request nothing is
 # applied; a PR that adds migrations gets a dry-run only, and its drift /
@@ -36,6 +64,10 @@ on:
 concurrency:
   group: db-${{ github.ref }}
   cancel-in-progress: false
+
+permissions:
+  contents: read
+  actions: read
 
 env:
   # The access token alone does work — the CLI mints a temporary login role
@@ -49,6 +81,135 @@ env:
   PROJECT_REF: pecxrpskmfeuyzngvewq
 
 jobs:
+  # Runs before every mutating/shared-project job. A failed or skipped later
+  # workflow cannot hide the last attempt that actually armed recovery.
+  database-recovery-preflight:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with: { node-version: '24' }
+      - uses: actions/github-script@v8
+        name: Require the previous armed attempt's verified restoration
+        with:
+          script: |
+            const {createHash} = await import('node:crypto');
+            const {execFileSync} = await import('node:child_process');
+            const {NATIVE_DB_VALIDATION: limits} = await import(`${process.cwd()}/packages/shared/src/config/constants.ts`);
+            const {verifyNativeWorkloadTeardown} = await import(`${process.cwd()}/scripts/pgtap/workload-teardown.mjs`);
+            const hash = bytes => createHash('sha256').update(bytes).digest('hex');
+            const exact = (value, keys) => value && typeof value === 'object' && !Array.isArray(value) && Object.keys(value).length === keys.length && keys.every(key => Object.hasOwn(value,key));
+            const original = value => exact(value,['originalPresent','originalValue']) && typeof value.originalPresent === 'boolean' && (value.originalPresent ? typeof value.originalValue === 'string' && value.originalValue.length > 0 : value.originalValue === null);
+            const digest = value => typeof value === 'string' && new RegExp(`^[a-f0-9]{${limits.digestHexLength}}$`).test(value);
+            const source = value => typeof value === 'string' && new RegExp(`^[a-f0-9]{${limits.sourceShaLength}}$`).test(value);
+            const readArtifact = async (artifact, filename) => {
+              if (artifact.expired || !Number.isSafeInteger(artifact.size_in_bytes) || artifact.size_in_bytes <= 0 || artifact.size_in_bytes > limits.timeoutQueryMaxBytes) throw new Error('Expired or invalid recovery custody blocks the shared project.');
+              const response = await github.rest.actions.downloadArtifact({...context.repo, artifact_id:artifact.id, archive_format:'zip', request:{redirect:'manual'}});
+              if (response.status !== limits.artifactRedirectStatus || !response.headers.location) throw new Error('Recovery custody is unavailable.');
+              const location = new URL(response.headers.location);
+              if (location.protocol !== 'https:' || location.username || location.password || location.hash) throw new Error('Recovery custody is unavailable.');
+              const download = await fetch(location, {redirect:'error',signal:AbortSignal.timeout(limits.nativeCleanupReserveMs)});
+              if (download.status !== limits.artifactMetadataStatus || !download.body) throw new Error('Recovery custody is unavailable.');
+              const parts=[]; let length=0;
+              for await (const part of download.body) {
+                length += part.length;
+                if (length > limits.timeoutQueryMaxBytes) throw new Error('Recovery custody exceeds its bound.');
+                parts.push(Buffer.from(part));
+              }
+              const bytes = Buffer.concat(parts);
+              if (bytes.length !== artifact.size_in_bytes || artifact.digest !== `sha256:${hash(bytes)}`) throw new Error('Recovery archive hash changed.');
+              const script = 'import io,stat,sys,zipfile\nz=zipfile.ZipFile(io.BytesIO(sys.stdin.buffer.read()))\nitems=z.infolist()\nif len(items)!=1: raise SystemExit(1)\ni=items[0]\nm=i.external_attr>>int(sys.argv[3])\nif i.filename!=sys.argv[1] or i.is_dir() or stat.S_ISLNK(m) or stat.S_IFMT(m) not in (0,stat.S_IFREG): raise SystemExit(1)\nif i.file_size>int(sys.argv[2]) or i.flag_bits&1 or i.compress_type not in (zipfile.ZIP_STORED,zipfile.ZIP_DEFLATED): raise SystemExit(1)\nsys.stdout.buffer.write(z.read(i))';
+              const body = execFileSync('python3',['-c',script,filename,String(limits.timeoutQueryMaxBytes),String(limits.artifactUnixModeShiftBits)],{input:bytes,maxBuffer:limits.timeoutQueryMaxBytes,timeout:limits.nativeCleanupReserveMs,stdio:['pipe','pipe','pipe']});
+              const value = JSON.parse(body.toString('utf8'));
+              if (!body.equals(Buffer.from(JSON.stringify(value)+'\n'))) throw new Error('Recovery receipt serialization is invalid.');
+              return {value,hash:hash(body)};
+            };
+            const baseline = (await github.rest.actions.getWorkflowRun({...context.repo,run_id:limits.legacyBaselineRunId})).data;
+            if (String(baseline.id)!==limits.legacyBaselineRunId || baseline.head_sha!==limits.legacyBaselineSourceSha ||
+                baseline.event!=='push' || baseline.head_branch!=='main' || baseline.status!=='completed' ||
+                !Number.isSafeInteger(baseline.run_attempt) || baseline.run_attempt<=0) throw new Error('The exact legacy native baseline has not completed.');
+            const baselineJobs=await github.paginate(github.rest.actions.listJobsForWorkflowRunAttempt,{...context.repo,run_id:baseline.id,attempt_number:baseline.run_attempt});
+            for (const name of ['migrate',limits.job,'seed-dry-run']) {
+              const matches=baselineJobs.filter(job=>job.name===name);
+              if (matches.length!==1 || matches[0].head_sha!==limits.legacyBaselineSourceSha || matches[0].status!=='completed' || matches[0].conclusion!=='success') {
+                throw new Error('The legacy migration/native/serial-seed baseline is not genuinely successful.');
+              }
+            }
+            const runs=[];
+            for await (const page of github.paginate.iterator(github.rest.actions.listWorkflowRuns,{...context.repo,workflow_id:'db.yml',branch:'main',created:`>=${baseline.created_at}`})) {
+              let cutoverReached=false;
+              for (const run of page.data.workflow_runs) {
+                if (BigInt(run.id)<=BigInt(limits.legacyBaselineRunId)) { cutoverReached=true; break; }
+                runs.push(run);
+              }
+              if (cutoverReached) break;
+            }
+            const operatorReceipts = JSON.parse(${{ toJSON(vars.NATIVE_DB_WORKLOAD_TEARDOWN_RECEIPTS || '[]') }});
+            if (!Array.isArray(operatorReceipts)) throw new Error('Owner workload teardown proof is malformed.');
+            const priorJobs = new Map();
+            const priorArtifacts = new Map();
+            for (const run of runs) {
+              if (!['push','workflow_dispatch'].includes(run.event)) continue;
+              if (!Number.isSafeInteger(run.run_attempt) || run.run_attempt <= 0) throw new Error('Previous native attempt identity is unavailable.');
+              const lastAttempt = run.id === context.runId ? Number('${{ github.run_attempt }}') - 1 : run.run_attempt;
+              const jobs=[];
+              const artifacts=await github.paginate(github.rest.actions.listWorkflowRunArtifacts,{...context.repo,run_id:run.id});
+              priorArtifacts.set(run.id,artifacts);
+              for (let attempt=1; attempt<=lastAttempt; attempt++) {
+                const attemptJobs = await github.paginate(github.rest.actions.listJobsForWorkflowRunAttempt,{...context.repo,run_id:run.id,attempt_number:attempt});
+                for (const job of attemptJobs) {
+                  jobs.push({...job,boundAttempt:attempt});
+                  if (job.name !== limits.job || job.conclusion==='skipped') continue;
+                  const nativeStep=Array.isArray(job.steps) && job.steps.find(step=>step.name==='Validate the full native suite with outside-worker recovery custody');
+                  if ((job.conclusion==='success' || nativeStep && nativeStep.conclusion && nativeStep.conclusion!=='skipped') &&
+                      !artifacts.some(artifact=>artifact.name===`native-db-recovery-${run.id}-${attempt}` && !artifact.expired)) {
+                    throw new Error('A newer native execution lacks its bound recovery protocol; the shared project is blocked.');
+                  }
+                  if (job.conclusion==='success') continue;
+                  if (job.status !== 'completed' || !job.conclusion) throw new Error('A previous native worker is unresolved; the shared project is blocked.');
+                  const labels=job.labels;
+                  const runnerEnvironment=Array.isArray(labels) && labels.every(label=>typeof label==='string')
+                    ? labels.includes('self-hosted') ? 'self-hosted' : labels.some(label=>/^(ubuntu|windows|macos)-/.test(label)) ? 'github-hosted' : null
+                    : null;
+                  const expected={runId:`${run.id}-${attempt}`,sourceSha:run.head_sha,jobId:String(job.id),runnerId:job.runner_id,runnerEnvironment};
+                  if (job.head_sha !== run.head_sha || !operatorReceipts.some(receipt=>verifyNativeWorkloadTeardown(expected,receipt))) {
+                    throw new Error('Previous failed native worker lacks verified owner process/container/runner teardown; the shared project is blocked.');
+                  }
+                }
+              }
+              priorJobs.set(run.id,jobs);
+            }
+            let found = false;
+            for (const run of runs) {
+              if (!['push','workflow_dispatch'].includes(run.event)) continue;
+              const artifacts = priorArtifacts.get(run.id) ?? [];
+              const prefix = `native-db-recovery-${run.id}-`;
+              const recoveries = artifacts.filter(item => item.name.startsWith(prefix) && /^[1-9]\d*$/.test(item.name.slice(prefix.length)) &&
+                (run.id !== context.runId || BigInt(item.name.slice(prefix.length)) < BigInt('${{ github.run_attempt }}')));
+              if (recoveries.length === 0) {
+                const jobs = priorJobs.get(run.id) ?? [];
+                if (jobs.some(job => job.name === 'timeout-guardian' && job.conclusion && job.conclusion !== 'skipped' &&
+                  (run.id !== context.runId || BigInt(job.boundAttempt) < BigInt('${{ github.run_attempt }}')))) throw new Error('Previous attempted guardian has no recovery receipt; the shared project is blocked.');
+                continue;
+              }
+              found = true;
+              for (const artifact of recoveries) {
+                const recovery = await readArtifact(artifact,'recovery.json');
+                const r = recovery.value;
+                if (!exact(r,['formatVersion','runId','sourceSha','manifestSha256','target','original','capturedAt','armed']) || r.formatVersion !== limits.formatVersion || artifact.name !== `native-db-recovery-${r.runId}` || !r.runId.startsWith(`${run.id}-`) || !source(r.sourceSha) || r.sourceSha !== run.head_sha || !digest(r.manifestSha256) || !exact(r.target,['projectRef','role','parameter']) || r.target.projectRef !== limits.projectRef || r.target.role !== limits.role || r.target.parameter !== limits.parameter || !original(r.original) || r.armed !== true || new Date(r.capturedAt).toISOString() !== r.capturedAt) throw new Error('Previous recovery binding is invalid.');
+                const prefix = `native-db-restoration-${r.runId}-`;
+                const matches = artifacts.filter(item => item.name.startsWith(prefix) && /^[1-9]\d*$/.test(item.name.slice(prefix.length)) &&
+                  BigInt(item.name.slice(prefix.length)) <= BigInt(run.run_attempt)).sort((a,b) => {
+                    const left=BigInt(a.name.slice(prefix.length)),right=BigInt(b.name.slice(prefix.length));
+                    return left>right ? -1 : left<right ? 1 : 0;
+                  });
+                if (matches.length === 0 || (matches[1] && matches[0].name === matches[1].name)) throw new Error('Unverified timeout restoration blocks the shared project.');
+                const restoration = (await readArtifact(matches[0],'restoration.json')).value;
+                if (!exact(restoration,['formatVersion','runId','sourceSha','manifestSha256','recoverySha256','original','observed','verified','verifiedAt']) || restoration.formatVersion !== limits.formatVersion || restoration.runId !== r.runId || restoration.sourceSha !== r.sourceSha || restoration.manifestSha256 !== r.manifestSha256 || restoration.recoverySha256 !== recovery.hash || restoration.verified !== true || !original(restoration.original) || !original(restoration.observed) || JSON.stringify(restoration.original) !== JSON.stringify(r.original) || JSON.stringify(restoration.observed) !== JSON.stringify(r.original) || new Date(restoration.verifiedAt).toISOString() !== restoration.verifiedAt) throw new Error('Unverified timeout restoration blocks the shared project.');
+              }
+            }
+            core.info(found ? 'Every previous armed native attempt has verified timeout restoration.' : 'No earlier native recovery was armed.');
+
   # Every pgTAP file must be wrapped BEGIN ... ROLLBACK — the suite runs
   # against the shared Cloud database, so a test that commits is a bug
   # (ADR-030). Runs first and needs no credentials.
@@ -59,12 +220,20 @@ jobs:
       - run: node scripts/check-pgtap-rollback.mjs
 
   migrate:
+    needs: database-recovery-preflight
     runs-on: ubuntu-latest
     outputs:
       migrations_changed: ${{ steps.changed.outputs.changed }}
+      schema_ready: ${{ steps.applied.outputs.schema_ready || steps.dispatch-proof.outputs.schema_ready }}
     steps:
       - uses: actions/checkout@v7
         with: { fetch-depth: 0 }
+      - uses: actions/setup-node@v7
+        with: { node-version: '24' }
+      - if: github.event_name == 'workflow_dispatch'
+        uses: pnpm/action-setup@v6
+      - if: github.event_name == 'workflow_dispatch'
+        run: pnpm install --frozen-lockfile
       - uses: supabase/setup-cli@v3
         with: { version: 2.110.0 }
       - name: Did this change add or edit migrations?
@@ -97,8 +266,30 @@ jobs:
         if: steps.has.outputs.any == 'true' && github.event_name == 'pull_request'
         run: supabase db push --linked --dry-run
       - name: Apply migrations (merge to main, in merge order)
-        if: steps.has.outputs.any == 'true' && github.event_name == 'push'
-        run: supabase db push --linked
+        id: applied
+        if: steps.has.outputs.any == 'true' && github.event_name == 'push' && github.repository == 'OGUN01/gymloop' && github.ref == 'refs/heads/main'
+        run: |
+          supabase db push --linked
+          echo "schema_ready=true" >> "$GITHUB_OUTPUT"
+      - name: Prove dispatch has no unapplied migrations (readonly)
+        id: dispatch-proof
+        if: steps.has.outputs.any == 'true' && github.event_name == 'workflow_dispatch' && github.repository == 'OGUN01/gymloop' && github.ref == 'refs/heads/main'
+        run: |
+          node --input-type=module <<'JS'
+          import {spawnSync} from 'node:child_process';
+          import {appendFileSync} from 'node:fs';
+          import {nativeDatabaseValidationEnv,nativeDatabaseProcessEnv} from './packages/shared/src/config/env.ts';
+          import {NATIVE_DB_VALIDATION as limits} from './packages/shared/src/config/constants.ts';
+          const runtime=nativeDatabaseValidationEnv();
+          const result=spawnSync('supabase',['db','push','--linked','--dry-run'],{env:nativeDatabaseProcessEnv(),encoding:'utf8',timeout:limits.nativeCleanupReserveMs,maxBuffer:limits.maxProcessBytes});
+          const lines=result.stderr?.split(/\r?\n/).filter(Boolean);
+          const approved=['DRY RUN: migrations will *not* be pushed to the database.','Connecting to remote database...'];
+          if(result.error || result.signal || result.status !== 0 || result.stdout !== 'Remote database is up to date.\n' || !lines || !lines.includes(approved[0]) || lines.some(line=>!approved.includes(line))) {
+            throw new Error('Readonly dispatch migration provenance is unverified.');
+          }
+          appendFileSync(runtime.GITHUB_OUTPUT,'schema_ready=true\n');
+          console.log('Readonly dispatch verified every committed migration is applied.');
+          JS
 
   # Compared against Cloud after `migrate`, so a merged migration and its
   # regenerated types are checked as a pair. Skipped on a PR that changes
@@ -115,6 +306,7 @@ jobs:
         with: { version: 2.110.0 }
       - if: github.event_name == 'push' || needs.migrate.outputs.migrations_changed == 'false'
         name: Generate types from Cloud and diff against committed
+        id: drift
         run: |
           supabase gen types typescript --project-id "$PROJECT_REF" > /tmp/fresh.ts
           grep -v '^[[:space:]]*//' /tmp/fresh.ts | grep -v '^[[:space:]]*$' > /tmp/fresh.stripped.ts
@@ -124,6 +316,29 @@ jobs:
             exit 1
           fi
           echo "packages/db/types/database.ts matches the schema."
+      - name: Bind the successful hosted migration and drift to schema bytes
+        if: steps.drift.outcome == 'success' && needs.migrate.outputs.schema_ready == 'true'
+        run: |
+          mkdir -p .dbv
+          python - '${{ github.sha }}' '${{ github.run_id }}' '${{ github.run_attempt }}' <<'PY'
+          import hashlib, json, pathlib, sys
+          root = pathlib.Path.cwd()
+          migrations = []
+          for path in sorted((root / 'supabase/migrations').rglob('*.sql')):
+              if path.is_symlink() or path.resolve() != path:
+                  raise SystemExit('Refusing schema path custody')
+              migrations.append({'path': path.relative_to(root).as_posix(), 'sha256': hashlib.sha256(path.read_bytes()).hexdigest()})
+          encoded = (json.dumps(migrations, separators=(',', ':')) + '\n').encode()
+          identity = {'migrationsSha256': hashlib.sha256(encoded).hexdigest(), 'generatedTypesSha256': hashlib.sha256((root / 'packages/db/types/database.ts').read_bytes()).hexdigest()}
+          receipt = {'formatVersion': 1, 'sourceSha': sys.argv[1], 'runId': sys.argv[2], 'runAttempt': sys.argv[3], 'migrate': 'success', 'drift': 'success', 'schemaIdentity': identity}
+          (root / '.dbv/schema.json').write_text(json.dumps(receipt, separators=(',', ':')) + '\n')
+          PY
+      - uses: actions/upload-artifact@v5
+        if: steps.drift.outcome == 'success' && needs.migrate.outputs.schema_ready == 'true'
+        with:
+          name: native-db-schema-${{ github.run_id }}-${{ github.run_attempt }}
+          path: .dbv/schema.json
+          if-no-files-found: error
 
   # The seed, run end to end inside BEGIN ... ROLLBACK, so it is proved to
   # still work against the schema this push just applied -- without writing a
@@ -155,7 +370,14 @@ jobs:
   # one workflow run concurrently by default, which is exactly the thing that
   # group cannot protect against.
   seed-dry-run:
-    needs: [migrate, pgtap]
+    needs: [migrate, pgtap, timeout-guardian, native-selector, native-job-metadata]
+    if: >-
+      always() && github.repository == 'OGUN01/gymloop' && github.ref == 'refs/heads/main' &&
+      (github.event_name == 'push' || github.event_name == 'workflow_dispatch') &&
+      needs.migrate.result == 'success' && needs.migrate.outputs.schema_ready == 'true' && needs.native-selector.result == 'success' &&
+      (needs.pgtap.result == 'success' || needs.native-selector.outputs.run == 'false') &&
+      (needs.timeout-guardian.result == 'success' || needs.native-selector.outputs.run == 'false') &&
+      (needs.native-job-metadata.result == 'success' || needs.native-selector.outputs.run == 'false')
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -253,27 +475,30 @@ jobs:
           PY
           done
 
-  # Full pgTAP suite against the Cloud project, after the apply, never
-  # concurrently with another merge (see `concurrency` above). Every file is
-  # rollback-wrapped, enforced by `pgtap-rollback`. Same PR skip rule as drift.
-  pgtap:
-    needs: [migrate, pgtap-rollback]
+  # Hosted selection resolves readiness before the worker's runs-on expression.
+  native-selector:
+    needs: [migrate, pgtap-rollback, schema-drift]
     runs-on: ubuntu-latest
+    outputs:
+      run: ${{ steps.check.outputs.run }}
+      labels: ${{ steps.select.outputs.labels }}
+      timeout_minutes: ${{ steps.select.outputs.timeout_minutes }}
     steps:
       - uses: actions/checkout@v7
         with: { fetch-depth: 0 }
+      - uses: actions/setup-node@v7
+        with: { node-version: '24' }
       - name: Decide whether the suite can run here
         id: check
         run: |
-          if [ -z "$(find supabase/tests -name '*.sql' 2>/dev/null)" ]; then
-            echo "No pgTAP tests yet (schema is Phase 1 — docs/gates.md gates 6-11). Nothing to run."
+          if [ "${{ github.repository }}" != "OGUN01/gymloop" ] || [ "${{ github.ref }}" != "refs/heads/main" ] || { [ "${{ github.event_name }}" != "push" ] && [ "${{ github.event_name }}" != "workflow_dispatch" ]; }; then
+            echo "::notice::Full native validation requires the serialized trusted main push or dispatch."
             echo "run=false" >> "$GITHUB_OUTPUT"
             exit 0
           fi
-          if [ "${{ github.event_name }}" = "pull_request" ] && [ "${{ needs.migrate.outputs.migrations_changed }}" = "true" ]; then
-            echo "::notice::PR changes supabase/migrations; pgTAP runs on the post-merge run of main (ADR-030)."
-            echo "run=false" >> "$GITHUB_OUTPUT"
-            exit 0
+          if [ "${{ needs.migrate.outputs.schema_ready }}" != "true" ]; then
+            echo "::error::Applied schema provenance is unavailable."
+            exit 1
           fi
           # The suite costs ~700 wallclock seconds and, until now, ran on every
           # push to main including documentation-only ones. Skip it when the
@@ -293,52 +518,211 @@ jobs:
           # schema-drift (its own job, always run on a types push) is their gate.
           # A push that changes ONLY packages/db/types/ therefore skips the suite
           # (ADR-177). Any other file under supabase/ or packages/db/ still runs it.
-          if echo "$changed" | grep -vE '^packages/db/types/' | grep -qE '^(supabase/|packages/db/|scripts/check-pgtap-rollback|scripts/pgtap/splice\.py$|\.github/workflows/db\.yml)'; then
+          if echo "$changed" | grep -vE '^packages/db/types/' | grep -qE '^(supabase/|packages/db/|scripts/check-pgtap-rollback|scripts/pgtap/|scripts/native-(database-validation|runner-guard|runner-hook)\.mjs$|packages/shared/src/config/(env|constants)\.ts$|pnpm-lock\.yaml$|\.github/actions/native-database-validation/|\.github/workflows/(db|native-database-preflight)\.yml$)'; then
             echo "run=true" >> "$GITHUB_OUTPUT"
           else
             echo "::notice::This push touches no migration, no pgTAP file, no non-type packages/db file and not this workflow. Skipping the suite; schema-drift still verifies any generated types."
             echo "run=false" >> "$GITHUB_OUTPUT"
           fi
-      # The anti-gaming half of the suite (AGENTS.md hard rule #10). The
-      # holdout files are written blind by an author that reads neither the
-      # visible suite nor the implementation, and run against the same database
-      # in the same job — same rollback rule, same verdict. They lived in a
-      # separate private repo until ADR-060 moved them here: hard rule 10
-      # already stops an implementer reading them, so the second repository was
-      # buying nothing over the second author while costing a push per round
-      # and — the expensive part — the orchestrator's ability to read a failing
-      # file, which turned every red holdout assertion into a round trip.
-      #
-      # Fail closed, not open. A holdout suite that silently isn't there is
-      # exactly the jammed gate docs/gates.md was burned by in Phase 0: the job
-      # goes green having run half of what it claims to run.
-      - name: Holdout files exist and are rollback-wrapped too (ADR-030)
-        id: paths
-        if: steps.check.outputs.run == 'true'
+      - name: Resolve source-bound online readiness or hosted fallback
+        id: select
+        uses: actions/github-script@v8
+        with:
+          script: |
+            const {chooseNativeRunnerLabels} = await import(`${process.cwd()}/scripts/pgtap/runner-job.mjs`);
+            const {NATIVE_DB_VALIDATION: limits} = await import(`${process.cwd()}/packages/shared/src/config/constants.ts`);
+            const job = {repository: `${context.repo.owner}/${context.repo.repo}`, eventName: context.eventName,
+              ref: context.ref, sourceSha: context.sha, runId: String(context.runId), runAttempt: String(${{ toJSON(github.run_attempt) }}),
+              workflowRef: ${{ toJSON(github.workflow_ref) }}};
+            let runner = null;
+            try {
+              const readiness = JSON.parse(${{ toJSON(vars.NATIVE_DB_RUNNER_READINESS) }});
+              const keys = ['formatVersion','verifiedAt','expiresAt','runner'];
+              const now = Date.now();
+              const verified = Date.parse(readiness.verifiedAt);
+              const expires = Date.parse(readiness.expiresAt);
+              if (Object.keys(readiness).length === keys.length && keys.every(key => Object.hasOwn(readiness,key)) &&
+                  readiness.formatVersion === limits.formatVersion && new Date(verified).toISOString() === readiness.verifiedAt &&
+                  new Date(expires).toISOString() === readiness.expiresAt && verified <= now && now - verified <= limits.readinessMaxAgeMs &&
+                  expires > now && expires - verified <= limits.readinessMaxAgeMs) runner = readiness.runner;
+            } catch { /* absent, malformed, or expired admin-verified readiness uses hosted */ }
+            const labels = chooseNativeRunnerLabels({job,runner});
+            core.setOutput('labels', JSON.stringify(labels));
+            core.setOutput('timeout_minutes', String(limits.maxRunnerLifetimeMinutes));
+            core.info(labels[0] === 'self-hosted' ? 'Verified one-job Windows runner selected.' : 'Hosted native validation selected.');
+
+  pgtap:
+    needs: [migrate, pgtap-rollback, schema-drift, native-selector]
+    if: needs.native-selector.outputs.run == 'true' && github.repository == 'OGUN01/gymloop' && github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+    runs-on: ${{ fromJSON(needs.native-selector.outputs.labels) }}
+    timeout-minutes: ${{ fromJSON(needs.native-selector.outputs.timeout_minutes) }}
+    steps:
+      - name: Record adapter setup start before checkout
+        shell: ${{ runner.os == 'Windows' && 'powershell' || 'bash' }}
         run: |
-          if [ -z "$(find supabase/tests-holdout -name '*.sql' 2>/dev/null)" ]; then
-            echo "::error::The visible pgTAP suite has files but supabase/tests-holdout has no *.sql. The holdout half of the suite is not running."
-            exit 1
-          fi
-          echo "dirs=supabase/tests supabase/tests-holdout" >> "$GITHUB_OUTPUT"
-      - if: steps.check.outputs.run == 'true'
-        uses: supabase/setup-cli@v3
+          ${{ runner.os == 'Windows' && '"DBV_SETUP_STARTED_AT=$([DateTime]::UtcNow.ToString("yyyy-MM-dd''T''HH:mm:ss.fff''Z''"))" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append' || 'echo "DBV_SETUP_STARTED_AT=$(date -u +%Y-%m-%dT%H:%M:%S.%3NZ)" >> "$GITHUB_ENV"' }}
+      - uses: actions/checkout@v7
+        with: { fetch-depth: 0 }
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with: { node-version: '24', cache: pnpm }
+      - name: Install the frozen adapter dependencies
+        shell: ${{ runner.os == 'Windows' && 'powershell' || 'bash' }}
+        run: pnpm install --frozen-lockfile
+      - name: Use the verified Git Bash executable for the pinned CLI installer
+        if: runner.os == 'Windows'
+        shell: powershell
+        run: |
+          $gitBash = 'C:/Program Files/Git/bin/bash.exe'
+          if (-not (Test-Path -LiteralPath $gitBash -PathType Leaf)) { throw 'Verified Git Bash is unavailable.' }
+          $version = & $gitBash --version
+          if ($LASTEXITCODE -ne 0 -or -not ($version[0] -match '^GNU bash, version ')) { throw 'Git Bash verification failed.' }
+          'C:/Program Files/Git/bin' | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+      - uses: supabase/setup-cli@v3
         with: { version: 2.110.0 }
-      - if: steps.check.outputs.run == 'true'
-        run: supabase link --project-ref "$PROJECT_REF" --yes
-      # One invocation again. It was split three ways while the CLI had to mint
-      # a temporary login role per connection (ADR-048); with a stable
-      # SUPABASE_DB_PASSWORD the CLI connects as `postgres` and the ceiling
-      # that forced the split is gone.
-      - if: steps.check.outputs.run == 'true'
-        # The heavy OCC/holdout suites' staging exceeds the project's default
-        # 2-minute statement_timeout on the CI runner (the local runs at
-        # Asia/Kolkata pass; the CI's UTC + slower worker crosses it). Raise
-        # the session ceiling for this connection only — the project setting
-        # is unchanged.
-        run: |
-          printf "alter role postgres set statement_timeout = '10min';" > /tmp/raise_timeout.sql
-          supabase db query --linked -f /tmp/raise_timeout.sql
-          supabase test db --linked ${{ steps.paths.outputs.dirs }}
-          printf "alter role postgres set statement_timeout = '2min';" > /tmp/lower_timeout.sql
-          supabase db query --linked -f /tmp/lower_timeout.sql || true
+      - uses: actions/download-artifact@v5
+        with:
+          name: native-db-schema-${{ github.run_id }}-${{ github.run_attempt }}
+          path: .dbv
+      - name: Freeze full rollback-safe file and schema metadata
+        uses: ./.github/actions/native-database-validation
+        with:
+          command: manifest
+          manifest: .dbv/manifest.json
+          receipt: .dbv/schema.json
+          out-dir: ${{ runner.temp }}/native-db-${{ github.run_id }}-${{ github.run_attempt }}
+          source-sha: ${{ github.sha }}
+      - uses: actions/upload-artifact@v5
+        with:
+          name: native-db-manifest-${{ github.run_id }}-${{ github.run_attempt }}
+          path: .dbv/manifest.json
+          if-no-files-found: error
+      - name: Validate the full native suite with outside-worker recovery custody
+        id: native
+        uses: ./.github/actions/native-database-validation
+        env:
+          DBV_SCHEMA_RECEIPT: .dbv/schema.json
+          BACKUP_ENCRYPTION_KEY_B64: ${{ secrets.BACKUP_ENCRYPTION_KEY_B64 }}
+          GITHUB_TOKEN: ${{ github.token }}
+        with:
+          command: run
+          manifest: .dbv/manifest.json
+          receipt: .dbv/final.json
+          out-dir: ${{ runner.temp }}/native-db-${{ github.run_id }}-${{ github.run_attempt }}
+          source-sha: ${{ github.sha }}
+      - name: Retain sanitized native receipt
+        if: always()
+        uses: actions/upload-artifact@v5
+        with:
+          name: native-db-final-${{ github.run_id }}-${{ github.run_attempt }}
+          path: .dbv/final.json
+          if-no-files-found: warn
+      - name: Retain client-only smoke metadata
+        if: always()
+        uses: actions/upload-artifact@v5
+        with:
+          name: native-db-client-smoke-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/native-db-${{ github.run_id }}-${{ github.run_attempt }}/client-smoke.json
+          if-no-files-found: warn
+      - name: Retain the explicit interim timing boundary
+        if: always()
+        uses: actions/upload-artifact@v5
+        with:
+          name: native-db-timing-boundary-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/native-db-${{ github.run_id }}-${{ github.run_attempt }}/timing-boundary.json
+          if-no-files-found: warn
+      - name: Retain sanitized encrypted-artifact custody verification
+        if: always()
+        uses: actions/upload-artifact@v5
+        with:
+          name: native-db-private-custody-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/native-db-${{ github.run_id }}-${{ github.run_attempt }}/private-custody.json
+          if-no-files-found: warn
+
+  # Uses the completed GitHub job, including Action post-steps. Adapter timing
+  # ends at retained evidence capture and cannot establish this complete wall.
+  native-job-metadata:
+    needs: [pgtap, native-selector]
+    if: always() && needs.native-selector.outputs.run == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: Retain actual completed native job timing
+        uses: actions/github-script@v8
+        with:
+          script: |
+            const {mkdir,writeFile} = await import('node:fs/promises');
+            const {NATIVE_DB_VALIDATION: limits} = await import(`${process.cwd()}/packages/shared/src/config/constants.ts`);
+            const attempt = Number('${{ github.run_attempt }}');
+            const jobs = await github.paginate(github.rest.actions.listJobsForWorkflowRunAttempt,{...context.repo,run_id:context.runId,attempt_number:attempt});
+            const matches = jobs.filter(job=>job.name===limits.job);
+            if (matches.length !== 1) throw new Error('Exact completed native job metadata is unavailable.');
+            const job=matches[0];
+            const start=Date.parse(job.started_at),end=Date.parse(job.completed_at);
+            if (job.status!=='completed' || !job.conclusion || !Number.isSafeInteger(job.id) || job.id<=0 || job.run_id!==context.runId || job.head_sha!==context.sha ||
+                !Number.isSafeInteger(job.runner_id) || job.runner_id<0 || !Number.isSafeInteger(start) || !Number.isSafeInteger(end) || end<start || end>Date.now() ||
+                !Array.isArray(job.labels) || !job.labels.every(label=>typeof label==='string')) throw new Error('Completed native job timing binding is invalid.');
+            const runnerEnvironment=job.labels.includes('self-hosted') ? 'self-hosted' : job.labels.some(label=>/^(ubuntu|windows|macos)-/.test(label)) ? 'github-hosted' : null;
+            if (!runnerEnvironment) throw new Error('Native runner environment metadata is unavailable.');
+            const receipt={formatVersion:limits.formatVersion,runId:`${context.runId}-${attempt}`,sourceSha:context.sha,
+              jobId:String(job.id),runnerId:job.runner_id,runnerEnvironment,conclusion:job.conclusion,
+              startedAt:new Date(start).toISOString(),completedAt:new Date(end).toISOString(),fullCiJobMs:end-start,
+              collectedAt:new Date().toISOString(),method:'github-actions-run-attempt-job-metadata'};
+            await mkdir('.dbv',{recursive:true});
+            await writeFile('.dbv/github-job.json',JSON.stringify(receipt)+'\n',{flag:'wx'});
+            core.info(`Completed native CI job wall: ${receipt.fullCiJobMs}ms, measured by GitHub.`);
+      - uses: actions/upload-artifact@v5
+        with:
+          name: native-db-ci-job-${{ github.run_id }}-${{ github.run_attempt }}
+          path: .dbv/github-job.json
+          if-no-files-found: error
+
+  # This job runs on GitHub independently of the worker, including worker loss.
+  # It never runs SQL suites, seeds, or migrations.
+  timeout-guardian:
+    needs: [pgtap, native-selector]
+    if: always() && needs.native-selector.outputs.run == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with: { node-version: '24', cache: pnpm }
+      - run: pnpm install --frozen-lockfile
+      - uses: supabase/setup-cli@v3
+        with: { version: 2.110.0 }
+      - name: Find the exact armed receipt, including an earlier attempt of this run
+        id: recovery
+        uses: actions/github-script@v8
+        with:
+          script: |
+            const artifacts = await github.paginate(github.rest.actions.listWorkflowRunArtifacts,{...context.repo,run_id:context.runId});
+            const prefix = `native-db-recovery-${context.runId}-`;
+            const candidates = artifacts.filter(item => item.name.startsWith(prefix) && /^[1-9]\d*$/.test(item.name.slice(prefix.length)) &&
+              BigInt(item.name.slice(prefix.length)) <= BigInt('${{ github.run_attempt }}') && !item.expired).sort((a,b) => {
+                const left=BigInt(a.name.slice(prefix.length)),right=BigInt(b.name.slice(prefix.length));
+                return left>right ? -1 : left<right ? 1 : 0;
+              });
+            if (candidates.length === 0) throw new Error('Recovery receipt unavailable; restoration remains unverified.');
+            const name = candidates[0].name;
+            core.setOutput('name',name);
+            core.setOutput('manifest',name.replace('native-db-recovery-','native-db-manifest-'));
+      - uses: actions/download-artifact@v5
+        with:
+          name: ${{ steps.recovery.outputs.name }}
+          path: .dbv/recovery
+      - uses: actions/download-artifact@v5
+        with:
+          name: ${{ steps.recovery.outputs.manifest }}
+          path: .dbv
+      - run: supabase link --project-ref "$PROJECT_REF" --yes
+      - name: Restore and freshly verify only the captured role-global timeout
+        uses: ./.github/actions/native-database-validation
+        env:
+          DBV_RECOVERY_ARTIFACT: ${{ steps.recovery.outputs.name }}
+        with:
+          command: restore
+          manifest: .dbv/manifest.json
+          receipt: .dbv/recovery/recovery.json
+          out-dir: ${{ runner.temp }}/native-db-guardian-${{ github.run_id }}-${{ github.run_attempt }}
+          source-sha: ${{ github.sha }}

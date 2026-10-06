@@ -1,0 +1,48 @@
+name: Native database runner guard probe
+
+# Operator dispatch only. The protected runner hook must reject this job in
+# setup, before checkout or any Action pre-step. It has no Cloud credentials.
+on:
+  workflow_dispatch:
+    inputs:
+      label:
+        description: Exact disposable OS/run/attempt/source label being probed
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  probe-configuration:
+    if: github.repository == 'OGUN01/gymloop' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    outputs:
+      timeout_minutes: ${{ steps.configuration.outputs.timeout_minutes }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with: { node-version: '24' }
+      - uses: pnpm/action-setup@v6
+      - run: pnpm install --frozen-lockfile
+      - id: configuration
+        run: |
+          node --input-type=module <<'JS'
+          import {appendFileSync} from 'node:fs';
+          import {nativeDatabaseValidationEnv} from './packages/shared/src/config/env.ts';
+          import {NATIVE_DB_VALIDATION as limits} from './packages/shared/src/config/constants.ts';
+          appendFileSync(nativeDatabaseValidationEnv().GITHUB_OUTPUT, `timeout_minutes=${limits.guardProbeTimeoutMinutes}\n`);
+          JS
+
+  guard-probe:
+    needs: probe-configuration
+    if: github.repository == 'OGUN01/gymloop' && github.ref == 'refs/heads/main'
+    runs-on: [self-hosted, Windows, X64, '${{ inputs.label }}']
+    timeout-minutes: ${{ fromJSON(needs.probe-configuration.outputs.timeout_minutes) }}
+    steps:
+      - uses: actions/checkout@v7
+      - name: This step must be unreachable after the protected setup guard
+        shell: powershell
+        run: |
+          Write-Error 'The protected pre-job hook failed to reject an untrusted job.'
+          exit 1

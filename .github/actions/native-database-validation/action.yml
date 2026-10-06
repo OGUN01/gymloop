@@ -1,0 +1,21 @@
+name: Native database validation
+description: Run the frozen native database adapter with private Action runtime artifact custody
+inputs:
+  command:
+    description: Frozen manifest, run, verify, or restore command
+    required: true
+  manifest:
+    description: Source-bound manifest path
+    required: true
+  receipt:
+    description: Hosted schema, sanitized final, or recovery receipt path
+    required: true
+  out-dir:
+    description: Protected retention directory outside the checkout
+    required: true
+  source-sha:
+    description: Exact approved source revision
+    required: true
+runs:
+  using: node24
+  main: ../../../scripts/native-database-validation.mjs

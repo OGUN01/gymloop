@@ -5968,6 +5968,16 @@ export type Database = {
           validity_days: number
         }[]
       }
+      read_member_shop_reservation_page: {
+        Args: { p_after_created_at?: string; p_after_id?: string }
+        Returns: {
+          active_reservations: Json
+          as_of: string
+          history: Json
+          next_after_created_at: string
+          next_after_id: string
+        }[]
+      }
       read_member_shop_reservations: {
         Args: never
         Returns: {
