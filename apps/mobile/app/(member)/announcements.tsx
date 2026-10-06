@@ -10,7 +10,7 @@ export default function AnnouncementsScreen() {
   const feed = useAnnouncements();
   const nouns = useBusinessNouns();
   const snapshot = useMemberSnapshot();
-  return <Screen><Title>Announcements</Title>
+  return <Screen><Title fit>Announcements</Title>
     {feed.loading && !feed.cards.length ? <LoadingState /> : null}
     <AnnouncementsSection feed={feed} timezone={snapshot.data?.gym.timezone ?? DEFAULT_TIMEZONE} showAll />
     {!feed.loading && !feed.error && !feed.cards.length ? <EmptyState title="No announcements yet.">Updates from your {nouns.place} will appear here.</EmptyState> : null}
