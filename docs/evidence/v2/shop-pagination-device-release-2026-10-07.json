@@ -1,0 +1,234 @@
+{
+  "scope": "Fresh OnePlus isolated APK Shop paging and contextual-navigation smoke; separate read-only deployed HTTP proof supplies public transport bounds",
+  "observedUtc": "2026-10-06T21:01:59.100506+00:00",
+  "sourceCommit": "c77cfbaf60054951fae707bc5bdb62f801d43b41",
+  "device": {
+    "serial": "INPZT8DQPJROKFXC",
+    "model": "OnePlus DN2101",
+    "package": "in.fitcruxx.v2check",
+    "account": "Aarav Deshpande / aarav.member@ironbox.example.com",
+    "appearance": "dark",
+    "fontScale": 1,
+    "classesDiscoveryObserved": "Off: Home, Shop, You, Activity",
+    "originalOwnerClassesSettingModified": false,
+    "globalDeviceSettingsModified": false
+  },
+  "installation": {
+    "SourceCommit": "c77cfbaf60054951fae707bc5bdb62f801d43b41",
+    "Serial": "INPZT8DQPJROKFXC",
+    "InstalledUtc": "2026-10-06T20:52:57.3319752Z",
+    "ApkSHA256": "0E7FB048A6F99C4B5152A42F4530967C9DC33991730882D3CCF297C22419334D",
+    "InstalledArtifactHashMatches": true,
+    "TestPackage": "in.fitcruxx.v2check",
+    "StablePilotIdentityUnchanged": true,
+    "StablePilotIdentity": [
+      "codePath=/data/app/~~YXX4xUrUiFiYRT2dkLHXAA==/in.fitcruxx.app-mIDc7QTn9c5UdDlFc0HHWg==",
+      "versionCode=4 minSdk=24 targetSdk=36",
+      "lastUpdateTime=2026-09-27 10:15:53",
+      "installerPackageName=com.android.vending",
+      "signatures=PackageSignatures{ version:3, signatures:[95b8e126], past signatures:[]}",
+      "firstInstallTime=2026-09-25 13:28:45"
+    ],
+    "InstalledPilotBeforeAndAfterAPKBytesEqual": true,
+    "PilotAPKHash": "8D1F7904791BFC6DE2DE5129CBFA5F3C5CA9691A4BCF087D84320048C56AA65B",
+    "PilotCertificateSHA256": "16b7acef4f33c45f9eae52d45cef76f86a2571eb50c28183de1146160a05a384",
+    "ProductionPackageInstalled": false,
+    "UninstallOrClearExecuted": false,
+    "PlaySignedPackageMutationExecuted": false,
+    "InstalledAfterCertificates": {
+      "in.fitcruxx.v2check": {
+        "certificateSHA256": "fac61745dc0903786fb9ede62a962b399f7348f0bb6f899b8332667591033b9c",
+        "afterInstalledAPKCertificateVerified": true
+      },
+      "in.fitcruxx.app": {
+        "certificateSHA256": "16b7acef4f33c45f9eae52d45cef76f86a2571eb50c28183de1146160a05a384",
+        "afterInstalledAPKCertificateVerified": true
+      }
+    }
+  },
+  "checks": {
+    "homeFourPrimaryTabs": true,
+    "catalogueFirst": true,
+    "initialVisibleReservations": 3,
+    "visibleReservationsAfterOneLoadMore": 8,
+    "additionalRowsPerExplicitTap": 5,
+    "priorRowsAndHeaderScrollPositionPreserved": true,
+    "refreshRestoresThreeRowPreview": true,
+    "buyOpensContextuallyWithFourPrimaryTabs": true,
+    "hubBuyAndRenewalEntries": true,
+    "freezeAdjacentToMembership": true,
+    "reservationPurchaseFreezePaymentOrBookingCommandSubmitted": false,
+    "deviceNetworkTraceCaptured": false,
+    "separateBoundedHttpProof": "docs/evidence/v2/shop-pagination-deployed-read-2026-10-07.json"
+  },
+  "scrollEvidence": {
+    "initialThree": [
+      {
+        "text": "Hold ended 6 Oct, 11:59 pm",
+        "bounds": "[60,958][1020,1033]"
+      },
+      {
+        "text": "Hold ended 5 Oct, 11:40 pm",
+        "bounds": "[60,1352][1020,1427]"
+      },
+      {
+        "text": "Hold ended 5 Oct, 11:15 pm",
+        "bounds": "[60,1746][1020,1821]"
+      }
+    ],
+    "afterRefreshThree": [
+      {
+        "text": "Hold ended 6 Oct, 11:59 pm",
+        "bounds": "[60,958][1020,1033]"
+      },
+      {
+        "text": "Hold ended 5 Oct, 11:40 pm",
+        "bounds": "[60,1352][1020,1427]"
+      },
+      {
+        "text": "Hold ended 5 Oct, 11:15 pm",
+        "bounds": "[60,1746][1020,1821]"
+      }
+    ],
+    "sameFirstThreeAfterSettledContinuation": [
+      {
+        "text": "Hold ended 6 Oct, 11:59 pm",
+        "bounds": "[60,958][1020,1033]"
+      },
+      {
+        "text": "Hold ended 5 Oct, 11:40 pm",
+        "bounds": "[60,1352][1020,1427]"
+      },
+      {
+        "text": "Hold ended 5 Oct, 11:15 pm",
+        "bounds": "[60,1746][1020,1821]"
+      }
+    ],
+    "newFiveInBottomViewport": [
+      {
+        "text": "Hold ended 5 Oct, 11:14 pm",
+        "bounds": "[60,170][1020,245]"
+      },
+      {
+        "text": "Hold ended 5 Oct, 11:14 pm",
+        "bounds": "[60,564][1020,639]"
+      },
+      {
+        "text": "Hold ended 5 Oct, 11:04 pm",
+        "bounds": "[60,958][1020,1033]"
+      },
+      {
+        "text": "Hold ended 5 Oct, 11:04 pm",
+        "bounds": "[60,1352][1020,1427]"
+      },
+      {
+        "text": "Hold ended 5 Oct, 10:59 pm",
+        "bounds": "[60,1746][1020,1821]"
+      }
+    ],
+    "reservationHeaderBoundsBeforeAfterAndRefresh": [
+      "[60,591][1020,639]",
+      "[60,591][1020,639]",
+      "[60,591][1020,639]"
+    ]
+  },
+  "screenshots": [
+    {
+      "path": "docs/evidence/screens/2026-10-07-device-pagination-final-home-dark.png",
+      "pngSHA256": "03FAEEC2D9D15AD9641FE63179C8162936E075890132E9AA8B5A1D5211D5E5DE",
+      "privateXMLSHA256": "0146092675D397063E250A8479C33C78D10B74C5ED340859FC288D2EB9F05B3D",
+      "sourceCommit": "c77cfbaf60054951fae707bc5bdb62f801d43b41",
+      "apkSHA256": "0E7FB048A6F99C4B5152A42F4530967C9DC33991730882D3CCF297C22419334D",
+      "fontScale": 1,
+      "appearance": "dark",
+      "label": "pagination-final-home-dark"
+    },
+    {
+      "path": "docs/evidence/screens/2026-10-07-device-pagination-final-shop-ready-dark.png",
+      "pngSHA256": "73BEFA6263947D00B4AD6D53CD27B3905D5B47CDBD119C29D63D572569E04E8A",
+      "privateXMLSHA256": "628D3D41DB26E406789710685A6AC1FF9C78117B4936BC233B5B004956425369",
+      "sourceCommit": "c77cfbaf60054951fae707bc5bdb62f801d43b41",
+      "apkSHA256": "0E7FB048A6F99C4B5152A42F4530967C9DC33991730882D3CCF297C22419334D",
+      "fontScale": 1,
+      "appearance": "dark",
+      "label": "pagination-final-shop-ready-dark"
+    },
+    {
+      "path": "docs/evidence/screens/2026-10-07-device-pagination-final-shop-three-dark.png",
+      "pngSHA256": "1248D5143A78457AE04DC2FC29CAEEC8999E1B21B3AEDA9A9F47E2550960E337",
+      "privateXMLSHA256": "7932F14695BC119DBD601674656965D388A4F3E655710281AFDE9BC08464FAA5",
+      "sourceCommit": "c77cfbaf60054951fae707bc5bdb62f801d43b41",
+      "apkSHA256": "0E7FB048A6F99C4B5152A42F4530967C9DC33991730882D3CCF297C22419334D",
+      "fontScale": 1,
+      "appearance": "dark",
+      "label": "pagination-final-shop-three-dark"
+    },
+    {
+      "path": "docs/evidence/screens/2026-10-07-device-pagination-final-shop-more-middle-dark.png",
+      "pngSHA256": "1F1F5E090A4327B7417B3F5331458EC122E621C78D0BFE44D1D1CC4BBB960F81",
+      "privateXMLSHA256": "85FE1A316CBF78720BEFD539F599C18EB4536DA37FC4102A5742FAD3E2119369",
+      "sourceCommit": "c77cfbaf60054951fae707bc5bdb62f801d43b41",
+      "apkSHA256": "0E7FB048A6F99C4B5152A42F4530967C9DC33991730882D3CCF297C22419334D",
+      "fontScale": 1,
+      "appearance": "dark",
+      "label": "pagination-final-shop-more-middle-dark"
+    },
+    {
+      "path": "docs/evidence/screens/2026-10-07-device-pagination-final-shop-eight-dark.png",
+      "pngSHA256": "0A7A890392D85FA028415DF633F4CAD663A5E2A4DDAC431ED6B8CBF262E9E168",
+      "privateXMLSHA256": "A83E3E6B768C0C84FF99B3BF83FA494AA6F4D782653803FF6F71ED76D017EB89",
+      "sourceCommit": "c77cfbaf60054951fae707bc5bdb62f801d43b41",
+      "apkSHA256": "0E7FB048A6F99C4B5152A42F4530967C9DC33991730882D3CCF297C22419334D",
+      "fontScale": 1,
+      "appearance": "dark",
+      "label": "pagination-final-shop-eight-dark"
+    },
+    {
+      "path": "docs/evidence/screens/2026-10-07-device-pagination-final-shop-refreshed-three-dark.png",
+      "pngSHA256": "A96C6267592D8EDBB59F6B805D33FE0694041437B0F565C1B6CA5BC9B6132791",
+      "privateXMLSHA256": "7932F14695BC119DBD601674656965D388A4F3E655710281AFDE9BC08464FAA5",
+      "sourceCommit": "c77cfbaf60054951fae707bc5bdb62f801d43b41",
+      "apkSHA256": "0E7FB048A6F99C4B5152A42F4530967C9DC33991730882D3CCF297C22419334D",
+      "fontScale": 1,
+      "appearance": "dark",
+      "label": "pagination-final-shop-refreshed-three-dark"
+    },
+    {
+      "path": "docs/evidence/screens/2026-10-07-device-pagination-final-shop-more-settled-position-dark.png",
+      "pngSHA256": "AB380C205F219D2FC5B62290B00A87C22131414E46679EDD3E988C877DBD9F1F",
+      "privateXMLSHA256": "B56A36625172EDF41541F4519C00F9BCEC8A0B2FB44D4F2CF4DC235680AC747D",
+      "sourceCommit": "c77cfbaf60054951fae707bc5bdb62f801d43b41",
+      "apkSHA256": "0E7FB048A6F99C4B5152A42F4530967C9DC33991730882D3CCF297C22419334D",
+      "fontScale": 1,
+      "appearance": "dark",
+      "label": "pagination-final-shop-more-settled-position-dark"
+    },
+    {
+      "path": "docs/evidence/screens/2026-10-07-device-pagination-final-buy-context-dark.png",
+      "pngSHA256": "03F60F6FE9FC719725E0F3C681E51C190B545FFED2BA31250721AA6EDE31F150",
+      "privateXMLSHA256": "9C08CEBB147AE90615E050CE1563E42262B2427F083B49F5A33B12113B1DCBF4",
+      "sourceCommit": "c77cfbaf60054951fae707bc5bdb62f801d43b41",
+      "apkSHA256": "0E7FB048A6F99C4B5152A42F4530967C9DC33991730882D3CCF297C22419334D",
+      "fontScale": 1,
+      "appearance": "dark",
+      "label": "pagination-final-buy-context-dark"
+    },
+    {
+      "path": "docs/evidence/screens/2026-10-07-device-pagination-final-hub-ready-dark.png",
+      "pngSHA256": "3A2F2DEE9C9D93BE2D125D1E7056028CF3ACBFE481D1600FD55D2831C308ED47",
+      "privateXMLSHA256": "5E62765EAB5BDF093AACD7B5E5B1E8891DD02A83EFDCEBE4F832FB61287DCEBF",
+      "sourceCommit": "c77cfbaf60054951fae707bc5bdb62f801d43b41",
+      "apkSHA256": "0E7FB048A6F99C4B5152A42F4530967C9DC33991730882D3CCF297C22419334D",
+      "fontScale": 1,
+      "appearance": "dark",
+      "label": "pagination-final-hub-ready-dark"
+    }
+  ],
+  "limits": [
+    "Actual demo fixture has no active holds; five active-hold behavior rests on independent test evidence, not this device run",
+    "Only initial and first continued history disclosure tested on device; complete >50-row cursor traversal rests on independent test evidence",
+    "Read-only HTTP proof is separate from device network traffic",
+    "Test and production embedded JavaScript bytes are identical, but test-package screenshots do not prove an exact Play-installed production AAB",
+    "Full database/CI acceptance and Play upload/review state are owned by the coordinating session"
+  ]
+}

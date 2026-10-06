@@ -1,0 +1,49 @@
+{
+  "observedUtc": "2026-10-06T20:36:36.409551+00:00",
+  "origin": "https://fitcruxx.vercel.app",
+  "account": "aarav.member@ironbox.example.com",
+  "scope": "Read-only deployed HTTP paging proof; separate from device traffic capture",
+  "pageRoute": "/api/shop/catalogue/page",
+  "pages": [
+    {
+      "mode": "initial",
+      "httpStatus": 200,
+      "publicRows": 3,
+      "activeRows": 0,
+      "historyRows": 3,
+      "catalogueItems": 2,
+      "continuationPresent": true,
+      "noStore": true,
+      "responseSHA256": "006AAA76588FDDC6164593B2E32B21001B7C882CB5AC3C427697B7728A6A6E1C",
+      "returnedIdsUniqueAcrossPages": true
+    },
+    {
+      "mode": "more",
+      "httpStatus": 200,
+      "publicRows": 5,
+      "activeRows": 0,
+      "historyRows": 5,
+      "catalogueItems": null,
+      "continuationPresent": true,
+      "noStore": true,
+      "responseSHA256": "DB5F2944858F381893FC39FA7A2EE5D5E6814429D776806F378E49256B928780",
+      "returnedIdsUniqueAcrossPages": true
+    },
+    {
+      "mode": "more",
+      "httpStatus": 200,
+      "publicRows": 5,
+      "activeRows": 0,
+      "historyRows": 5,
+      "catalogueItems": null,
+      "continuationPresent": true,
+      "noStore": true,
+      "responseSHA256": "7021E47006F009A9CE4584BBB081EDEBC52374BD6EEF4C10FD4E3F4162EFE238",
+      "returnedIdsUniqueAcrossPages": true
+    }
+  ],
+  "reservationCommandExecuted": false,
+  "shopDatabaseWriteExecuted": false,
+  "authenticationSessionCreated": true,
+  "tokensOrPasswordsRetained": false
+}

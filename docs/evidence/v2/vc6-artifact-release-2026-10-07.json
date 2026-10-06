@@ -1,0 +1,304 @@
+{
+  "sourceCommit": "c77cfbaf60054951fae707bc5bdb62f801d43b41",
+  "verifiedRootHead": "c77cfbaf60054951fae707bc5bdb62f801d43b41",
+  "build": {
+    "SourceCommit": "c77cfbaf60054951fae707bc5bdb62f801d43b41",
+    "BuildStartedUtc": "2026-10-06T20:47:32.0847394Z",
+    "ProductionPackage": "in.fitcruxx.app",
+    "VersionCode": 6,
+    "TestPackage": "in.fitcruxx.v2check",
+    "DependencyReinstall": false,
+    "ExpoPrebuild": false,
+    "NativeBuildOnlyPaths": [
+      "apps/mobile/android/app/build.gradle",
+      "apps/mobile/android/app/src/main/AndroidManifest.xml",
+      "apps/mobile/android/app/src/main/res/values/strings.xml"
+    ],
+    "ForceJsCompletedUtc": "2026-10-06T20:49:13.5128197Z",
+    "BundleCompletedUtc": "2026-10-06T20:49:58.9723494Z",
+    "AabSHA256": "89F3ACEBE9197502FCEBECFD7DF2C9DCBED6C276CDAF193D7B05DAA5E59C5D61",
+    "AssembleCompletedUtc": "2026-10-06T20:51:01.1301115Z"
+  },
+  "aab": {
+    "path": "C:\\Users\\Harsh\\Desktop\\gymloop\\dist\\releases\\fitcruxx-1.0.0-vc6-shop-pagination.aab",
+    "sha256": "89F3ACEBE9197502FCEBECFD7DF2C9DCBED6C276CDAF193D7B05DAA5E59C5D61",
+    "bytes": 93727171,
+    "package": "in.fitcruxx.app",
+    "versionCode": 6,
+    "versionName": "1.0.0",
+    "label": "FitCruxx",
+    "schemes": [
+      "fitcruxx",
+      "https"
+    ],
+    "uploadCertificateSHA256": "18667889ec166c79adfceeccd46207d3739c6c1018ecede7b61633978b2105c7",
+    "jarVerified": true,
+    "bundletoolValidated": true,
+    "permissions": [
+      "android.permission.ACCESS_NETWORK_STATE",
+      "android.permission.ACCESS_WIFI_STATE",
+      "android.permission.CAMERA",
+      "android.permission.INTERNET",
+      "android.permission.POST_NOTIFICATIONS",
+      "android.permission.READ_APP_BADGE",
+      "android.permission.RECEIVE_BOOT_COMPLETED",
+      "android.permission.USE_BIOMETRIC",
+      "android.permission.USE_FINGERPRINT",
+      "android.permission.VIBRATE",
+      "android.permission.WAKE_LOCK",
+      "com.anddoes.launcher.permission.UPDATE_COUNT",
+      "com.google.android.c2dm.permission.RECEIVE",
+      "com.google.android.finsky.permission.BIND_GET_INSTALL_REFERRER_SERVICE",
+      "com.htc.launcher.permission.READ_SETTINGS",
+      "com.htc.launcher.permission.UPDATE_SHORTCUT",
+      "com.huawei.android.launcher.permission.CHANGE_BADGE",
+      "com.huawei.android.launcher.permission.READ_SETTINGS",
+      "com.huawei.android.launcher.permission.WRITE_SETTINGS",
+      "com.majeur.launcher.permission.UPDATE_BADGE",
+      "com.oppo.launcher.permission.READ_SETTINGS",
+      "com.oppo.launcher.permission.WRITE_SETTINGS",
+      "com.sec.android.provider.badge.permission.READ",
+      "com.sec.android.provider.badge.permission.WRITE",
+      "com.sonyericsson.home.permission.BROADCAST_BADGE",
+      "com.sonymobile.home.permission.PROVIDER_INSERT_BADGE",
+      "in.fitcruxx.app.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION",
+      "me.everything.badger.permission.BADGE_COUNT_READ",
+      "me.everything.badger.permission.BADGE_COUNT_WRITE"
+    ],
+    "warnings": [
+      "Certificate chain is self-signed and is not trusted by the local Java trust store",
+      "No signature timestamp; certificate expiration 2054-02-10",
+      "POSIX permission/symlink attributes are not protected by the JAR signature",
+      "JarInputStream manifest/order inconsistencies for signed debug-symbol metadata; JarFile verification succeeds"
+    ],
+    "playUploaded": false,
+    "playInstalledExactArtifactProven": false,
+    "warningTranscriptSHA256": "E33A52C30BE8219113BE3010DD3DC12350179F9ED3F5D3C2F3FCB09194045BF1"
+  },
+  "apk": {
+    "path": "C:\\Users\\Harsh\\AppData\\Local\\fitcruxx-vc6-build-backups\\vc6-20261007-203321-ce126985781a40bda1ed4b15068f2ce8\\fitcruxx-v2check-final-verified.apk",
+    "sha256": "0E7FB048A6F99C4B5152A42F4530967C9DC33991730882D3CCF297C22419334D",
+    "bytes": 139663319,
+    "package": "in.fitcruxx.v2check",
+    "versionCode": 1,
+    "certificateSHA256": "fac61745dc0903786fb9ede62a962b399f7348f0bb6f899b8332667591033b9c",
+    "deviceInstalled": true
+  },
+  "source": {
+    "trackedExecutionFiles": 187,
+    "everyTestExecutionFileMatchesCommittedRelease": true,
+    "everyTestExecutionFileMatchesRootNormalized": true,
+    "productionOnlyNativeOverrides": [
+      "apps/mobile/android/app/build.gradle",
+      "apps/mobile/android/app/src/main/AndroidManifest.xml",
+      "apps/mobile/android/app/src/main/res/values/strings.xml"
+    ],
+    "finalTestSnapshotSHA256": "B021E26EA9E6E101E382F7DD69F3F595C7D781D43603FF688D8C86F003E0E75F",
+    "finalProductionSnapshotSHA256": "B32D1A22472E39CDBA83358E44097F0F23D91D5AB2196710FF7865750AAEEE4A",
+    "sourceMaps": [
+      {
+        "file": "C:\\Users\\Harsh\\AppData\\Local\\fitcruxx-vc6-build-backups\\vc6-20261007-203321-ce126985781a40bda1ed4b15068f2ce8\\final-production-index.android.bundle.map",
+        "sha256": "ACEEBA9AEF45280286FB6892C06481F0D43BA81D39FB01172C8425C3432D020B",
+        "checks": [
+          {
+            "path": "apps/mobile/components/role-tabs.tsx",
+            "normalizedSHA256": "97C2E3D033A8231839CC43616775BB7C51C0BB13FEF3A00102584486F7C28DB1",
+            "mapMatchesGcRaw": true,
+            "mapMatchesGcNormalized": true,
+            "rootMatchesNormalized": true
+          },
+          {
+            "path": "apps/mobile/components/ui.tsx",
+            "normalizedSHA256": "C8162390E99B14F9DB8C080D7F79D31D0855C74E03582AF82C6C20AAA9CECAD5",
+            "mapMatchesGcRaw": true,
+            "mapMatchesGcNormalized": true,
+            "rootMatchesNormalized": true
+          },
+          {
+            "path": "apps/mobile/app/(member)/_layout.tsx",
+            "normalizedSHA256": "6F3B0E9C2C146C3CA9580874BEE9A75362779E84A82272D151E0F197C61B62DB",
+            "mapMatchesGcRaw": true,
+            "mapMatchesGcNormalized": true,
+            "rootMatchesNormalized": true
+          },
+          {
+            "path": "apps/mobile/app/(member)/index.tsx",
+            "normalizedSHA256": "FBD0FFFBD7F781C6C10E845A5800C523824A54F1E8BE7C3A9C7FB74BFFF6D8EF",
+            "mapMatchesGcRaw": true,
+            "mapMatchesGcNormalized": true,
+            "rootMatchesNormalized": true
+          },
+          {
+            "path": "apps/mobile/app/(member)/shop.tsx",
+            "normalizedSHA256": "279AFCF0CFFC081A6B3D082237C0CC955F986573D21444E683DA3CD1B791C871",
+            "mapMatchesGcRaw": true,
+            "mapMatchesGcNormalized": true,
+            "rootMatchesNormalized": true
+          },
+          {
+            "path": "apps/mobile/app/(member)/gym.tsx",
+            "normalizedSHA256": "0B283E08B35EA052E5EA5D6E4892A4E2D3BB903E5F806146AFD6FCECDB945713",
+            "mapMatchesGcRaw": true,
+            "mapMatchesGcNormalized": true,
+            "rootMatchesNormalized": true
+          },
+          {
+            "path": "apps/mobile/app/(member)/buy.tsx",
+            "normalizedSHA256": "F91AE9AE56D6C67A0227A185517158CDB17C87342381940E9A6AED83CC47FC8B",
+            "mapMatchesGcRaw": true,
+            "mapMatchesGcNormalized": true,
+            "rootMatchesNormalized": true
+          },
+          {
+            "path": "apps/mobile/lib/use-member-shop-pages.ts",
+            "normalizedSHA256": "F188D1C842342739E981F73941E3AC34211C20B6EBFC81A5DDB65732AB4A1AA1",
+            "mapMatchesGcRaw": true,
+            "mapMatchesGcNormalized": true,
+            "rootMatchesNormalized": true
+          },
+          {
+            "path": "apps/mobile/lib/shop.ts",
+            "normalizedSHA256": "A4B63A1746C3D2B55FA13456EFA0587B3EFC4529DEBEDF3C141B20604C1163C1",
+            "mapMatchesGcRaw": true,
+            "mapMatchesGcNormalized": true,
+            "rootMatchesNormalized": true
+          },
+          {
+            "path": "apps/mobile/lib/shop-cache.ts",
+            "normalizedSHA256": "453B8A1A2B37FDCBE02EA401A4A097AB2B4870543A0C7F58FB849BBC9D8D820F",
+            "mapMatchesGcRaw": true,
+            "mapMatchesGcNormalized": true,
+            "rootMatchesNormalized": true
+          },
+          {
+            "path": "packages/shared/src/api/shop.ts",
+            "normalizedSHA256": "9F6318C27C0098CB74B301708914EC3058C16DDB7D0F1A64A1565FD9464929F8",
+            "mapMatchesGcRaw": true,
+            "mapMatchesGcNormalized": true,
+            "rootMatchesNormalized": true
+          },
+          {
+            "path": "packages/shared/src/config/constants.ts",
+            "normalizedSHA256": "325A3AA004E78A371B08EB3C7820E61A7346F6D0FA7886DBC74F020D3951C24D",
+            "mapMatchesGcRaw": true,
+            "mapMatchesGcNormalized": true,
+            "rootMatchesNormalized": true
+          },
+          {
+            "path": "packages/shared/src/config/env.ts",
+            "normalizedSHA256": "B82DBD65584B903205DAA23B76016E426E393273AD4D63A482BE9C4F622B4464",
+            "mapMatchesGcRaw": true,
+            "mapMatchesGcNormalized": true,
+            "rootMatchesNormalized": true
+          }
+        ]
+      },
+      {
+        "file": "C:\\gc\\apps\\mobile\\android\\app\\build\\generated\\sourcemaps\\react\\release\\index.android.bundle.map",
+        "sha256": "ACEEBA9AEF45280286FB6892C06481F0D43BA81D39FB01172C8425C3432D020B",
+        "checks": [
+          {
+            "path": "apps/mobile/components/role-tabs.tsx",
+            "normalizedSHA256": "97C2E3D033A8231839CC43616775BB7C51C0BB13FEF3A00102584486F7C28DB1",
+            "mapMatchesGcRaw": true,
+            "mapMatchesGcNormalized": true,
+            "rootMatchesNormalized": true
+          },
+          {
+            "path": "apps/mobile/components/ui.tsx",
+            "normalizedSHA256": "C8162390E99B14F9DB8C080D7F79D31D0855C74E03582AF82C6C20AAA9CECAD5",
+            "mapMatchesGcRaw": true,
+            "mapMatchesGcNormalized": true,
+            "rootMatchesNormalized": true
+          },
+          {
+            "path": "apps/mobile/app/(member)/_layout.tsx",
+            "normalizedSHA256": "6F3B0E9C2C146C3CA9580874BEE9A75362779E84A82272D151E0F197C61B62DB",
+            "mapMatchesGcRaw": true,
+            "mapMatchesGcNormalized": true,
+            "rootMatchesNormalized": true
+          },
+          {
+            "path": "apps/mobile/app/(member)/index.tsx",
+            "normalizedSHA256": "FBD0FFFBD7F781C6C10E845A5800C523824A54F1E8BE7C3A9C7FB74BFFF6D8EF",
+            "mapMatchesGcRaw": true,
+            "mapMatchesGcNormalized": true,
+            "rootMatchesNormalized": true
+          },
+          {
+            "path": "apps/mobile/app/(member)/shop.tsx",
+            "normalizedSHA256": "279AFCF0CFFC081A6B3D082237C0CC955F986573D21444E683DA3CD1B791C871",
+            "mapMatchesGcRaw": true,
+            "mapMatchesGcNormalized": true,
+            "rootMatchesNormalized": true
+          },
+          {
+            "path": "apps/mobile/app/(member)/gym.tsx",
+            "normalizedSHA256": "0B283E08B35EA052E5EA5D6E4892A4E2D3BB903E5F806146AFD6FCECDB945713",
+            "mapMatchesGcRaw": true,
+            "mapMatchesGcNormalized": true,
+            "rootMatchesNormalized": true
+          },
+          {
+            "path": "apps/mobile/app/(member)/buy.tsx",
+            "normalizedSHA256": "F91AE9AE56D6C67A0227A185517158CDB17C87342381940E9A6AED83CC47FC8B",
+            "mapMatchesGcRaw": true,
+            "mapMatchesGcNormalized": true,
+            "rootMatchesNormalized": true
+          },
+          {
+            "path": "apps/mobile/lib/use-member-shop-pages.ts",
+            "normalizedSHA256": "F188D1C842342739E981F73941E3AC34211C20B6EBFC81A5DDB65732AB4A1AA1",
+            "mapMatchesGcRaw": true,
+            "mapMatchesGcNormalized": true,
+            "rootMatchesNormalized": true
+          },
+          {
+            "path": "apps/mobile/lib/shop.ts",
+            "normalizedSHA256": "A4B63A1746C3D2B55FA13456EFA0587B3EFC4529DEBEDF3C141B20604C1163C1",
+            "mapMatchesGcRaw": true,
+            "mapMatchesGcNormalized": true,
+            "rootMatchesNormalized": true
+          },
+          {
+            "path": "apps/mobile/lib/shop-cache.ts",
+            "normalizedSHA256": "453B8A1A2B37FDCBE02EA401A4A097AB2B4870543A0C7F58FB849BBC9D8D820F",
+            "mapMatchesGcRaw": true,
+            "mapMatchesGcNormalized": true,
+            "rootMatchesNormalized": true
+          },
+          {
+            "path": "packages/shared/src/api/shop.ts",
+            "normalizedSHA256": "9F6318C27C0098CB74B301708914EC3058C16DDB7D0F1A64A1565FD9464929F8",
+            "mapMatchesGcRaw": true,
+            "mapMatchesGcNormalized": true,
+            "rootMatchesNormalized": true
+          },
+          {
+            "path": "packages/shared/src/config/constants.ts",
+            "normalizedSHA256": "325A3AA004E78A371B08EB3C7820E61A7346F6D0FA7886DBC74F020D3951C24D",
+            "mapMatchesGcRaw": true,
+            "mapMatchesGcNormalized": true,
+            "rootMatchesNormalized": true
+          },
+          {
+            "path": "packages/shared/src/config/env.ts",
+            "normalizedSHA256": "B82DBD65584B903205DAA23B76016E426E393273AD4D63A482BE9C4F622B4464",
+            "mapMatchesGcRaw": true,
+            "mapMatchesGcNormalized": true,
+            "rootMatchesNormalized": true
+          }
+        ]
+      }
+    ]
+  },
+  "javascript": {
+    "testProductionAndFreshGeneratedBytesEqual": true,
+    "sha256": "2D5BD660A50D9D37B9D43BD722B2B9B7158C116AC8E899C8D8FCF7720F043C7E",
+    "canonicalPublicConfigurationVerified": true,
+    "privateCredentialAbsent": true
+  },
+  "nativeBuildSettingsRestoredForIsolatedPackage": true,
+  "dependencyReinstall": false,
+  "expoPrebuild": false
+}
