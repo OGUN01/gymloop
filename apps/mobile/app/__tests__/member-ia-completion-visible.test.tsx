@@ -124,9 +124,11 @@ function press(tree: ReactNode, label: RegExp) {
 describe('frozen native member IA public screens', () => {
   it('Home business caption opens Gym', async () => { const tree = await render('home'); press(tree, /IA Fitness/); expect(state.push).toHaveBeenCalledWith('/(member)/gym'); });
   it('Gym opens Training with public section parameter, Shop and legal', async () => {
-    const tree = await render('gym'); press(tree, /Trainers.*programmes/i); expect(state.push).toHaveBeenCalledWith({ pathname: '/(member)/classes', params: { section: 'training' } });
+    let tree = await render('gym'); press(tree, /Trainers.*programmes/i); expect(state.push).toHaveBeenCalledWith({ pathname: '/(member)/classes', params: { section: 'training' } });
     press(tree, /Other services/i); expect(state.push).toHaveBeenCalledWith('/(member)/shop');
     expect(text(tree)).toMatch(/Privacy policy/i); expect(text(tree)).toMatch(/Orders.*completed returns|completed purchases/i);
+    // NAVC-009 keeps completed purchases behind their initially closed row.
+    press(tree, /Orders/i); tree = await render('gym');
     expect(text(tree).replaceAll(',', '')).toContain('90071992547409.93'); expect(text(tree)).toContain('Movement pack');
     expect(state.plans).toHaveBeenCalledWith(false);
     press(tree, /Plans.*prices/i); await render('gym'); expect(state.plans).toHaveBeenCalledWith(true);
@@ -142,7 +144,10 @@ describe('frozen native member IA public screens', () => {
     press(tree, /Classes/i); tree = await render('classes'); expect(nodes(tree).some(node => node.type === 'classes-pane')).toBe(true);
   });
   it('Gym keeps recorded purchases and precise paise without a second offers catalogue', async () => {
-    const tree = await render('gym'); expect(text(tree)).toContain('Movement pack'); expect(text(tree).replaceAll(',', '')).toContain('90071992547409.93'); expect(text(tree)).not.toMatch(/available offers|buy.*pack|reserve.*item/i);
+    let tree = await render('gym'); press(tree, /Orders/i); tree = await render('gym'); expect(text(tree)).toContain('Movement pack'); expect(text(tree).replaceAll(',', '')).toContain('90071992547409.93'); expect(text(tree)).not.toMatch(/available offers/i);
+    // Test each actual control: a separate Buy row followed by recorded pack
+    // history must not be mistaken for a new purchasable-pack control.
+    expect(nodes(tree).filter(node => typeof node.props.onPress === 'function' && /buy.*pack|reserve.*item/i.test(text(node)))).toHaveLength(0);
   });
   it('PLC is loaded only after the Gym disclosure opens', async () => {
     const tree = await render('gym'); expect(state.plans).toHaveBeenCalledWith(false); expect(state.plans).not.toHaveBeenCalledWith(true);

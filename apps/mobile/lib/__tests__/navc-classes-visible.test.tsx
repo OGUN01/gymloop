@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { businessNouns, type MemberClassSession } from '@gymloop/shared';
+import { businessNouns, UI_TOKENS, type MemberClassSession } from '@gymloop/shared';
 import { ClassesPane } from '../../components/classes-pane';
 
 type Props = Record<string, unknown>;
@@ -10,6 +10,10 @@ const seam = vi.hoisted(() => ({
   loadMember: vi.fn(), loadUpcoming: vi.fn(), loadTimetable: vi.fn(), loadRoster: vi.fn(), search: vi.fn(),
   book: vi.fn(), cancel: vi.fn(), deskBook: vi.fn(), deskCancel: vi.fn(), mark: vi.fn(),
   network: true, networkListener: null as null | ((state: { isConnected: boolean; isInternetReachable: boolean }) => void),
+  focusEffect: null as null | (() => void | (() => void)),
+  focusCleanup: undefined as undefined | (() => void),
+  appState: 'active', resumeListener: null as null | ((state: string) => void),
+  realText: false,
   context: {} as Props,
 }));
 vi.mock('react', async importOriginal => {
@@ -45,12 +49,30 @@ vi.mock('expo-network', () => ({
   getNetworkStateAsync: async () => ({ isConnected: seam.network, isInternetReachable: seam.network }),
   addNetworkStateListener: (callback: typeof seam.networkListener) => { seam.networkListener = callback; return { remove: vi.fn() }; },
 }));
-vi.mock('expo-router', () => ({ router: { push: vi.fn(), replace: vi.fn() }, useRouter: () => ({ push: vi.fn(), replace: vi.fn() }) }));
-vi.mock('react-native', () => ({ View: 'View', Text: 'Text', ScrollView: 'ScrollView', Pressable: 'Pressable', TextInput: 'TextInput', ActivityIndicator: 'ActivityIndicator', StyleSheet: { create: (styles: unknown) => styles }, Platform: { OS: 'android' } }));
-vi.mock('../../components/ui', () => {
+vi.mock('expo-router', async () => {
+  const { useEffect } = await import('react');
+  return { router: { push: vi.fn(), replace: vi.fn() }, useRouter: () => ({ push: vi.fn(), replace: vi.fn() }), useFocusEffect: (callback: () => void | (() => void)) => { seam.focusEffect = callback; useEffect(callback, [callback]); } };
+});
+vi.mock('react-native', () => ({ View: 'View', Text: 'Text', ScrollView: 'ScrollView', Pressable: 'Pressable', TextInput: 'TextInput', Image: 'Image', Modal: 'Modal', KeyboardAvoidingView: 'KeyboardAvoidingView', ActivityIndicator: 'ActivityIndicator',
+  StyleSheet: { create: (styles: unknown) => styles, hairlineWidth: 1, absoluteFillObject: {}, flatten: (value: unknown) => value }, Platform: { OS: 'android', select: (value: Props) => value.android },
+  Dimensions: { get: () => ({ width: 390, height: 844 }) }, useWindowDimensions: () => ({ width: 390, height: 844, fontScale: 1, scale: 1 }), useColorScheme: () => 'light',
+  AccessibilityInfo: { announceForAccessibility: vi.fn(), isReduceMotionEnabled: async () => false, addEventListener: () => ({ remove: vi.fn() }) },
+  Animated: { View: 'AnimatedView', ScrollView: 'AnimatedScrollView', event: () => vi.fn(), Value: class { interpolate() { return 0; } setValue() {} }, timing: () => ({ start: vi.fn(), stop: vi.fn() }), spring: () => ({ start: vi.fn(), stop: vi.fn() }), loop: () => ({ start: vi.fn(), stop: vi.fn() }), parallel: () => ({ start: vi.fn(), stop: vi.fn() }) },
+  Easing: { linear: (value: number) => value, out: (value: unknown) => value, inOut: (value: unknown) => value, ease: (value: number) => value }, AppState: {
+  get currentState() { return seam.appState; },
+  addEventListener: (_event: string, callback: (state: string) => void) => { seam.resumeListener = callback; return { remove: () => { if (seam.resumeListener === callback) seam.resumeListener = null; } }; },
+} }));
+vi.mock('expo-haptics', () => ({ selectionAsync: async () => undefined, impactAsync: async () => undefined, notificationAsync: async () => undefined }));
+vi.mock('expo-font', () => ({ useFonts: () => [true, null], isLoaded: () => true, loadAsync: async () => undefined }));
+vi.mock('../../../../packages/shared/assets/fonts/GoogleSans-Medium.ttf', () => ({ default: 'test-font' }));
+vi.mock('react-native-svg', () => new Proxy({}, { get: (_target, name) => name === 'then' ? undefined : String(name), has: () => true }));
+vi.mock('react-native-safe-area-context', () => ({ SafeAreaView: 'SafeAreaView', useSafeAreaInsets: () => ({ top: 0, right: 0, bottom: 0, left: 0 }) }));
+vi.mock('lucide-react-native', () => new Proxy({}, { get: (_target, name) => name === 'then' ? undefined : String(name), has: () => true }));
+vi.mock('../../components/ui', async original => {
+  const actual = await original<{ Row: unknown; Body: unknown }>();
   const host = (name: string) => (props: Props) => ({ type: name, props });
   return {
-    ActionButton: host('ActionButton'), Body: host('Body'), EmptyState: host('EmptyState'), ErrorRetry: host('ErrorRetry'), LoadingState: host('LoadingState'), Row: host('Row'), RowAction: host('RowAction'), SearchField: host('SearchField'),
+    ActionButton: host('ActionButton'), Body: (props: Props) => ({ type: seam.realText ? actual.Body : 'Body', props }), EmptyState: host('EmptyState'), ErrorRetry: host('ErrorRetry'), LoadingState: host('LoadingState'), Row: (props: Props) => ({ type: seam.realText ? actual.Row : 'Row', props }), RowAction: host('RowAction'), SearchField: host('SearchField'),
     Sheet: (props: Props) => props.visible ? { type: 'Sheet', props } : null,
     SheetHeader: host('SheetHeader'), StateMessage: host('StateMessage'), Status: host('Status'),
   };
@@ -88,15 +110,66 @@ function words(value: unknown): string {
 function visible() { return nodes.map(node => ['children', 'title', 'meta', 'detail', 'message', 'value'].map(key => words(node.props[key])).join(' ')).join(' ').replace(/\s+/g, ' '); }
 function controls(label: RegExp) { return nodes.filter(node => typeof (node.props.onPress ?? node.props.onRetry) === 'function' && ['children', 'title', 'accessibilityLabel'].some(key => label.test(words(node.props[key]).trim()))); }
 async function press(label: RegExp) { const node = controls(label).at(-1); expect(node, `rendered ${label} action`).toBeDefined(); await ((node?.props.onPress ?? node?.props.onRetry) as () => unknown)(); await settle(); }
-function cleanup() { seam.stores.forEach(slots => slots.forEach(slot => slot.cleanup?.())); seam.stores.clear(); seam.effects = []; }
+function cleanup() { seam.focusCleanup?.(); seam.focusCleanup = undefined; seam.stores.forEach(slots => slots.forEach(slot => slot.cleanup?.())); seam.stores.clear(); seam.effects = []; }
 beforeEach(() => {
   cleanup(); vi.clearAllMocks(); vi.useFakeTimers(); vi.setSystemTime(new Date('2026-10-06T10:00:00+05:30')); bookingsOnly = false; seam.network = true; seam.networkListener = null;
-  seam.context = { identity: member, ready: true, session: { user: { id: member.userId }, access_token: 'fixture-token' }, businessType: 'gym', nouns: businessNouns('gym'), palette: {}, api: { post: vi.fn() }, supabase: {
+  seam.focusEffect = null; seam.resumeListener = null; seam.appState = 'active'; seam.realText = false;
+  seam.context = { identity: member, ready: true, session: { user: { id: member.userId }, access_token: 'fixture-token' }, businessType: 'gym', nouns: businessNouns('gym'), palette: UI_TOKENS.colors.light, api: { post: vi.fn() }, supabase: {
     from: () => ({ select: () => ({ eq: () => ({ maybeSingle: async () => ({ data: { timezone: 'Asia/Kolkata', branch_id: yoga.branchId }, error: null }) }) }) }),
     auth: { onAuthStateChange: () => ({ data: { subscription: { unsubscribe: vi.fn() } } }) },
   }, webOrigin: 'https://gymloop.test' };
   seam.loadMember.mockResolvedValue([yoga, dance]); seam.loadUpcoming.mockResolvedValue([commitment]);
   seam.book.mockResolvedValue({ ok: true, data: { bookingId: commitment.myBookingId, status: 'booked', spotsLeft: 3 } }); seam.cancel.mockResolvedValue({ ok: true, data: { bookingId: commitment.myBookingId, status: 'cancelled_by_member' } });
+});
+
+describe('NAVC required session facts remain readable', () => {
+  it.each([false, true])('real native text keeps full branch, trainer and time facts without a line cap (bookingsOnly=%s)', async onlyBookings => {
+    bookingsOnly = onlyBookings; seam.realText = true; draw(); await settle();
+    const fixture = onlyBookings ? commitment : yoga;
+    const nativeText = nodes.filter(node => node.type === 'Text');
+    const renderedFacts = nativeText.map(node => words(node.props.children)).join(' ');
+    expect(renderedFacts).toContain(fixture.branchName); expect(renderedFacts).toContain(fixture.trainerName);
+    expect(renderedFacts).toMatch(onlyBookings ? /23:45|11:45\s*pm/i : /18:00|6:00\s*pm/i);
+    expect(renderedFacts).toMatch(onlyBookings ? /00:45|12:45\s*am/i : /19:00|7:00\s*pm/i);
+    const factText = nativeText.filter(node => [fixture.branchName, fixture.trainerName].some(fact => fact !== null && words(node.props.children).includes(fact)));
+    expect(factText.length).toBeGreaterThan(0);
+    for (const node of factText) expect(node.props.numberOfLines === undefined || node.props.numberOfLines === 0, `required session facts must wrap: ${words(node.props.children)}`).toBe(true);
+  });
+});
+
+describe('NAVC Classes focus and app-resume refresh', () => {
+  async function focus() {
+    expect(seam.focusEffect, 'Classes registers the native screen-focus lifecycle').toBeTypeOf('function');
+    seam.focusCleanup?.(); seam.focusCleanup = seam.focusEffect?.() || undefined; await settle();
+  }
+  async function resume() {
+    expect(seam.resumeListener, 'Classes observes native app-resume events').toBeTypeOf('function');
+    seam.appState = 'background'; seam.resumeListener?.('background');
+    seam.appState = 'active'; seam.resumeListener?.('active'); await settle();
+  }
+  it.each([['screen focus', focus], ['app resume', resume]] as const)('%s refreshes both authoritative readers on every return and displays changed facts', async (_label, returnToScreen) => {
+    draw(); await settle(); const catalogueReads = seam.loadMember.mock.calls.length; const ownReads = seam.loadUpcoming.mock.calls.length;
+    seam.loadMember.mockResolvedValue([{ ...yoga, trainerName: 'First refreshed timetable trainer' }]);
+    seam.loadUpcoming.mockResolvedValue([{ ...commitment, serviceName: 'First refreshed owned booking' }]);
+    await returnToScreen();
+    expect(seam.loadMember.mock.calls.length).toBeGreaterThan(catalogueReads); expect(seam.loadUpcoming.mock.calls.length).toBeGreaterThan(ownReads);
+    expect(visible()).toContain('First refreshed timetable trainer'); expect(visible()).toContain('First refreshed owned booking');
+    const firstCatalogueReads = seam.loadMember.mock.calls.length; const firstOwnReads = seam.loadUpcoming.mock.calls.length;
+    seam.loadMember.mockResolvedValue([{ ...yoga, trainerName: 'Second refreshed timetable trainer' }]);
+    seam.loadUpcoming.mockResolvedValue([{ ...commitment, serviceName: 'Second refreshed owned booking' }]);
+    await returnToScreen();
+    expect(seam.loadMember.mock.calls.length).toBeGreaterThan(firstCatalogueReads); expect(seam.loadUpcoming.mock.calls.length).toBeGreaterThan(firstOwnReads);
+    expect(visible()).toContain('Second refreshed timetable trainer'); expect(visible()).toContain('Second refreshed owned booking');
+    expect(visible()).not.toContain('First refreshed timetable trainer'); expect(visible()).not.toContain('First refreshed owned booking');
+    expect(seam.book).not.toHaveBeenCalled(); expect(seam.cancel).not.toHaveBeenCalled();
+  });
+  it.each([['screen focus', focus], ['app resume', resume]] as const)('%s independently refreshes My bookings without converting cancelled commitments into Book actions', async (_label, returnToScreen) => {
+    bookingsOnly = true; draw(); await settle(); const ownReads = seam.loadUpcoming.mock.calls.length;
+    seam.loadUpcoming.mockResolvedValue([{ ...commitment, serviceName: 'Authoritatively cancelled owned booking', myBookingStatus: 'cancelled_by_member', availability: 'closed', canCancel: false }]);
+    await returnToScreen();
+    expect(seam.loadUpcoming.mock.calls.length).toBeGreaterThan(ownReads); expect(visible()).toContain('Authoritatively cancelled owned booking'); expect(visible()).toMatch(/Cancelled/i);
+    expect(controls(/^Book$/i)).toHaveLength(0); expect(controls(/^Cancel(?: booking)?$/i)).toHaveLength(0); expect(seam.book).not.toHaveBeenCalled(); expect(seam.cancel).not.toHaveBeenCalled();
+  });
 });
 afterEach(() => { cleanup(); vi.useRealTimers(); });
 describe('NAVC-011 stable activities and independent My bookings', () => {

@@ -27,6 +27,9 @@ vi.mock('react', async original => mockReactHooks(await original<Record<string, 
 // Package-local React imports share the renderer mock, including default hooks.
 vi.mock('../mobile-context', () => ({ useMobile: () => ({ identity: h.identity, api: { post: h.post }, ready: true, nouns: { place: 'gym', plural: 'gyms', member: 'member', trainer: 'trainer', class: 'class' }, palette: {}, businessType: 'gym', appearance: 'light', supabase: {}, session: h.identity.kind === 'member' ? {} : null, signOut: vi.fn() }) }));
 vi.mock('../use-member-snapshot', () => ({ useMemberSnapshot: () => ({ data: { gym: { name: 'Fixture Gym', displayName: 'Fixture Gym', timezone: 'Asia/Kolkata' } }, error: null, loading: false, reload: vi.fn() }) }));
+// NAVC-008 adds plans before Shop offers. Isolate PLC's registered read seam;
+// the actual Shop catalogue, cache, identity and command paths remain exercised.
+vi.mock('../use-member-plans', () => ({ useMemberPlans: () => ({ state: { phase: 'idle', view: null, loadedAt: null, staleReason: null, offline: false }, reload: async () => undefined }) }));
 vi.mock('expo-network', () => ({ useNetworkState: () => ({ isConnected: h.online, isInternetReachable: h.online }), getNetworkStateAsync: async () => ({ isConnected: h.online, isInternetReachable: h.online }), addNetworkStateListener: () => ({ remove: vi.fn() }) }));
 vi.mock('expo-router', () => ({ useRouter: () => ({ push: vi.fn(), replace: vi.fn() }), useLocalSearchParams: () => ({}), Link: 'Link', Redirect: 'Redirect' }));
 vi.mock('expo-secure-store', () => ({ setItemAsync: h.persist, getItemAsync: async () => null, deleteItemAsync: vi.fn() }));

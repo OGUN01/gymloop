@@ -34,6 +34,20 @@ function nodes(value: ReactNode): Array<{ type: unknown; props: Record<string, u
   });
   return found;
 }
+// React preserves a mounted subtree only while its ancestor types, keys and
+// child positions stay stable. Record that identity path to the mocked native
+// navigator; this permits any consistent wrapper design without naming one.
+type MountPosition = { type: unknown; key: string | null; index: number };
+function navigatorMountPath(value: ReactNode, ancestors: MountPosition[] = []): MountPosition[] | undefined {
+  let found: MountPosition[] | undefined;
+  Children.forEach(value, (child, index) => {
+    if (found || !isValidElement<Record<string, unknown>>(child)) return;
+    const path = [...ancestors, { type: child.type, key: child.key, index }];
+    if (child.type === 'nav') { found = path; return; }
+    found = navigatorMountPath(typeof child.type === 'function' ? (child.type as (props: unknown) => ReactNode)(child.props) : child.props.children as ReactNode, path);
+  });
+  return found;
+}
 async function tabs(enabled = true, desk = false) {
   const { RoleTabs } = await import('../../components/role-tabs');
   return nodes(createElement(RoleTabs, { desk, memberClassesEnabled: enabled } as Parameters<typeof RoleTabs>[0])).filter(node => node.type === 'tab');
@@ -71,6 +85,22 @@ describe('NAVC authorized member layout', () => {
   it('uses confirmed Off from the visibility hook rather than the isolated RoleTabs default', async () => {
     h.visibility.enabled = false;
     expect(shown((await layout()).filter(node => node.type === 'tab'))).toEqual([['index', 'Home'], ['shop', 'Shop'], ['you', 'You'], ['activity', 'Activity']]);
+  });
+  it.each([true, false])('cached visibility %s keeps the same navigator mount identity across failure, retry and recovery', async enabled => {
+    const Screen = (await import('../../app/(member)/_layout')).default;
+    h.pathname = '/(member)/shop'; h.visibility.enabled = enabled;
+    const mountedPath = navigatorMountPath(createElement(Screen)); expect(mountedPath).toBeDefined();
+    h.visibility.error = 'Could not refresh Classes. Try again.';
+    expect(navigatorMountPath(createElement(Screen)), 'cached read failure must preserve the selected screen and its drafts').toEqual(mountedPath);
+    const failed = await layout();
+    const recovery = failed.find(node => typeof (node.props.onRetry ?? node.props.onPress) === 'function');
+    expect(recovery, 'a cached failure still offers recovery').toBeDefined();
+    await ((recovery?.props.onRetry ?? recovery?.props.onPress) as () => unknown)(); expect(h.visibility.reload).toHaveBeenCalled();
+    h.visibility.loading = true;
+    expect(navigatorMountPath(createElement(Screen)), 'retry must keep the navigator mounted').toEqual(mountedPath);
+    h.visibility.loading = false; h.visibility.error = null;
+    expect(navigatorMountPath(createElement(Screen)), 'successful refresh must retain the same navigator').toEqual(mountedPath);
+    expect(h.replace).not.toHaveBeenCalled();
   });
   it('does not expose either completed tab set while first visibility is unresolved', async () => {
     h.visibility.enabled = null; h.visibility.loading = true;
