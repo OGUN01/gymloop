@@ -145,6 +145,7 @@ select results_eq(
            ('invoice_prefix'::text, 'text'::text, true),
            ('logo_url'::text, 'text'::text, false),
            ('max_freeze_days_per_year'::text, 'int2'::text, true),
+           ('member_classes_enabled'::text, 'bool'::text, true),
            ('members_without_dob_attested_adult_at'::text, 'timestamptz'::text, false),
            ('no_show_threshold_days'::text, 'int2'::text, true),
            ('opening_hours'::text, 'jsonb'::text, true),

@@ -1064,6 +1064,9 @@ select is_empty(
 -- sharing one; overloads and every other exposed elevated function still
 -- fail. Every elevated function in either application schema must use an
 -- empty path.
+-- NAVC-004/013 adds only the frozen discovery setter and two caller-owned
+-- readers: the setter is VOLATILE, the readers STABLE. Exact signatures keep
+-- unapproved overloads, owners, volatility and search paths subject to failure.
 -- ---------------------------------------------------------------------------
 
 select is_empty(
@@ -1127,6 +1130,9 @@ select is_empty(
                          ('public.desk_cancel_class_booking(uuid, text)', 'v'),
                          ('public.mark_class_attendance(uuid, public.booking_status)', 'v'),
                          ('public.read_member_class_schedule(date, date)', 's'),
+                         ('public.set_member_classes_enabled(boolean)', 'v'),
+                         ('public.read_member_class_visibility()', 's'),
+                         ('public.read_member_upcoming_class_bookings()', 's'),
                          ('public.register_media_asset(text, text, text, integer)', 'v'),
                          ('public.delete_media_asset(uuid, boolean)', 'v'),
                          ('public.set_shop_product_display(uuid, uuid, smallint, uuid)', 'v'),
