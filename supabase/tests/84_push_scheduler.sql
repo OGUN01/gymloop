@@ -319,7 +319,10 @@ end;
 
 -- ============ D5. event failure rolls the tick back without enqueueing ============
 savepoint d5;
-select is(pg_temp.probe($q$create or replace function app.push_configuration_ready(p_tenant_id uuid) returns boolean language sql stable security definer set search_path = '' as $fn$ select case when p_tenant_id = (select ('84000000-0000-4000-8000-'||lpad(250::text,12,'0'))::uuid) then (select exists (select 1/0)) else exists (select 1 from public.push_provider_configurations c where c.tenant_id = p_tenant_id and c.firebase_project_id = 'samuraiapi-51996' and c.activated_at is not null and c.activated_at <= statement_timestamp()) end $fn$$q$),'OK','PSD-004: a readiness seam failing for one fixture tenant is installed');
+-- EXISTS does not evaluate its output expression. Put the division in the
+-- boolean result instead, with a tenant-dependent zero denominator so the
+-- fault executes only when this fixture tenant's readiness is evaluated.
+select is(pg_temp.probe($q$create or replace function app.push_configuration_ready(p_tenant_id uuid) returns boolean language sql stable security definer set search_path = '' as $fn$ select case when p_tenant_id = (select ('84000000-0000-4000-8000-'||lpad(250::text,12,'0'))::uuid) then (1 / (pg_catalog.length(p_tenant_id::text) - pg_catalog.length(p_tenant_id::text))) = 0 else exists (select 1 from public.push_provider_configurations c where c.tenant_id = p_tenant_id and c.firebase_project_id = 'samuraiapi-51996' and c.activated_at is not null and c.activated_at <= statement_timestamp()) end $fn$$q$),'OK','PSD-004: a readiness seam failing for one fixture tenant is installed');
 create temp table d5_pre as select pg_temp.reads_now() r, pg_temp.sends_now() s;
 select set_config('request.jwt.claims','',true);
 create temp table d5_err as select pg_temp.tickerr() e;
@@ -331,6 +334,18 @@ rollback to savepoint d5;
 select is((select count(*)::integer from public.notifications n where n.tenant_id between pg_temp.aid(200) and pg_temp.aid(302) and n.dedupe_key like 'announcement:%'),100,'PSD-004: the failed tick wrote no surviving event rows');
 
 -- ============ D4. lock overlap, adaptive to the frozen lock semantics ============
+-- D3 already proves the 103-tenant bound and cyclic exclusions. For the
+-- repeat/dedupe case keep exactly its 100 already-processed tenants eligible:
+-- a later statement minute must not introduce the three unprocessed tenants.
+-- Keep the mixed-readiness future tenant inactive too, so elapsed fixture
+-- time cannot add it to this repeat-only pool. No production clock is changed.
+update public.push_provider_configurations c
+   set activated_at = null
+ where c.tenant_id = pg_temp.aid(13)
+    or (c.tenant_id between pg_temp.aid(200) and pg_temp.aid(302)
+        and not exists (select 1 from public.notifications n
+                         where n.tenant_id = c.tenant_id
+                           and n.dedupe_key like 'announcement:%'));
 -- The tick result and the pre-tick seam counts are staged first; the five
 -- branch assertions then EMIT at top level (a perform-ed assertion never
 -- reaches the TAP stream; see the D0 emission note). Each CASE emits exactly
