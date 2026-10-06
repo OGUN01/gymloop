@@ -1,0 +1,83 @@
+{
+  "purpose": "Read-only held native/shared coverage audit",
+  "auditedCommit": "eb65e58a629ff79128da1fae1445f82640c15bcb",
+  "relevantFiles": [
+    {
+      "path": "C:\\Users\\Harsh\\Desktop\\gymloop\\supabase\\tests-holdout\\business-type-holdout.test.ts",
+      "sha256": "17CB74A1008095FA9C80A16F601BEBE14BD24011A4FD6E9A4860CB9D74A03183"
+    },
+    {
+      "path": "C:\\Users\\Harsh\\Desktop\\gymloop\\supabase\\tests-holdout\\classes-native-held.test.ts",
+      "sha256": "C58EAF88092D19B07764AB9C0FC0DAF0D89F1FC8B10EDE3211B052F09F0F9BEE"
+    },
+    {
+      "path": "C:\\Users\\Harsh\\Desktop\\gymloop\\supabase\\tests-holdout\\classes-reads-held.test.ts",
+      "sha256": "A1967A6EC437CCE25D04B50A276AA8C1E99CF2D7600932B25582B3F8181BEB89"
+    },
+    {
+      "path": "C:\\Users\\Harsh\\Desktop\\gymloop\\supabase\\tests-holdout\\classes-contract-held.test.ts",
+      "sha256": "31EF7E315DDE1E6AC6E7443EC6A198144BC6708CFA61FE905944DC91231B6ADF"
+    },
+    {
+      "path": "C:\\Users\\Harsh\\Desktop\\gymloop\\supabase\\tests-holdout\\classes-rendered-held.test.tsx",
+      "sha256": "2F82F807D809DD661E50911B2500730ABF8B3CA0182070C92CF8810BC0863C11"
+    },
+    {
+      "path": "C:\\Users\\Harsh\\Desktop\\gymloop\\supabase\\tests-holdout\\classes-approved-booking-held.test.tsx",
+      "sha256": "F81B6D64A700568E91271C1E6B40FE7A76FA2A98EA11102C4145D5F0D56BD390"
+    },
+    {
+      "path": "C:\\Users\\Harsh\\Desktop\\gymloop\\supabase\\tests-holdout\\member-ia-completion-held.test.tsx",
+      "sha256": "5ED23AD3E009136E2273C9CDFEBED99750FC0D18B967B62510A55A2A318C842F"
+    }
+  ],
+  "bodyDisclosure": "None: coverage descriptions only, no held assertion bodies or labels",
+  "coverage": [
+    {
+      "requirement": "NAVC-001",
+      "coverage": "Shared strict service/rule/session DTOs, immutable rule identity, generated state vocabulary, and preserved caller-bound class command/read behavior",
+      "limitation": "No held matrix of multiple named class services scheduled and displayed across all five saved business types"
+    },
+    {
+      "requirement": "NAVC-010",
+      "coverage": "Exact eight shared nouns for gym, dance, yoga, martial_arts and studio; generated enum agreement, type freshness, tenant-scoped persistence and role noun checks",
+      "limitation": "No held all-five rendering matrix for actual native Home/hub/announcement headings, teacher context or timetable; mixed activity names independent of business identity are not directly asserted"
+    },
+    {
+      "requirement": "NAVC-011",
+      "coverage": "Branch timezone and session-date preservation by read adapters; calendar day-strip boundary arithmetic; caller-bound separate own-bookings load and explicit own-bookings route; cancellation/current-fact/offline/identity and explicit command guards",
+      "limitation": "No held assertions directly exercise stable-ID activity filtering, duplicate service-name identity, branch-local date selection, chronological ordering, reset after service removal, filtered-empty state or own-bookings independence during active activity/day filters"
+    }
+  ],
+  "validation": {
+    "focusedInitial": {
+      "tests": 312,
+      "passed": 311,
+      "failed": 1,
+      "failureMechanism": "First web Gym destination case exceeded existing 5000ms timeout; no assertion mismatch"
+    },
+    "isolatedRepeat": {
+      "file": "member-ia-completion-held.test.tsx",
+      "tests": 29,
+      "passed": 29,
+      "failed": 0,
+      "maxWorkers": 1,
+      "existingTimeoutsUnchanged": true
+    },
+    "relevantCurrentStatuses": "Seven files green across initial successful files and isolated repeat; 312 cases total",
+    "reports": [
+      "C:\\Users\\Harsh\\AppData\\Local\\Temp\\gymloop-held-nav-coverage-1dda46e8-5f71-4129-8454-8be08cb7782c\\held-results.json",
+      "C:\\Users\\Harsh\\AppData\\Local\\Temp\\gymloop-held-nav-coverage-1dda46e8-5f71-4129-8454-8be08cb7782c\\member-ia-repeat-results.json"
+    ]
+  },
+  "boundaries": {
+    "visibleTestBodiesRead": false,
+    "productionLogicRead": false,
+    "sqlBodiesRead": false,
+    "cloudAccess": false,
+    "deviceActions": false,
+    "repositoryEdits": false,
+    "heldFilesUnchanged": true
+  },
+  "interpretation": "Held-suite limitations only; no product or overall-acceptance conclusion. Public ADR-059 permits ordinary spec-first/test-first proof for loud UI defects."
+}

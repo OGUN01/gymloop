@@ -1,0 +1,356 @@
+{
+  "kind": "independent-public-requirement-to-visible-assertion-coverage",
+  "auditor": "/root/nav_label_source_blind_critic",
+  "createdUtc": "2026-10-06T10:26:00Z",
+  "repository": "C:/Users/Harsh/Desktop/gymloop",
+  "scope": "Requested NAVC-001/010/011 host case coverage. Public EARS/plan and visible assertion bodies only. No production or holdout bodies read for this audit; no repository edit, device, Cloud run or rerun.",
+  "publicRequirements": [
+    {
+      "path": "openspec/changes/v2-native-navigation/specs/member-class-discovery/spec.md",
+      "lines": [
+        7,
+        12
+      ],
+      "requirements": [
+        "NAVC-001"
+      ]
+    },
+    {
+      "path": "openspec/changes/v2-native-navigation/specs/native-member-discovery/spec.md",
+      "lines": [
+        57,
+        69
+      ],
+      "requirements": [
+        "NAVC-010",
+        "NAVC-011"
+      ]
+    },
+    {
+      "path": "openspec/changes/v2-native-navigation/tasks.md",
+      "line": 18,
+      "task": "3.4"
+    }
+  ],
+  "result": {
+    "status": "PASS",
+    "suiteCount": 8,
+    "totalTests": 297,
+    "passed": 297,
+    "failed": 0,
+    "requestedCaseCoverageGaps": [],
+    "nativeTests": 133,
+    "sharedTests": 164
+  },
+  "savedTypeCases": [
+    {
+      "type": "gym",
+      "place": "gym",
+      "instructorNoun": "trainer"
+    },
+    {
+      "type": "dance",
+      "place": "academy",
+      "instructorNoun": "instructor"
+    },
+    {
+      "type": "yoga",
+      "place": "studio",
+      "instructorNoun": "teacher"
+    },
+    {
+      "type": "martial_arts",
+      "place": "academy",
+      "instructorNoun": "instructor"
+    },
+    {
+      "type": "studio",
+      "place": "studio",
+      "instructorNoun": "trainer"
+    }
+  ],
+  "assertionMap": [
+    {
+      "requirements": [
+        "NAVC-001",
+        "NAVC-010"
+      ],
+      "case": "All five saved business-type contexts retain actual mixed service names and teacher/instructor/trainer wording",
+      "path": "apps/mobile/lib/__tests__/navc-classes-visible.test.tsx",
+      "lines": [
+        227,
+        229
+      ],
+      "assertions": "For each of gym,dance,yoga,martial_arts,studio: renders the real ClassesPane under the saved-type context; visible text contains both Hatha Yoga and Contemporary beginners and the canonical trainer/instructor/teacher noun. It does not rely on the test title."
+    },
+    {
+      "requirements": [
+        "NAVC-010"
+      ],
+      "case": "All five business hubs and shared announcement headings",
+      "path": "apps/mobile/app/__tests__/navc-home-context-visible.test.tsx",
+      "lines": [
+        187,
+        190
+      ],
+      "assertions": "For all five type/place pairs: actually renders Home and hub and matches From your {gym|academy|studio} and Your {place}."
+    },
+    {
+      "requirements": [
+        "NAVC-010"
+      ],
+      "case": "All five hub success/error title hierarchy",
+      "path": "apps/mobile/lib/__tests__/business-copy-rendered.test.tsx",
+      "lines": [
+        201,
+        225
+      ],
+      "assertions": "Explicit five-case golden My gym/My academy/My studio. Success asserts eyebrow exists before the BIZ Academy heading and heading font is larger; error asserts the exact place title and excludes the successful business name."
+    },
+    {
+      "requirements": [
+        "NAVC-001",
+        "NAVC-010"
+      ],
+      "case": "Canonical generated five-type vocabulary",
+      "path": "packages/shared/src/__tests__/business-type.test.ts",
+      "lines": [
+        7,
+        32
+      ],
+      "assertions": "Exact generated business_type enum/order equals gym,dance,yoga,martial_arts,studio; each type equals all eight literal golden nouns and role labels."
+    },
+    {
+      "requirements": [
+        "NAVC-001",
+        "NAVC-010"
+      ],
+      "case": "Business type does not gate or rename enabled primary Classes access",
+      "path": "apps/mobile/lib/__tests__/navc-navigation-visible.test.tsx",
+      "lines": [
+        69,
+        71
+      ],
+      "assertions": "All five contexts assert the exact ordered five native destinations Home,Classes,Shop,You,Activity with fixed Classes title."
+    },
+    {
+      "requirements": [
+        "NAVC-010"
+      ],
+      "case": "Mixed activity catalogue does not silently change saved gym type",
+      "path": "apps/mobile/lib/__tests__/navc-classes-visible.test.tsx",
+      "lines": [
+        176,
+        180
+      ],
+      "assertions": "Both actual activity filters exist, dance occurrence precedes yoga occurrence, and seam.context.businessType remains gym. Host assertion only; adding a service through a real persisted command is outside this audit."
+    },
+    {
+      "requirements": [
+        "NAVC-010"
+      ],
+      "case": "Fetched saved vocabulary and foreground refresh/cache retention",
+      "path": "apps/mobile/lib/__tests__/business-type-provider.test.tsx",
+      "lines": [
+        109,
+        137
+      ],
+      "assertions": "Member/staff fetch own organization business_type, render dance nouns, persist tenant/type cache; active refresh changes to yoga then martial_arts with exact cache/type assertions; offline/failure retains known dance nouns. This provider suite does not separately fetch all five types."
+    },
+    {
+      "requirements": [
+        "NAVC-011"
+      ],
+      "case": "Stable service identity despite duplicate names",
+      "path": "apps/mobile/lib/__tests__/navc-classes-visible.test.tsx",
+      "lines": [
+        188,
+        192
+      ],
+      "assertions": "Two distinct service IDs both named Movement produce two filters; pressing second shows Second service sentinel and excludes First service sentinel."
+    },
+    {
+      "requirements": [
+        "NAVC-011"
+      ],
+      "case": "Populated mixed timetable sorted chronologically",
+      "path": "apps/mobile/lib/__tests__/navc-classes-visible.test.tsx",
+      "lines": [
+        176,
+        186
+      ],
+      "assertions": "Fixture dance starts16:00 and yoga18:00 on same local date; rendered Dance sentinel index precedes Yoga sentinel, and both service filters exist. Adjacent filter test separately asserts the Dance sentinel is present."
+    },
+    {
+      "requirements": [
+        "NAVC-011"
+      ],
+      "case": "Branch-local date filter crossing UTC date",
+      "path": "apps/mobile/lib/__tests__/navc-classes-visible.test.tsx",
+      "lines": [
+        222,
+        225
+      ],
+      "assertions": "Dance on Oct7 at00:30+05:30 has UTC dateOct6; selecting 7 Oct 2026 shows Dance, excludes Oct6 Yoga, preserves own distant-branch commitment."
+    },
+    {
+      "requirements": [
+        "NAVC-011"
+      ],
+      "case": "Truthful filtered empty day",
+      "path": "apps/mobile/lib/__tests__/navc-classes-visible.test.tsx",
+      "lines": [
+        194,
+        198
+      ],
+      "assertions": "Dance exists on another date; selecting Dance on current day excludes its timetable row, asserts a truthful no-scheduled-for-day message, retains All activities control and own booking."
+    },
+    {
+      "requirements": [
+        "NAVC-011"
+      ],
+      "case": "Removed selected activity resets rather than leaving an invalid filter",
+      "path": "apps/mobile/lib/__tests__/navc-classes-visible.test.tsx",
+      "lines": [
+        217,
+        220
+      ],
+      "assertions": "Select Hatha Yoga and assert Dance excluded; refreshed authorized catalogue contains only Dance; render now shows Dance plus All activities control and own booking. This verifies invalid-selection recovery; it does not inspect the visual active-state marker of All."
+    },
+    {
+      "requirements": [
+        "NAVC-011"
+      ],
+      "case": "My bookings independent of activity/date/catalogue branch and empty catalogue",
+      "path": "apps/mobile/lib/__tests__/navc-classes-visible.test.tsx",
+      "lines": [
+        182,
+        215
+      ],
+      "assertions": "Dance filter keeps Booked distant branch Yoga, Commitment-only branch and Cancel control; date filter keeps same commitment; empty authorized catalogue still calls independent own-bookings reader and displays own branch/local23:45/cancel; bookingsOnly excludes timetable Yoga/Dance and offers no new Book; cancelled commitments have no Book/Cancel; own-reader failure has retry, not false no-bookings."
+    },
+    {
+      "requirements": [
+        "NAVC-011"
+      ],
+      "case": "Filtering and refreshing do not mutate booking/cancellation",
+      "path": "apps/mobile/lib/__tests__/navc-classes-visible.test.tsx",
+      "lines": [
+        148,
+        171
+      ],
+      "additionalLines": [
+        182,
+        186
+      ],
+      "assertions": "Focus/resume refresh both catalogue and own readers, replaces old facts with fresh; cancelled own bookings stay cancelled with no actions; book and cancel mocks remain uncalled. This is host command-boundary evidence, not SQL serialization proof."
+    },
+    {
+      "requirements": [
+        "NAVC-001",
+        "NAVC-011"
+      ],
+      "case": "Existing class request/status/date/availability contracts",
+      "path": "packages/shared/src/api/__tests__/classes-visible-contract.test.ts",
+      "lines": [
+        26,
+        90
+      ],
+      "additionalLines": [
+        95,
+        126
+      ],
+      "assertions": "Named existing request schemas accept valid commands and reject caller identity fields; canonical generated booking/session statuses and limits are exact; arbitrary Yoga service name trimmed without an activity-type field; immutable rule identity, valid local start-day boundaries, explicit attendance vocabularies, availability labels, day strips and refusal messages asserted. Does not execute authoritative database booking eligibility/concurrency."
+    },
+    {
+      "requirements": [
+        "NAVC-011"
+      ],
+      "case": "Shared own-booking projection retains stable identity, branch-local date and booking/cancellation/capacity facts",
+      "path": "packages/shared/src/api/__tests__/member-class-discovery-visible.test.ts",
+      "lines": [
+        8,
+        22
+      ],
+      "additionalLines": [
+        87,
+        104
+      ],
+      "assertions": "Exact projected object preserves Salsa beginners, service/session/branch identities, Etc/GMT+12 local Oct5 against UTC Oct6, capacity20/booked1/spots19, booked state/cancel deadline; callerless RPC exact; private scope fields stripped; [] differs from failed null; cancelled states preserved."
+    },
+    {
+      "requirements": [
+        "NAVC-011"
+      ],
+      "case": "Native hub My classes enters independent bookings-only view",
+      "path": "apps/mobile/app/__tests__/navc-home-context-visible.test.tsx",
+      "lines": [
+        196,
+        202
+      ],
+      "assertions": "Actual hub My classes action navigates to member/classes section bookings; route mounts ClassesPane bookingsOnly=true and excludes Training."
+    }
+  ],
+  "suites": [
+    {
+      "path": "apps/mobile/app/__tests__/navc-home-context-visible.test.tsx",
+      "sha256": "899BFDACE438A1AD09FAFCA7CE4A07B957E4F1B396DD100A78915A9DE375A44F",
+      "passed": 20,
+      "firstTestCommit": "a19c2608524f3fe0a02a0cbf15d5eefb7824ac19"
+    },
+    {
+      "path": "apps/mobile/lib/__tests__/navc-classes-visible.test.tsx",
+      "sha256": "FAE4C4406FE59D0067CBA6500BE89B24DD6A0B62F35AF6C8DD3D83C17C84E221",
+      "passed": 21,
+      "firstTestCommit": "af83e505dd4194e4e4413b8d105e86088dce1c59"
+    },
+    {
+      "path": "apps/mobile/lib/__tests__/navc-navigation-visible.test.tsx",
+      "sha256": "6964EA11E8EC1B656D50FED19288869B85403EB4CBEC08F26C40387471A64D9F",
+      "passed": 44,
+      "firstTestCommit": "a19c2608524f3fe0a02a0cbf15d5eefb7824ac19"
+    },
+    {
+      "path": "apps/mobile/lib/__tests__/business-copy-rendered.test.tsx",
+      "sha256": "6B858A1D8A8D4662413141974B993152D06771FC0E2471AC36D52A6DC67028B0",
+      "passed": 34,
+      "firstTestCommit": "64b582064c1f7f6f39e0c2a0d6a2f4d8f278d39d"
+    },
+    {
+      "path": "apps/mobile/lib/__tests__/business-type-provider.test.tsx",
+      "sha256": "AD971F8FAEFADA70990693AF659219CFB85985306FD3E3EFFDE848DC4F581990",
+      "passed": 14,
+      "firstTestCommit": "64b582064c1f7f6f39e0c2a0d6a2f4d8f278d39d"
+    },
+    {
+      "path": "packages/shared/src/__tests__/business-type.test.ts",
+      "sha256": "FBE869C2C27D57718DCC014544ECA7F47B9C8000FC62238FA70BB74A3321D4B1",
+      "passed": 17,
+      "firstTestCommit": "64b582064c1f7f6f39e0c2a0d6a2f4d8f278d39d"
+    },
+    {
+      "path": "packages/shared/src/api/__tests__/member-class-discovery-visible.test.ts",
+      "sha256": "FAFDB1A7B18D7C5F17418B6367C6729F8460C1FFB9E108757274A27995945BD4",
+      "passed": 69,
+      "firstTestCommit": "7a62b514f05304932525bb2c9fc6ac76400e6f27"
+    },
+    {
+      "path": "packages/shared/src/api/__tests__/classes-visible-contract.test.ts",
+      "sha256": "1F3EA3100CEA0A00DBB1FDD66B3F606817C60A6DE3B348DCBDD2F99907CFC17C",
+      "passed": 78,
+      "firstTestCommit": "a65cb2778781fe3683c308b750c3be42fb4bc998"
+    }
+  ],
+  "resultReports": [
+    "C:/Users/Harsh/AppData/Local/Temp/gymloop-seed-independent-f519c20b-4de8-450e-8e59-0da4313aafa8/bounded-replay/navc-case-native-results.json",
+    "C:/Users/Harsh/AppData/Local/Temp/gymloop-seed-independent-f519c20b-4de8-450e-8e59-0da4313aafa8/bounded-replay/navc-case-shared-results.json",
+    "C:/Users/Harsh/AppData/Local/Temp/gymloop-seed-independent-f519c20b-4de8-450e-8e59-0da4313aafa8/bounded-replay/navc-case-home-results.json"
+  ],
+  "limits": [
+    "These are host-rendered/unit fixtures, not fresh device pixels or five end-to-end Cloud save journeys.",
+    "The native five-type matrix starts from mocked saved-type context; the separate provider assertions verify fetched organization/cache behavior for dance,yoga,martial_arts.",
+    "Chronological fixture evidence is two same-zone distinct starts; equal-start stable tie ordering and arbitrary cross-zone chronological permutations are not separately certified here.",
+    "Removed selection assertion establishes recovery to valid visible rows; no claim about an active All chip visual marker.",
+    "No claim that these suites alone prove live SQL eligibility, frozen-membership refusal, serialization, attendance, or tenant safety. Required existing full DB/seed gates remain independent and pending."
+  ]
+}

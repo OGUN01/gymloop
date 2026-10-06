@@ -1,0 +1,68 @@
+{
+  "kind": "read-only-visible-CI-failure-triage",
+  "runId": 37447767551,
+  "attempt": 1,
+  "head": "eb65e58a629ff79128da1fae1445f82640c15bcb",
+  "jobId": 112216617119,
+  "job": "gates",
+  "failedStep": "test:e2e accessibility",
+  "visibleCase": {
+    "path": "tests/e2e/phase8-accessibility.spec.ts",
+    "line": 227,
+    "title": "web You and Settings summarize the current appearance value"
+  },
+  "observed": {
+    "failed": 1,
+    "passed": 97,
+    "duration": "11.1m",
+    "originalAndConfiguredRetryFailed": true,
+    "locator": "getByRole('list', { name: /account/i }).getByRole('listitem').filter({ hasText: 'Appearance' }).locator('a, button')",
+    "failure": "element(s) not found for both 5000ms soft name assertions; subsequent Open settings click waited until the existing90000ms test timeout",
+    "noAxeViolationReportedInFailedCase": true,
+    "storedArtifacts": 0
+  },
+  "sourceSupport": [
+    "git diff --quiet green31a5..eb65 for apps/web, tests/e2e, shared, config, lock and workflow returned0: no changes in the execution trees.",
+    "Visible case checks the member landing URL before page.goto('/member/you'), but no You response/status/body assertion establishes what loaded in this failure.",
+    "YouSettings success markup always includes Account Appearance and Open settings, including pre-hydration markup; its initial summary can be Loading appearance.",
+    "MemberYouPage has a portal.errorMessage branch that omits YouSettings. loadMemberPortal can return that error for required read failures/missing required data. No retained DOM/status confirms that branch in this run.",
+    "No locator, DOM, response, screenshot or trace evidence distinguishes portal-read failure, redirect, server/render failure, or another runtime state."
+  ],
+  "conclusion": {
+    "runtimeCause": "UNPROVEN",
+    "productChangeJustified": false,
+    "oneUnchangedFailedJobConfirmationJustified": true,
+    "reason": "Identical execution trees previously passed; observed failed original/retry is preserved; no assertion/time limit weakening or source patch. Confirmation is a fresh gate trial and must itself pass.",
+    "repeatedFailureAction": "Preserve repeated failure and obtain concrete DOM/status/artifact diagnosis before additional retries.",
+    "execution": "Parent explicitly declined targeted live-Cloud/local reproduction. The ordinary coherent documentation/certificate push will supply the unchanged confirmation run; no separate eb65 rerun will be invoked. This agent ran no browser reproduction or CI action."
+  },
+  "boundaries": {
+    "heldBodiesRead": false,
+    "repoEdits": false,
+    "CloudSQL": false,
+    "device": false,
+    "CIRerunsExecuted": false
+  },
+  "fileHashes": [
+    {
+      "path": "tests/e2e/phase8-accessibility.spec.ts",
+      "sha256": "F06A70AB6614FC15151C3E70D8370F8244CE994EAAA5B24D8B881544481AD815"
+    },
+    {
+      "path": "playwright.accessibility.config.ts",
+      "sha256": "5E6FF901EDFED681FDB321D74865EECCB888A96D7F125923E913CB0E023BF3BE"
+    },
+    {
+      "path": "apps/web/app/member/you/page.tsx",
+      "sha256": "59F6AD82382014B4E017015DC5D75A737DF2B8A35D3AAD10DA58B1F8F0472DCD"
+    },
+    {
+      "path": "apps/web/app/member/you-settings.tsx",
+      "sha256": "5D38DEF438C67FBB27EEC3E4E45E421E2246B93DE27551CB48753C400C507DCD"
+    },
+    {
+      "path": "apps/web/lib/member-portal.ts",
+      "sha256": "C7C68DCD5D4BDEE530E5D28AB03712AA68D07008C53EBA72B14D9500A2D08A86"
+    }
+  ]
+}

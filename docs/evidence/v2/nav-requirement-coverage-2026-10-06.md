@@ -1,0 +1,43 @@
+# Navigation and Classes requirement evidence — 2026-10-06
+
+This index preserves the approved scope of `v2-native-navigation`. It is an acceptance evidence map, not a claim that the release is complete. The full database/seed run, latest app CI and archive are still required.
+
+## Independent case certificates
+
+The separate visible-only auditor inspected the public requirements and assertion bodies, without production or held bodies, then ran eight existing suites: **297/297**, comprising native133 and shared164. [Visible certificate](nav-visible-case-coverage-2026-10-06.json) records exact assertion locations, eight current file hashes and first test commits. Its copied bytes have SHA256 `0D1BF240B4642E870C8A57DFFFF383D074D026E217FDCE474931899DF3D4AF70`. Root verified all eight source-file hashes; no tests or source were edited for this audit.
+
+The separate held-only author inspected seven existing held suites without visible tests, production logic, SQL bodies, Cloud or device access. [Held certificate](nav-held-case-coverage-2026-10-06.json) records their coverage, limitations and seven file hashes. Its copied bytes have SHA256 `58C14F3706A614AA631BFBE187A595558F005B5B85BB8C016ADC2B39B20C035F`. Root verified the seven file hashes without reading held bodies. Initial focused execution was **311/312** with one unchanged five-second web Gym timeout; isolated repeat of that file was **29/29**, with original timeouts unchanged. This is seven green files across two runs, not an invented single312/312 run.
+
+Certificate/source hashes above bind the original audit's Windows worktree bytes. Git normalizes text line endings: the committed LF held-certificate blob has SHA256 `BA6927A54E160472DE3EF2667CE78549107514C201994BD99D1C0920AE850E0F`; the LF visible and triage blobs match their stated original hashes. Use committed blob bytes for cross-platform certificate identity, rather than assuming another checkout's text-file bytes are identical.
+
+The actual five-type rendered visible assertions cover saved Gym, Dance, Yoga, Martial arts and Studio contexts; exact Home/shared heading and hub nouns; fixed Classes naming; mixed actual service names and instructor nouns. Separate provider assertions cover fetched organization/cache/foreground behavior. Populated host cases assert duplicate-name stable IDs,16:00-before18:00 chronology,00:30 branch-local date selection across the UTC date, removed-selection recovery, truthful filtered-empty wording and independent distant-branch My bookings. The held suites independently cover canonical nouns and preserved class contracts, but do not contain a second native mixed-filter rendering matrix. ADR-059 permits the ordinary spec-first/test-first arrangement for loud UI defects; that limitation is explicit rather than presented as additional held proof.
+
+These host fixtures are not five live Cloud save journeys, populated device pixels or SQL-concurrency acceptance. The real demo's enabled timetable is empty. Equal-start tie ordering and arbitrary cross-zone chronological permutations are outside these two certificate claims. Authoritative database behavior remains subject to the separate SQL gates.
+
+## Requirement map
+
+| Requirement | Recorded evidence | Remaining release dependency |
+| --- | --- | --- |
+| NAVC-001 mixed-activity model | Visible certificate's actual mixed-service rendering for all five contexts; unchanged class contract assertions; held class contracts; blind security/source review in the [review record](nav-discovery-review-2026-10-06.md). | Full database regression gate for preserved eligibility, serialization and attendance. |
+| NAVC-002 enabled five tabs | Exact ordered five destinations across all five host contexts; actual normal/Large Home and truthful On-empty Classes in the [device manifest](nav-device-release-2026-10-06.json). | Latest app CI. |
+| NAVC-003 Off preserves commitments | Independent own-booking host/filter/branch cases; actual four tabs and retained My classes; canonical selected-route/source re-review. | Full DB and latest app CI. |
+| NAVC-004 authorized save/read | Blind security GO; focused visible115/held141/historical36 zero-failure rollback proof with plan equality and restored catalog; owner26/API/shared assertions; deployed owner/desk/trainer3/3 with original choice restored. | Full DB/seed and latest app CI. |
+| NAVC-005 discovery-only switch | Independent SQL preservation/cancellation assertions and blind security GO; no booking-command or service activation changes. | Full database regression gate. |
+| NAVC-006 identity/loading/cache | Independent visibility lifetime/recovery assertions and held6/6; canonical initial-read sign-out proof; focus/resume and route source re-review; refreshed actual On/Off bars. | Latest app CI. |
+| NAVC-007 contextual routes/desk | Independent rendered route and membership-adjacency regressions; actual Buy, membership/Freeze, desk five titles and trainer More/native Training at both font scales; combined pixel GO. | Latest app CI. |
+| NAVC-008 catalogue-first Shop | Independent category/placeholder/order/hidden-active/hold/cancel/3+5 assertions; actual Products/Plans/Services, Buy and initial3/+5 images; combined pixel GO. Existing response disclosure is explicitly not database pagination. | Latest app CI. |
+| NAVC-009 compact distinct updates | Independent Home/lifecycle assertions; actual no-bell personal preview near membership and exactly two shared previews below Last visit; full View all title normal/Large; combined pixel GO. | Latest app CI. |
+| NAVC-010 saved business wording | Visible certificate's five-type actual Home/hub/timetable/service-name assertions and fetched provider assertions; independent held exact noun/persistence coverage. No automatic business-type detection claim. | Latest app CI. |
+| NAVC-011 filters and own bookings | Visible certificate's stable IDs, local date, chronology, removed activity, filtered-empty and independent own-bookings assertions; held preserved cancellation/confirmation/offline/identity boundaries. | Full DB and latest app CI. |
+| NAVC-012 existing theme/legibility | Independent rendered/token/accessibility regressions; actual normal/Large light/dark, honest image placeholder, orange values, Freeze date/help/keyboard images; combined pixel GO. Freeze hook/payload unchanged. | Latest app CI. |
+| NAVC-013 own commitments | Blind security GO and focused independent SQL caller/horizon/branch/cancellation assertions; shared strict projection and host independent read. | Full database regression gate. |
+| NAVC-014 absolute horizon/timezone | Blind security GO and focused independent SQL in-progress/ended/upper-bound/local-date assertions; strict shared projection/local display host cases. | Full database regression gate. |
+| NAVC-015 defaults/backfill | CI-applied additive migration, blind security GO, focused visible/held/historical clock/backfill/default/choice-preservation assertions and generated-type drift check. | Full DB/seed. |
+
+## Release invariants
+
+The [review record](nav-discovery-review-2026-10-06.md), [durable handoff](../../planning/v2-native-navigation-resume-2026-10-06.md) and device manifest preserve test-first commits, CI-only migration application, genuine CLI-generated types, exact v2check package/debug signing, final90fdd8b6 APK hash, eight bundle/source-map parities, six stable Play pilot identity fields including path, original owner Off/Aarav/Dark/font1.0 restoration, no final transaction/form submissions and no Play upload. Registry/lint/escape-hatch/immutability/OpenSpec gates remain enforced.
+
+At the audit, remote main is eb65e58a. Its entire Supabase tree equals the authoritative full DB26c1c4ad tree `bb628e2003fc275390e2e5d8441e322239401f09`; subsequent production change is solely the independently tested membership-adjacent Freeze row. Full DB37443247398 is still live, with migrate/rollback/schema-drift green and pgTAP/dependent seed pending. Latest app37447767551 failed at10:24:55UTC on the web You Appearance locator, original and retry, with97other accessibility cases passing. The failure is retained for independent triage; the prior31a5ad5f green run is not substituted for latest completion. Tasks4.2/4.4 remain open.
+
+The [independent failure triage](nav-app-ci-eb65-triage-2026-10-06.json), SHA256 `B23F2B5B30673792CC36521DAE42773D814C9AF0000D712CF29787F95FE27D49`, retains the visible failure, unchanged execution-tree comparison and unproven runtime cause. One unchanged confirmation is justified; a repeat must receive concrete DOM/status/artifact diagnosis before further retries. No product change or time/assertion waiver is supported by this evidence.
