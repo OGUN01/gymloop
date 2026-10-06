@@ -5,18 +5,18 @@
 
 ## 2. Classes configuration and commitment boundary
 
-- [ ] 2.1 Build one additive migration for visibility, canonical owner command, direct-field guard, backfill and own-bookings read; verify independent visible/holdout acceptance, rollback checks and fresh security critic.
+- [x] 2.1 Build one additive migration for visibility, canonical owner command, direct-field guard, backfill and own-bookings read; verify independent visible/holdout acceptance, rollback checks and fresh security critic. Root-only rollback runs: visible115/115, independentheld141/141 and historical36/36; catalog digests restored after each; fresh scoped security GO recorded.
 - [ ] 2.2 Land through CI after the preceding DB run finishes, generate types with the authorized CLI and add typed shared/native readers and strict owner API; verify schema drift, API contracts, registry and focused tests.
 - [ ] 2.3 Add owner/manager Show Classes to members control to class settings; verify On/Off/no-op/refusal and preserve existing class-settings fields.
-- [ ] 2.4 Integrate exact-identity native visibility loading/cache/resume/focus behavior; verify NAVC-002/003/006 and late-read/sign-out tests.
+- [x] 2.4 Integrate exact-identity native visibility loading/cache/resume/focus behavior; verify NAVC-002/003/006 and late-read/sign-out tests. Full mobile713/713 and affected independentheld141/141 pass; source GO includes canonical initial-read account exit. Device refresh/On/Off remains in4.3.
 
 ## 3. Native presentation
 
-- [ ] 3.1 Declare member and desk primary/secondary visibility explicitly, order the member destinations, and provide Buy, renewal, Freeze, My classes and trainer More entry points; verify navigation tests and unchanged role guards.
-- [ ] 3.2 Arrange Shop as catalogue-first Products/Plans/Services, saved categories, contextual purchase access and 3/+5 reservations; verify rendered ordering, placeholder and active-hold access tests.
-- [ ] 3.3 Arrange Home with one personal preview near membership and two shared previews below Last visit, separate View all and orange metrics; verify announcement lifecycle and rendered tests.
-- [ ] 3.4 Add stable-ID activity filters and independent own-booking presentation with business nouns; verify populated/empty/mixed/branch-change tests without changing booking commands.
-- [ ] 3.5 Improve cheap Buy/Freeze copy and keyboard access without changing freeze-hook or command payload; verify existing acceptance and accessibility checks.
+- [x] 3.1 Declare member and desk primary/secondary visibility explicitly, order the member destinations, and provide Buy, renewal, Freeze, My classes and trainer More entry points; verify navigation tests and unchanged role guards.
+- [x] 3.2 Arrange Shop as catalogue-first Products/Plans/Services, saved categories, contextual purchase access and 3/+5 reservations; verify rendered ordering, placeholder and active-hold access tests.
+- [x] 3.3 Arrange Home with one personal preview near membership and two shared previews below Last visit, separate View all and orange metrics; verify announcement lifecycle and rendered tests.
+- [x] 3.4 Add stable-ID activity filters and independent own-booking presentation with business nouns; verify populated/empty/mixed/branch-change tests without changing booking commands.
+- [x] 3.5 Improve cheap Buy/Freeze copy and keyboard access without changing freeze-hook or command payload; verify existing acceptance and accessibility checks. Presentation test results and source review are recorded; actual reference/device acceptance remains4.1/4.3.
 
 ## 4. Release evidence
 
