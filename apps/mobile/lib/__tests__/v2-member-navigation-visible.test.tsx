@@ -13,7 +13,7 @@ vi.mock('../../lib/mobile-context', () => ({
   useBusinessNouns: () => businessNouns(state.businessType),
 }));
 vi.mock('react-native-safe-area-context', () => ({ useSafeAreaInsets: () => ({ top: 0, bottom: 0, left: 0, right: 0 }) }));
-vi.mock('react-native', () => ({ StyleSheet: { create: (styles: unknown) => styles }, Platform: { OS: 'android', select: (value: { android?: unknown; default?: unknown }) => value.android ?? value.default } }));
+vi.mock('react-native', () => ({ useWindowDimensions: () => ({ width: 360, height: 800, scale: 1, fontScale: 1 }), StyleSheet: { create: (styles: unknown) => styles }, Platform: { OS: 'android', select: (value: { android?: unknown; default?: unknown }) => value.android ?? value.default } }));
 vi.mock('react', async importOriginal => ({
   ...await importOriginal<typeof import('react')>(),
   useState: () => [state.segment, (value: 'classes' | 'training') => { state.segment = value; }],
