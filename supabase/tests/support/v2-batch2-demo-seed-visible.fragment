@@ -106,8 +106,33 @@ SELECT ok((SELECT NOT EXISTS ((SELECT q.id AS rule_id,d::date AS session_date FR
 WITH clock AS (SELECT published_at + interval '10 minutes' AS r, ((published_at + interval '10 minutes') AT TIME ZONE 'Asia/Kolkata')::date AS t FROM public.announcements WHERE id='00000089-0000-4000-8000-000000000001')
 SELECT ok((SELECT count(*)=0 FROM public.class_sessions s JOIN public.class_rules q ON q.id=s.rule_id WHERE s.id::text LIKE '00000084-0000-4000-8000-%' AND (s.tenant_id<>q.tenant_id OR s.branch_id<>q.branch_id OR s.service_id<>q.service_id OR s.trainer_staff_id IS DISTINCT FROM q.trainer_staff_id OR s.capacity<>q.capacity OR s.starts_at<>(s.session_date+q.start_time) AT TIME ZONE 'Asia/Kolkata' OR s.ends_at<>s.starts_at+interval '60 minutes' OR s.status<>'scheduled')), 'Generated sessions preserve rule relationships and local instants');
 
-WITH clock AS (SELECT published_at + interval '10 minutes' AS r, ((published_at + interval '10 minutes') AT TIME ZONE 'Asia/Kolkata')::date AS t FROM public.announcements WHERE id='00000089-0000-4000-8000-000000000001')
-SELECT ok((SELECT count(*)=0 FROM (SELECT s.id,row_number() OVER (ORDER BY s.session_date,s.rule_id)+100 AS ordinal FROM public.class_sessions s WHERE s.id::text LIKE '00000084-0000-4000-8000-%' AND s.rule_id IS NOT NULL) ordered WHERE right(id::text,3)::integer<>ordinal), 'Occurrence identities follow chronological rule order');
+WITH clock AS (SELECT published_at + interval '10 minutes' AS r, ((published_at + interval '10 minutes') AT TIME ZONE 'Asia/Kolkata')::date AS t FROM public.announcements WHERE id='00000089-0000-4000-8000-000000000001'),
+candidates AS (
+ SELECT q.id AS rule_id,q.tenant_id,q.branch_id,q.service_id,q.trainer_staff_id,
+  q.start_time,q.capacity,d::date AS session_date,
+  row_number() OVER (ORDER BY d::date,q.id)+100 AS ordinal
+ FROM public.class_rules q CROSS JOIN clock
+ CROSS JOIN LATERAL generate_series(clock.t::timestamp,(clock.t+27)::timestamp,interval '1 day') d
+ WHERE q.id::text LIKE '00000083-0000-4000-8000-%' AND extract(dow FROM d)=q.weekday
+), expected AS (
+ SELECT ('00000084-0000-4000-8000-'||lpad(c.ordinal::text,12,'0'))::uuid AS id,
+  c.tenant_id,c.branch_id,c.rule_id,c.service_id,c.trainer_staff_id,c.session_date,
+  (c.session_date+c.start_time) AT TIME ZONE 'Asia/Kolkata' AS starts_at,
+  ((c.session_date+c.start_time) AT TIME ZONE 'Asia/Kolkata')+interval '60 minutes' AS ends_at,
+  c.capacity,'scheduled'::text AS status
+ FROM candidates c WHERE NOT EXISTS (
+  SELECT 1 FROM public.organization_holidays h
+  WHERE h.tenant_id=c.tenant_id AND h.holiday_on=c.session_date
+ )
+), actual AS (
+ SELECT s.id,s.tenant_id,s.branch_id,s.rule_id,s.service_id,s.trainer_staff_id,
+  s.session_date,s.starts_at,s.ends_at,s.capacity,s.status::text AS status
+ FROM public.class_sessions s
+ WHERE s.id::text LIKE '00000084-0000-4000-8000-%' AND s.rule_id IS NOT NULL
+)
+SELECT ok(NOT EXISTS ((SELECT * FROM actual EXCEPT SELECT * FROM expected)
+ UNION ALL (SELECT * FROM expected EXCEPT SELECT * FROM actual)),
+ 'Occurrence identities follow chronological rule order');
 
 WITH clock AS (SELECT published_at + interval '10 minutes' AS r, ((published_at + interval '10 minutes') AT TIME ZONE 'Asia/Kolkata')::date AS t FROM public.announcements WHERE id='00000089-0000-4000-8000-000000000001')
 SELECT ok((SELECT count(*)=6 AND bool_and(s.tenant_id='00000001-0000-4000-8000-000000000001'::uuid AND s.branch_id='00000002-0000-4000-8000-000000000001'::uuid AND s.trainer_staff_id='00000003-0000-4000-8000-000000000001'::uuid AND s.ends_at=s.starts_at+interval '60 minutes' AND s.capacity=CASE WHEN s.id='00000084-0000-4000-8000-000000000002'::uuid THEN 2 ELSE 6 END AND s.session_date=(s.starts_at AT TIME ZONE 'Asia/Kolkata')::date) FROM public.class_sessions s WHERE s.id::text LIKE '00000084-0000-4000-8000-%' AND s.rule_id IS NULL), 'Six oneoffs keep Rohit capacities and actual local dates');

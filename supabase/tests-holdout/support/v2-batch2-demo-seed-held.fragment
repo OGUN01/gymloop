@@ -107,9 +107,14 @@ SELECT ok((SELECT count(*) FROM public.services WHERE id::text LIKE '00000082-%'
 SELECT ok((SELECT count(*) FROM public.class_rules WHERE id::text LIKE '00000083-%')=3 AND
  (SELECT count(*) FROM public.class_rules q CROSS JOIN held_anchor a JOIN (VALUES (1,1,'07:00'::time,6),(2,3,'18:00'::time,2),(3,5,'18:00'::time,6)) e(n,dow,tm,cap)
  ON q.id::text='00000083-0000-4000-8000-'||lpad(e.n::text,12,'0') WHERE q.service_id::text='00000082-0000-4000-8000-'||lpad(e.n::text,12,'0') AND q.trainer_staff_id::text='00000003-0000-4000-8000-'||lpad(e.n::text,12,'0') AND q.tenant_id='00000001-0000-4000-8000-000000000001' AND q.branch_id='00000002-0000-4000-8000-000000000001' AND q.weekday=e.dow AND q.start_time=e.tm AND q.duration_minutes=60 AND q.capacity=e.cap AND q.is_active AND q.valid_from=a.t AND q.valid_until=a.t+27)=3,'exact weekly assignment and validity graph');
-CREATE TEMP VIEW held_expected_occurrences AS SELECT row_number() OVER(ORDER BY d.day,q.id)+100 AS n,q.*,d.day::date AS expected_date
+CREATE TEMP VIEW held_expected_occurrences AS
+WITH candidates AS (
+SELECT row_number() OVER(ORDER BY d.day,q.id)+100 AS n,q.*,d.day::date AS expected_date
  FROM public.class_rules q CROSS JOIN held_anchor a CROSS JOIN LATERAL generate_series(a.t::timestamp,(a.t+27)::timestamp,interval '1 day') d(day)
- WHERE q.id::text LIKE '00000083-%' AND extract(dow FROM d.day)=q.weekday AND NOT EXISTS(SELECT 1 FROM public.organization_holidays h WHERE h.tenant_id=q.tenant_id AND h.holiday_on=d.day::date);
+ WHERE q.id::text LIKE '00000083-%' AND extract(dow FROM d.day)=q.weekday
+)
+SELECT c.* FROM candidates c
+WHERE NOT EXISTS(SELECT 1 FROM public.organization_holidays h WHERE h.tenant_id=c.tenant_id AND h.holiday_on=c.expected_date);
 SELECT ok((SELECT count(*) FROM held_sessions WHERE rule_id IS NOT NULL)=(SELECT count(*) FROM held_expected_occurrences)
  AND NOT EXISTS(SELECT 1 FROM held_expected_occurrences e LEFT JOIN held_sessions s ON s.id::text='00000084-0000-4000-8000-'||lpad(e.n::text,12,'0') WHERE s.rule_id IS DISTINCT FROM e.id OR s.service_id IS DISTINCT FROM e.service_id OR s.trainer_staff_id IS DISTINCT FROM e.trainer_staff_id OR s.session_date IS DISTINCT FROM e.expected_date OR s.starts_at IS DISTINCT FROM ((e.expected_date+e.start_time) AT TIME ZONE 'Asia/Kolkata') OR s.ends_at IS DISTINCT FROM (s.starts_at+interval '60 minutes') OR s.capacity IS DISTINCT FROM e.capacity OR s.status::text IS DISTINCT FROM 'scheduled'), 'weekly occurrences exactly holiday-filtered ordered and assigned');
 SELECT ok((SELECT count(*) FROM held_sessions WHERE rule_id IS NULL)=6 AND (SELECT count(*) FROM held_sessions)=(SELECT count(*)+6 FROM held_expected_occurrences)

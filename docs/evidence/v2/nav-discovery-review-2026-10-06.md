@@ -1,5 +1,13 @@
 # Native navigation and Classes discovery review — 2026-10-06
 
+## Current release follow-up, 14:57 IST
+
+Latest pushed58234e8d app CI37435324288, held37435324285 and immutability37435324265 passed. Full migration DB37422100012 completed161files/16,156assertions with exactly two visible legacy metadata omissions; types follow-up37422920180 proves generated schema drift green but independent seed transport failed. These runs remain failed, not waived. Independent exact metadata additions preserve58+31assertions and focused rollback replay passes both with unchanged catalog receipts. The machine-parsed independent seed step now explicitly requests JSON; its existing strict unique-row/failure/plan checks remain intact.
+
+JSON replay exposed two unsupported dense occurrence-ID fixture assumptions. Independent diagnostics prove the actual holiday-filtered graph matches every stable candidate identity and field, with12candidates,11materialized and candidate102omitted. The frozen public clarification547becc7 changes no seed or product requirement. Separate authors correct only their visible/held expected graphs, preserving34/26assertions, labels, plans, full graph/foreign/money/immutable checks; fresh original-composition rollback replays pass**34/34 and26/26**, zero failures and unchanged schema/data across76relations. Root never reads held contents. Private receipt cast and read-only GitHub guard failures were preserved; no acceptance claimed from an aborted packet. Full superseding CI confirmation is still required.
+
+Exact862 actual images pass blind Home/Shop/member4/5/large/Buy/reservation3+5 review. The critic finds one P2: the full Announcements title leaves a lone final letter. Independent rendered tests5520cc98 fail2/25 before source6ba9a604 reuses existing Title fit, then25/25 and full mobile**1,020/1,020** pass with type/scopedlint/registry. The rebuilt6ba APK has SHA256**0A88C128CE577DB236A23270040862069AFC802C311E9AE985AEC96E849B3737**; package/source verification, installation, replacement title pixels and final staff/context evidence remain pending. A source or host pass does not close the actual visual finding.
+
 ## Independent static security review
 
 Fresh class_discovery_final_blind_critic, separate from all builders and test authors, returned **GO: no P1/P2 findings** for the new migration and shared/API boundary against NAVC-004/005/013/014/015 and CLS-026/028. The critic read no visible or holdout tests, implementation progress/handoff notes, prior critic notes, execution logs or Cloud/schema state. Owner editor and runtime acceptance were excluded.
