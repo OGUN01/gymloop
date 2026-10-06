@@ -2012,6 +2012,8 @@ The owner approved the narrow Classes discovery migration after the original UI-
 
 The owner editor uses the registered useClassCommand rather than duplicating pending/offline/preview/lifetime transport. The only existing-hook edit clarifies retry wording. Native screens reuse Screen, LedgerSection, Row, ActionButton, announcement/version handling, formatDay, humanized business nouns and primaryAction. The new announcement destination is required for a separate full feed; existing inline expansion cannot be a non-primary route. Native preview counts live in constants.ts; Shop's Load more reveals the existing response and does not claim database pagination. Freeze changes are presentation only and preserve its existing hook and ISO payload. Personal Messages for you and shared From your gym/studio/academy remain distinct; no notification bell is introduced.
 
+The approved first board's compact reference pass reuses Display metric/heading sizes and existing spacing/body tokens. Screen's optional scrollRef targets its existing animated column; local measured Products/Plans/Services links reuse RowAction, retain every section and cause no new catalogue read. A new filtered Shop taxonomy or replacement scroll container was unnecessary. Home shortens the visible shared preview to one line while retaining full opened text, receipts and the existing general component default. Independent red tests **945758b9** and animated-host fixture amendment **e1a46a2c** precede these arrangement refinements.
+
 **SLF private preparation capability (mechanical implementation declaration,
 2026-10-04).** Existing prepare/finish/lock/consistency helpers are reused; an
 ordinary GUC, caller temporary object or advisory marker cannot prove exact

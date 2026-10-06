@@ -125,6 +125,7 @@ export default function MemberHome() {
   }
 
   return <Screen footer={checkInAction}>
+    <View style={styles.homeContent}>
     <View style={styles.header}>
       <View style={styles.gymLine}>
         <Pressable accessibilityRole="button" accessibilityLabel={`${gymName}, open ${nouns.place}`} onPress={() => router.push('/(member)/gym')}><Text style={[styles.gymText, { color: palette.secondaryText }]} numberOfLines={1}><Text style={{ color: palette.primaryText, fontFamily: FONT.semibold }}>{gymName}</Text> · {data.gym.branchName}</Text></Pressable>
@@ -136,12 +137,11 @@ export default function MemberHome() {
     {scanning ? <View style={[styles.scanner, { borderColor: palette.decorativeSeparator, backgroundColor: palette.surface }]}>{permission?.granted ? <CameraView style={styles.camera} barcodeScannerSettings={{ barcodeTypes: ['qr'] }} onBarcodeScanned={({ data: value }) => void checkIn(value)} /> : <View style={styles.permission}><Body>Camera access is needed only while you scan the {nouns.place} QR.</Body><ActionButton secondary onPress={() => void requestPermission()}>Allow camera</ActionButton></View>}</View> : null}
     {outcome?.kind === 'confirming' ? <StateMessage>Confirming your check-in…</StateMessage> : null}
     {queued > 0 ? <StateMessage tone="warning">{queued} check-in {queued === 1 ? 'is' : 'are'} awaiting confirmation.</StateMessage> : null}
-    {/* The week and the ledger sit together at the foot of the page: a short page ends 24 above the Scan button and any
-        spare height opens above the week figure, never as a dead band over the dock. */}
+    {/* Keep the compact week, membership and updates together in reading order above the Scan dock. */}
     <View style={styles.lower}>
       <View style={styles.week}>
         <View accessible accessibilityLabel={`${data.weekVisits} of ${data.member.goal} visits this week`}>
-          <Display size="hero" accent>{data.weekVisits}<Text style={styles.of}> of </Text>{data.member.goal}</Display>
+          <Display size="metric" accent>{data.weekVisits}<Text style={styles.of}> of </Text>{data.member.goal}</Display>
           <Text style={[styles.weekCaption, { color: palette.primaryText }]}>visits this week</Text>
         </View>
         <WeekRhythm days={rhythmDays} />
@@ -157,25 +157,24 @@ export default function MemberHome() {
       </View>
       <AnnouncementsSection feed={announcementFeed} timezone={data.gym.timezone} previewLimit={NATIVE_MEMBER_LAYOUT.homeAnnouncementCards} onViewAll={() => router.push('/(member)/announcements')} />
     </View>
+    </View>
   </Screen>;
 }
 
 const space = UI_TOKENS.geometry.spacing;
 const styles = StyleSheet.create({
-  // Gym line to greeting at 24, as on web; the greeting then closes on a hairline before the week figure.
-  header: { gap: space[4] },
+  homeContent: { gap: space[3] },
+  header: { gap: space[2] },
   gymLine: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: space[3] },
   gymText: { flex: 1, minWidth: 0, fontFamily: FONT.regular, fontSize: UI_TOKENS.typography.mobileBody.size, lineHeight: UI_TOKENS.typography.mobileBody.lineHeight },
   // A 48 target around the 36 ring, the ring on the right gutter.
   avatarTarget: { width: UI_TOKENS.geometry.targets.touch, height: UI_TOKENS.geometry.targets.touch, alignItems: 'flex-end', justifyContent: 'center' },
   pressed: { opacity: UI_TOKENS.opacity.pressed },
-  greeting: { fontFamily: FONT.medium, fontSize: UI_TOKENS.typography.sectionTitle.size, lineHeight: UI_TOKENS.typography.sectionTitle.lineHeight + space[0] },
-  lower: { marginTop: 'auto', gap: space[4] },
-  week: { gap: space[3] },
-  // "of" steps down to the display-title size (about 0.6 of the numeral) in the bold condensed cut; its two spaces are
-  // set at that size too, so the word gaps tighten to about 10 instead of a full hero-size space.
-  of: { fontFamily: FONT.displayBold, fontSize: UI_TOKENS.typography.displayTitle.size },
-  weekCaption: { fontFamily: FONT.regular, fontSize: UI_TOKENS.typography.sectionTitle.size, lineHeight: UI_TOKENS.typography.sectionTitle.lineHeight },
+  greeting: { fontFamily: FONT.medium, fontSize: UI_TOKENS.typography.mobileSection.size, lineHeight: UI_TOKENS.typography.mobileSection.lineHeight },
+  lower: { gap: space[3] },
+  week: { gap: space[2] },
+  of: { fontFamily: FONT.displayBold, fontSize: UI_TOKENS.typography.sectionTitle.size },
+  weekCaption: { fontFamily: FONT.regular, fontSize: UI_TOKENS.typography.mobileBody.size, lineHeight: UI_TOKENS.typography.mobileBody.lineHeight },
   scanner: { overflow: 'hidden', borderWidth: StyleSheet.hairlineWidth, borderRadius: UI_TOKENS.geometry.radii.section, borderCurve: 'continuous' },
   camera: { aspectRatio: 1 },
   permission: { gap: space[3], padding: space[4] },

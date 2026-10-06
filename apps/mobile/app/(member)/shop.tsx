@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Image, StyleSheet, View } from 'react-native';
+import { Image, StyleSheet, View, type ScrollView } from 'react-native';
 import { Package } from 'lucide-react-native';
 import { useRouter } from 'expo-router';
 import * as Network from 'expo-network';
 import { DEFAULT_TIMEZONE, MS_PER_HOUR, NATIVE_MEMBER_LAYOUT, SHOP_LIMITS, SHOP_TERMS_CHANGED_NOTE, UI_TOKENS, formatMoney, groupShopItems, planCatalogueCopy, planDurationLabel, planGstLabel, shopCatalogueResponseSchema, shopGstLabel, shopMaxQuantity, shopOfflineNotice, shopReservationStateWord, shopReserveNotice, shopReserveRequestSchema, type ShopCatalogueResponse, type ShopItem, type ShopReservation } from '@gymloop/shared';
-import { ActionButton, Body, Display, EmptyState, Eyebrow, LoadingState, Row, Screen, Sheet, SheetHeader, StateMessage, Status, Title } from '../../components/ui';
+import { ActionButton, Body, Display, EmptyState, Eyebrow, LoadingState, Row, RowAction, Screen, Sheet, SheetHeader, StateMessage, Status } from '../../components/ui';
 import { useMobile } from '../../lib/mobile-context';
 import { useMemberSnapshot } from '../../lib/use-member-snapshot';
 import { heldUntilLabel, reserveOutcomeMessage, shopCacheScope } from '../../lib/shop';
@@ -45,6 +45,8 @@ export default function ShopScreen() {
   const cacheScope = useRef(scope);
   const readRevision = useRef<object>({});
   const command = useRef<object | null>(null);
+  const scrollRef = useRef<ScrollView | null>(null);
+  const sectionPositions = useRef<{ products?: number; plans?: number; services?: number }>({});
   if (currentScope.current !== scope) { currentScope.current = scope; readRevision.current = {}; command.current = null; }
   const visible = view?.scope === scope ? view : null;
   const selected = selection?.scope === scope ? selection : null;
@@ -147,15 +149,24 @@ export default function ShopScreen() {
   const reservationCount = reservationPage.scope === scope ? reservationPage.count : NATIVE_MEMBER_LAYOUT.reservationPreview;
   const shownReservations = orderedReservations.slice(0, reservationCount);
   const hiddenActive = orderedReservations.slice(reservationCount).filter(row => row.state === 'reserved').length;
-  return <Screen>
-    <Eyebrow>{snapshot.data?.gym.displayName ?? `Your ${nouns.place}`}</Eyebrow><Title>Shop</Title>
-    <Body muted>Reserve something for your next visit. Pay and collect at the front desk.</Body>
+  return <Screen scrollRef={scrollRef}>
+    <View style={styles.shopHeader}>
+      <View style={styles.heading}>
+        <Eyebrow>{snapshot.data?.gym.displayName ?? `Your ${nouns.place}`}</Eyebrow>
+        <View style={styles.headingRow}><View accessible accessibilityRole="header" accessibilityLabel="Shop" style={styles.headingTitle}><Display size="heading">Shop</Display></View><RowAction accessibilityLabel="Refresh shop" disabled={loading || busy} onPress={() => { setMessage(null); void reload(); }}>Refresh shop</RowAction></View>
+        <Body muted>Reserve something for your next visit. Pay and collect at the front desk.</Body>
+      </View>
+      <View style={styles.sectionLinks}>
+        <RowAction onPress={() => { const y = sectionPositions.current.products; if (y !== undefined) scrollRef.current?.scrollTo({ y, animated: true }); }}>Products</RowAction>
+        <RowAction onPress={() => { const y = sectionPositions.current.plans; if (y !== undefined) scrollRef.current?.scrollTo({ y, animated: true }); }}>Plans</RowAction>
+        <RowAction onPress={() => { const y = sectionPositions.current.services; if (y !== undefined) scrollRef.current?.scrollTo({ y, animated: true }); }}>Services</RowAction>
+      </View>
+    </View>
     {visible && (!online || visible.stale) ? <StateMessage tone="warning">{online ? `Showing the shop saved ${heldUntilLabel(visible.savedAt, timeZone)}. Refresh before reserving or cancelling.` : shopOfflineNotice(heldUntilLabel(visible.savedAt, timeZone))}</StateMessage> : null}
     {message ? <StateMessage>{message}</StateMessage> : null}
     {loading && !visible ? <LoadingState /> : null}
-    <ActionButton secondary disabled={loading || busy} onPress={() => { setMessage(null); void reload(); }}>Refresh shop</ActionButton>
-    <View style={styles.catalogueSection}><Eyebrow>Products</Eyebrow>{groups.products.map((group, index) => <View style={styles.productGroup} key={`${group.categoryId ?? 'uncategorised'}:${index}`}><Body strong>{group.categoryName ?? 'Other products'}</Body>{group.items.map(renderItem)}</View>)}{visible && !groups.products.length ? <Body muted>No products listed yet.</Body> : null}</View>
-    <View style={styles.catalogueSection}><Eyebrow>Plans</Eyebrow>
+    <View style={styles.catalogueSection} onLayout={({ nativeEvent }) => { sectionPositions.current.products = nativeEvent.layout.y; }}><Eyebrow>Products</Eyebrow>{groups.products.map((group, index) => <View style={styles.productGroup} key={`${group.categoryId ?? 'uncategorised'}:${index}`}><Body strong>{group.categoryName ?? 'Other products'}</Body>{group.items.map(renderItem)}</View>)}{visible && !groups.products.length ? <Body muted>No products listed yet.</Body> : null}</View>
+    <View style={styles.catalogueSection} onLayout={({ nativeEvent }) => { sectionPositions.current.plans = nativeEvent.layout.y; }}><Eyebrow>Plans</Eyebrow>
       {plans.state.phase === 'loading' && !plans.state.view ? <LoadingState /> : null}
       {planNotice ? <StateMessage tone={planNotice.tone}>{planNotice.text}</StateMessage> : null}
       {plans.state.view?.plans.map(plan => <View key={plan.id} style={[styles.itemCard, { borderColor: palette.decorativeSeparator }]}><Body strong>{plan.name}</Body><Display size="section" accent>{formatMoney(plan.pricePaise, plan.currency)}</Display><Body muted>{planDurationLabel(plan.durationDays)}</Body>{plan.held ? <Status tone="accent">{plansCopy.badge}</Status> : null}{planGstLabel(plan.gstRateBp) ? <Body muted>{planGstLabel(plan.gstRateBp)}</Body> : null}{plan.description ? <Body>{plan.description}</Body> : null}</View>)}
@@ -163,7 +174,7 @@ export default function ShopScreen() {
       <ActionButton secondary onPress={() => router.push({ pathname: '/(member)/gym', params: { section: 'plans' } })}>View plans</ActionButton>
       {planNotice ? <ActionButton secondary onPress={() => void plans.reload()}>Refresh plans</ActionButton> : null}
     </View>
-    <View style={styles.catalogueSection}><Eyebrow>Services</Eyebrow>{groups.services.map(renderItem)}{visible && !groups.services.length ? <Body muted>No services listed yet.</Body> : null}</View>
+    <View style={styles.catalogueSection} onLayout={({ nativeEvent }) => { sectionPositions.current.services = nativeEvent.layout.y; }}><Eyebrow>Services</Eyebrow>{groups.services.map(renderItem)}{visible && !groups.services.length ? <Body muted>No services listed yet.</Body> : null}</View>
     {visible && !visible.response.items.length ? <EmptyState title={`Your ${nouns.place} hasn't added anything to the shop yet.`}>Ask the front desk about available products and services.</EmptyState> : null}
     {visible?.response.truncated ? <StateMessage>Showing the first {SHOP_LIMITS.catalogueMax} items.</StateMessage> : null}
     <View><Row title="Purchase requests" meta="View your requests and payment confirmations" onPress={() => router.push('/(member)/buy')} accessibilityHint="Opens Buy" /><ActionButton secondary onPress={() => router.push('/(member)/buy')}>Buy</ActionButton></View>
@@ -203,6 +214,11 @@ export default function ShopScreen() {
 }
 
 const styles = StyleSheet.create({
+  shopHeader: { gap: UI_TOKENS.geometry.spacing[3] },
+  heading: { gap: UI_TOKENS.geometry.spacing[1] },
+  headingRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: UI_TOKENS.geometry.spacing[2] },
+  headingTitle: { flexGrow: 1 },
+  sectionLinks: { flexDirection: 'row', flexWrap: 'wrap', gap: UI_TOKENS.geometry.spacing[1] },
   photo: { width: UI_TOKENS.geometry.targets.touch + UI_TOKENS.geometry.spacing[3], height: UI_TOKENS.geometry.targets.touch + UI_TOKENS.geometry.spacing[3], borderRadius: UI_TOKENS.geometry.radii.control, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
   quantity: { flexDirection: 'row', gap: UI_TOKENS.geometry.spacing[3] },
   largePhoto: { width: UI_TOKENS.geometry.targets.touch + UI_TOKENS.geometry.spacing[6], height: UI_TOKENS.geometry.targets.touch + UI_TOKENS.geometry.spacing[6] },

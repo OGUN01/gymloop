@@ -2,7 +2,7 @@ import { useBusinessNouns } from '../lib/use-business-nouns';
 import { AVATAR_INITIALS_MAX, formatDay, FONT, PRODUCT_NAME, statusTone, statusWord, toLocalDate, UI_TOKENS } from '@gymloop/shared';
 import { ChevronRight, Search } from 'lucide-react-native';
 import { AccessibilityInfo, ActivityIndicator, Animated, Modal, Pressable, ScrollView, StatusBar, StyleSheet, Text, TextInput, View, useColorScheme, type PressableProps, type StyleProp, type TextInputProps, type ViewStyle } from 'react-native';
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode, type RefObject } from 'react';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Defs, LinearGradient, Rect, Stop, Svg } from 'react-native-svg';
 import { useMobile, type AppearanceMode } from '../lib/mobile-context';
@@ -33,14 +33,14 @@ function CanvasFade({ edge, style, opacity }: { edge: 'top' | 'bottom'; style?: 
  * scroll (so nothing is faded at rest), the bottom one sits on the tab bar. A `footer` (the Scan dock) is a canvas strip
  * with the same 24dp fade above it, all inside its own bounds; the column's bottom padding clears the fade and the strip.
  */
-export function Screen({ children, footer }: { children: ReactNode; footer?: ReactNode }) {
+export function Screen({ children, footer, scrollRef }: { children: ReactNode; footer?: ReactNode; scrollRef?: RefObject<ScrollView | null> }) {
   const { palette } = useMobile();
   const insets = useSafeAreaInsets();
   const scrollY = useRef(new Animated.Value(0)).current;
   const topFade = scrollY.interpolate({ inputRange: [0, space[4]], outputRange: [0, 1], extrapolate: 'clamp' });
   return <View style={[styles.screenFrame, { backgroundColor: palette.canvas, paddingTop: insets.top }]}>
     <View style={styles.screenBody}>
-      <Animated.ScrollView contentContainerStyle={[styles.screen, footer ? styles.screenWithFooter : null]} keyboardShouldPersistTaps="handled" onScroll={Animated.event([{ nativeEvent: { contentOffset: { y: scrollY } } }], { useNativeDriver: true })}>{children}</Animated.ScrollView>
+      <Animated.ScrollView ref={scrollRef} contentContainerStyle={[styles.screen, footer ? styles.screenWithFooter : null]} keyboardShouldPersistTaps="handled" onScroll={Animated.event([{ nativeEvent: { contentOffset: { y: scrollY } } }], { useNativeDriver: true })}>{children}</Animated.ScrollView>
       <CanvasFade edge="top" style={styles.fadeTop} opacity={topFade} />
       {footer
         ? <View pointerEvents="box-none" style={styles.footer}><CanvasFade edge="bottom" /><View style={[styles.dock, { backgroundColor: palette.canvas }]}>{footer}</View></View>
