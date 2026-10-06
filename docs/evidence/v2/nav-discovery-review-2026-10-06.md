@@ -1,6 +1,12 @@
 # Native navigation and Classes discovery review — 2026-10-06
 
-## Current release follow-up, 14:57 IST
+## Current release follow-up, 15:20 IST
+
+Remote main26c1c4ad has green app CI37443247320, held37443247279 and immutability37443247304. DB37443247398 migrate/rollback/schema-drift are green; full pgTAP and dependent seed are pending. No competing Cloud run or owner setting mutation. Fresh6ba9a604 ship-prefix screenshots close the full Announcements heading P2 at normal and1.35, and prove desk five-title legibility at both scales. Member Freeze labels and inclusive dates are readable, and Send can be scrolled above the keyboard without submission. Play pilot installation path and six stable identity fields match before/after the v2check-only install; whole dumpsys differs solely in five volatile allocation/elapsed-time lines, retained and classified privately.
+
+Actual hub pixels found one further frozen NAVC-007 P2: Freeze appeared below the plan/class/training rows. Independent visible regression53b5c9e2 was committed red12pass/1fail, preserving label/accessibility/current route checks. Source90fdd8b6 relocates only the existing Freeze row directly after membership and its receipt disclosure, before unrelated plan/activity rows. Focused13/13 and full mobile1,021/1,021 pass; typecheck, scoped lint, registry, escape969 and two-commit immutability pass. Exact rebuilt phone proof and combined visual GO remain pending. No freeze hook, command or migration changes.
+
+## Previous release follow-up, 14:57 IST
 
 Latest pushed58234e8d app CI37435324288, held37435324285 and immutability37435324265 passed. Full migration DB37422100012 completed161files/16,156assertions with exactly two visible legacy metadata omissions; types follow-up37422920180 proves generated schema drift green but independent seed transport failed. These runs remain failed, not waived. Independent exact metadata additions preserve58+31assertions and focused rollback replay passes both with unchanged catalog receipts. The machine-parsed independent seed step now explicitly requests JSON; its existing strict unique-row/failure/plan checks remain intact.
 
