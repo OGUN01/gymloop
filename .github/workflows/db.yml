@@ -138,11 +138,25 @@ jobs:
             const runs=[];
             for await (const page of github.paginate.iterator(github.rest.actions.listWorkflowRuns,{...context.repo,workflow_id:'db.yml',branch:'main',created:`>=${baseline.created_at}`})) {
               let cutoverReached=false;
-              for (const run of page.data.workflow_runs) {
+              for (const run of page.data) {
                 if (BigInt(run.id)<=BigInt(limits.legacyBaselineRunId)) { cutoverReached=true; break; }
                 runs.push(run);
               }
               if (cutoverReached) break;
+            }
+            const currentRunId = String(context.runId);
+            const currentAttempt = Number('${{ github.run_attempt }}');
+            if (!/^[1-9]\d*$/.test(currentRunId) || !Number.isSafeInteger(currentAttempt) || currentAttempt <= 0) {
+              throw new Error('Current workflow attempt identity is unavailable.');
+            }
+            if (currentAttempt > 1 && !runs.some(run => String(run.id) === currentRunId)) {
+              const current = (await github.rest.actions.getWorkflowRun({...context.repo,run_id:context.runId})).data;
+              if (!current || String(current.id) !== currentRunId || !source(current.head_sha) || current.head_sha !== context.sha ||
+                  current.event !== context.eventName || !['push','workflow_dispatch'].includes(current.event) ||
+                  current.head_branch !== 'main' || current.run_attempt !== currentAttempt) {
+                throw new Error('Current workflow attempt metadata is unavailable or mismatched.');
+              }
+              runs.unshift(current);
             }
             const operatorReceipts = JSON.parse(${{ toJSON(vars.NATIVE_DB_WORKLOAD_TEARDOWN_RECEIPTS || '[]') }});
             if (!Array.isArray(operatorReceipts)) throw new Error('Owner workload teardown proof is malformed.');
@@ -151,7 +165,7 @@ jobs:
             for (const run of runs) {
               if (!['push','workflow_dispatch'].includes(run.event)) continue;
               if (!Number.isSafeInteger(run.run_attempt) || run.run_attempt <= 0) throw new Error('Previous native attempt identity is unavailable.');
-              const lastAttempt = run.id === context.runId ? Number('${{ github.run_attempt }}') - 1 : run.run_attempt;
+              const lastAttempt = String(run.id) === currentRunId ? currentAttempt - 1 : run.run_attempt;
               const jobs=[];
               const artifacts=await github.paginate(github.rest.actions.listWorkflowRunArtifacts,{...context.repo,run_id:run.id});
               priorArtifacts.set(run.id,artifacts);
@@ -185,11 +199,11 @@ jobs:
               const artifacts = priorArtifacts.get(run.id) ?? [];
               const prefix = `native-db-recovery-${run.id}-`;
               const recoveries = artifacts.filter(item => item.name.startsWith(prefix) && /^[1-9]\d*$/.test(item.name.slice(prefix.length)) &&
-                (run.id !== context.runId || BigInt(item.name.slice(prefix.length)) < BigInt('${{ github.run_attempt }}')));
+                (String(run.id) !== currentRunId || BigInt(item.name.slice(prefix.length)) < BigInt(currentAttempt)));
               if (recoveries.length === 0) {
                 const jobs = priorJobs.get(run.id) ?? [];
                 if (jobs.some(job => job.name === 'timeout-guardian' && job.conclusion && job.conclusion !== 'skipped' &&
-                  (run.id !== context.runId || BigInt(job.boundAttempt) < BigInt('${{ github.run_attempt }}')))) throw new Error('Previous attempted guardian has no recovery receipt; the shared project is blocked.');
+                  (String(run.id) !== currentRunId || BigInt(job.boundAttempt) < BigInt(currentAttempt)))) throw new Error('Previous attempted guardian has no recovery receipt; the shared project is blocked.');
                 continue;
               }
               found = true;
