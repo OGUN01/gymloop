@@ -1,14 +1,5 @@
 import { NATIVE_DB_VALIDATION } from '../../packages/shared/src/config/constants.ts';
-
-function exactWorkloadData(value, fields) {
-  if (value === null || typeof value !== 'object' || Array.isArray(value)) return null;
-  if (![Object.prototype, null].includes(Object.getPrototypeOf(value))) return null;
-  const descriptors = Object.getOwnPropertyDescriptors(value);
-  const keys = Reflect.ownKeys(descriptors);
-  if (keys.length !== fields.length || !keys.every(key => fields.includes(key)
-    && descriptors[key].enumerable && Object.hasOwn(descriptors[key], 'value'))) return null;
-  return Object.fromEntries(fields.map(key => [key, descriptors[key].value]));
-}
+import { exactNativeDataRecord as exactWorkloadData } from './data-record.mjs';
 function validWorkloadBinding(value) {
   return typeof value.runId === 'string' && /^[1-9][0-9]*-[1-9][0-9]*$/.test(value.runId)
     && typeof value.sourceSha === 'string' && new RegExp(`^[a-f0-9]{${NATIVE_DB_VALIDATION.sourceShaLength}}$`).test(value.sourceSha)

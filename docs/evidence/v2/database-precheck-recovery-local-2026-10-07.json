@@ -1,0 +1,89 @@
+{
+  "observedAt": "2026-10-06T23:29:24.086Z",
+  "testsFirstCommits": [
+    "79b1c651",
+    "df8f0278",
+    "3c9270fd",
+    "d05b54e9"
+  ],
+  "visibleClientSha256": "749604af2a8ca8c6cdfb4d9583435f3e2518c5384f1a934b5db4fc52b1cf691c",
+  "heldClientSha256": "cd9b98f19505d76fbf184a81d3cde48150b570c4406a03a0300c5110ee361d51",
+  "visibleUnarmedSha256": "5052548b65df537615e9b8bab72da779f65753f53f93835b0fa59d038a67cbb3",
+  "heldUnarmedSha256": "44ed8226226424ed4140d42f44b1cf957ab4c0693addb24e02bd8da5e724df15",
+  "fullLocalBeforeUnchangedHelperExtraction": {
+    "numTotalTests": 6382,
+    "numPassedTests": 6382,
+    "numFailedTests": 0,
+    "numPendingTests": 0,
+    "success": true
+  },
+  "postExtractionUnarmedAndTransport": {
+    "numTotalTests": 287,
+    "numPassedTests": 287,
+    "numFailedTests": 0,
+    "numPendingTests": 0,
+    "success": true
+  },
+  "postExtractionExistingWorkload": {
+    "numTotalTests": 44,
+    "numPassedTests": 44,
+    "numFailedTests": 0,
+    "numPendingTests": 0,
+    "success": true
+  },
+  "historicalRefusal": {
+    "runId": "37541539071",
+    "attempt": "1",
+    "sourceSha": "d0b3599ae61ce682455226486e4611a3069382d1",
+    "nativeJobId": 112535897865,
+    "guardianJobId": 112536226021,
+    "conclusion": "failure",
+    "verifiedUnarmed": true,
+    "nativeSuitePassed": false,
+    "timeoutRestorationClaimed": false,
+    "smokeArchiveSha256": "1091ff970e9a3b0cfe2f04771d6218211b0c5549147536e8b7cf17b59e543caa",
+    "privateProofSha256": "2751f77673b9b49518d284079e6ae8b79afb64dc0d179f0dc82ccf559a67275a",
+    "artifactListingComplete": true,
+    "recoveryArtifactPresent": false
+  },
+  "operatorReview": {
+    "variable": "NATIVE_DB_UNARMED_PRECHECK_RECEIPTS",
+    "publishedBeforeNextWorkflowQueue": true,
+    "readbackVerified": true
+  },
+  "sourceGitBlobSha256": {
+    ".github/workflows/db.yml": "04eab95c356b438af4a0dd3229e7bb81859d28da445467eb61ad36fa826d64ef",
+    "scripts/pgtap/unarmed-precheck.mjs": "10d6045bafe080e58c5e53963200fc1f40ceb8cd8216776789e6bfb97119090e",
+    "scripts/pgtap/data-record.mjs": "9456053d0c2c16ba2a40438708b60a898b1433d41c01dddafbdecd907b40887e",
+    "scripts/pgtap/workload-teardown.mjs": "9934ca0b8eb8a1412bbab2a5d7264e579988b17b11ca099f524a9bb0656f07aa",
+    "scripts/native-database-validation.mjs": "2ddb3772020658389b15a70a8ce63356615f460745107bd010e713d13b7d80b8"
+  },
+  "gates": {
+    "rootLint": true,
+    "registry": true,
+    "escapeHatches": true,
+    "actionlint": true,
+    "knipWithConfiguredEnvironment": true,
+    "zeroClones": true,
+    "dependencyBoundaries": true,
+    "changedOpenSpecStrict": true,
+    "whitespace": true
+  },
+  "globalLegacyOpenSpec": {
+    "allStrict": false,
+    "passed": 36,
+    "failed": 20,
+    "total": 56,
+    "scope": "Untouched historical changes/spec wording; both changed units pass strict validation. No unrelated repair or waiver."
+  },
+  "independence": "Separate implementation-blind visible/held authors, author-only fixture repairs, separate contract critics and fresh source-only critic GO; implementer read no held bodies or assertion diagnostics.",
+  "runnerTrial": {
+    "registered": false,
+    "readinessPublished": false,
+    "privateRegistrationLeaseRequiredBeforeTrial": true
+  },
+  "release": {
+    "vc6Uploaded": false,
+    "fullCurrentSourceDatabaseAndPerformanceAcceptancePending": true
+  }
+}

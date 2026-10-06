@@ -25,6 +25,8 @@ on:
       - 'scripts/pgtap/private-output.mjs'
       - 'scripts/pgtap/runner-job.mjs'
       - 'scripts/pgtap/workload-teardown.mjs'
+      - 'scripts/pgtap/unarmed-precheck.mjs'
+      - 'scripts/pgtap/data-record.mjs'
       - 'scripts/native-database-validation.mjs'
       - 'scripts/native-runner-guard.mjs'
       - 'scripts/native-runner-hook.mjs'
@@ -45,6 +47,8 @@ on:
       - 'scripts/pgtap/private-output.mjs'
       - 'scripts/pgtap/runner-job.mjs'
       - 'scripts/pgtap/workload-teardown.mjs'
+      - 'scripts/pgtap/unarmed-precheck.mjs'
+      - 'scripts/pgtap/data-record.mjs'
       - 'scripts/native-database-validation.mjs'
       - 'scripts/native-runner-guard.mjs'
       - 'scripts/native-runner-hook.mjs'
@@ -87,6 +91,14 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
+        with: { fetch-depth: 0 }
+      - name: Stage administrator unarmed precheck reviews
+        shell: bash
+        env:
+          NATIVE_DB_UNARMED_PRECHECK_RECEIPTS: ${{ vars.NATIVE_DB_UNARMED_PRECHECK_RECEIPTS || '[]' }}
+        run: |
+          mkdir -p .dbv
+          printf '%s\n' "$NATIVE_DB_UNARMED_PRECHECK_RECEIPTS" > .dbv/operator-unarmed-prechecks.json
       - uses: actions/setup-node@v7
         with: { node-version: '24' }
       - uses: actions/github-script@v8
@@ -95,8 +107,10 @@ jobs:
           script: |
             const {createHash} = await import('node:crypto');
             const {execFileSync} = await import('node:child_process');
+            const {readFile} = await import('node:fs/promises');
             const {NATIVE_DB_VALIDATION: limits} = await import(`${process.cwd()}/packages/shared/src/config/constants.ts`);
             const {verifyNativeWorkloadTeardown} = await import(`${process.cwd()}/scripts/pgtap/workload-teardown.mjs`);
+            const {verifyUnarmedNativePrecheck} = await import(`${process.cwd()}/scripts/pgtap/unarmed-precheck.mjs`);
             const hash = bytes => createHash('sha256').update(bytes).digest('hex');
             const exact = (value, keys) => value && typeof value === 'object' && !Array.isArray(value) && Object.keys(value).length === keys.length && keys.every(key => Object.hasOwn(value,key));
             const original = value => exact(value,['originalPresent','originalValue']) && typeof value.originalPresent === 'boolean' && (value.originalPresent ? typeof value.originalValue === 'string' && value.originalValue.length > 0 : value.originalValue === null);
@@ -122,8 +136,14 @@ jobs:
               const body = execFileSync('python3',['-c',script,filename,String(limits.timeoutQueryMaxBytes),String(limits.artifactUnixModeShiftBits)],{input:bytes,maxBuffer:limits.timeoutQueryMaxBytes,timeout:limits.nativeCleanupReserveMs,stdio:['pipe','pipe','pipe']});
               const value = JSON.parse(body.toString('utf8'));
               if (!body.equals(Buffer.from(JSON.stringify(value)+'\n'))) throw new Error('Recovery receipt serialization is invalid.');
-              return {value,hash:hash(body)};
+              return {value,hash:hash(body),archiveSha256:hash(bytes)};
             };
+            const projectUnarmedJob = (job, attempt) => ({
+              id:job.id,runId:String(job.run_id),attempt:String(attempt),sourceSha:job.head_sha,
+              name:job.name,status:job.status,conclusion:job.conclusion,runnerId:job.runner_id,
+              runnerName:job.runner_name,runnerGroupName:job.runner_group_name,labels:job.labels,
+              steps:Array.isArray(job.steps) ? job.steps.map(step => ({name:step.name,status:step.status,conclusion:step.conclusion})) : job.steps,
+            });
             const baseline = (await github.rest.actions.getWorkflowRun({...context.repo,run_id:limits.legacyBaselineRunId})).data;
             if (String(baseline.id)!==limits.legacyBaselineRunId || baseline.head_sha!==limits.legacyBaselineSourceSha ||
                 baseline.event!=='push' || baseline.head_branch!=='main' || baseline.status!=='completed' ||
@@ -162,6 +182,7 @@ jobs:
             if (!Array.isArray(operatorReceipts)) throw new Error('Owner workload teardown proof is malformed.');
             const priorJobs = new Map();
             const priorArtifacts = new Map();
+            const verifiedUnarmed = new Set();
             for (const run of runs) {
               if (!['push','workflow_dispatch'].includes(run.event)) continue;
               if (!Number.isSafeInteger(run.run_attempt) || run.run_attempt <= 0) throw new Error('Previous native attempt identity is unavailable.');
@@ -171,9 +192,46 @@ jobs:
               priorArtifacts.set(run.id,artifacts);
               for (let attempt=1; attempt<=lastAttempt; attempt++) {
                 const attemptJobs = await github.paginate(github.rest.actions.listJobsForWorkflowRunAttempt,{...context.repo,run_id:run.id,attempt_number:attempt});
+                const boundRunAttempt = `${run.id}-${attempt}`;
+                const recoveryArtifactPresent = artifacts.some(artifact => artifact.name === `native-db-recovery-${boundRunAttempt}`);
+                const smokeArtifacts = artifacts.filter(artifact => artifact.name === `native-db-client-smoke-${boundRunAttempt}`);
+                const nativeJobs = attemptJobs.filter(job => job.name === limits.job);
+                const guardianJobs = attemptJobs.filter(job => job.name === 'timeout-guardian');
+                if (!recoveryArtifactPresent && smokeArtifacts.length === 1 && nativeJobs.length === 1 && guardianJobs.length === 1 &&
+                    nativeJobs[0].status === 'completed' && nativeJobs[0].conclusion === 'failure') {
+                  const reviewBytes = await readFile('.dbv/operator-unarmed-prechecks.json');
+                  if (reviewBytes.length > limits.timeoutQueryMaxBytes) throw new Error('Administrator unarmed precheck reviews exceed their bound.');
+                  const reviews = JSON.parse(reviewBytes.toString('utf8'));
+                  if (!Array.isArray(reviews)) throw new Error('Administrator unarmed precheck reviews are malformed.');
+                  const matches = reviews.filter(review => review && review.runId === String(run.id) && review.runAttempt === String(attempt));
+                  if (matches.length !== 1) throw new Error('Exact administrator unarmed precheck review is unavailable.');
+                  const attemptRun = (await github.rest.actions.getWorkflowRunAttempt({...context.repo,run_id:run.id,attempt_number:attempt})).data;
+                  if (!attemptRun || String(attemptRun.id) !== String(run.id) || attemptRun.run_attempt !== attempt ||
+                      attemptRun.head_sha !== run.head_sha || !source(attemptRun.head_sha)) throw new Error('Selected unarmed precheck run identity is invalid.');
+                  const smokeArtifact = smokeArtifacts[0];
+                  const smoke = await readArtifact(smokeArtifact,'client-smoke.json');
+                  const sourceOptions = {maxBuffer:limits.maxProcessBytes,timeout:limits.nativeCleanupReserveMs,stdio:['pipe','pipe','pipe']};
+                  const sourceHashes = {
+                    adapterSha256:hash(execFileSync('git',['show',`${attemptRun.head_sha}:scripts/native-database-validation.mjs`],sourceOptions)),
+                    workflowSha256:hash(execFileSync('git',['show',`${attemptRun.head_sha}:.github/workflows/db.yml`],sourceOptions)),
+                  };
+                  const verdict = verifyUnarmedNativePrecheck({
+                    review:matches[0],
+                    run:{id:String(attemptRun.id),attempt:String(attemptRun.run_attempt),sourceSha:attemptRun.head_sha,
+                      event:attemptRun.event,branch:attemptRun.head_branch,status:attemptRun.status,conclusion:attemptRun.conclusion},
+                    nativeJob:projectUnarmedJob(nativeJobs[0],attempt),guardianJob:projectUnarmedJob(guardianJobs[0],attempt),
+                    smokeArchive:{id:smokeArtifact.id,name:smokeArtifact.name,runId:String(smokeArtifact.workflow_run?.id),
+                      sourceSha:smokeArtifact.workflow_run?.head_sha,apiSha256:smokeArtifact.digest.slice('sha256:'.length),
+                      archiveSha256:smoke.archiveSha256,expired:smokeArtifact.expired},
+                    smoke:smoke.value,sourceHashes,recoveryArtifactPresent,artifactListingComplete:true,
+                  });
+                  if (verdict.verified !== true) throw new Error('Previous hosted unarmed refusal lacks verified independent evidence; the shared project is blocked.');
+                  verifiedUnarmed.add(boundRunAttempt);
+                }
                 for (const job of attemptJobs) {
                   jobs.push({...job,boundAttempt:attempt});
                   if (job.name !== limits.job || job.conclusion==='skipped') continue;
+                  if (verifiedUnarmed.has(boundRunAttempt)) continue;
                   const nativeStep=Array.isArray(job.steps) && job.steps.find(step=>step.name==='Validate the full native suite with outside-worker recovery custody');
                   if ((job.conclusion==='success' || nativeStep && nativeStep.conclusion && nativeStep.conclusion!=='skipped') &&
                       !artifacts.some(artifact=>artifact.name===`native-db-recovery-${run.id}-${attempt}` && !artifact.expired)) {
@@ -203,6 +261,7 @@ jobs:
               if (recoveries.length === 0) {
                 const jobs = priorJobs.get(run.id) ?? [];
                 if (jobs.some(job => job.name === 'timeout-guardian' && job.conclusion && job.conclusion !== 'skipped' &&
+                  !verifiedUnarmed.has(`${run.id}-${job.boundAttempt}`) &&
                   (String(run.id) !== currentRunId || BigInt(job.boundAttempt) < BigInt(currentAttempt)))) throw new Error('Previous attempted guardian has no recovery receipt; the shared project is blocked.');
                 continue;
               }
