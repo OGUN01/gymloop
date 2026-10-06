@@ -11,3 +11,11 @@ Before implementation, the focused run returned **6 failed / 15 passed / 21 tota
 An exploratory fixture with `PlanCatalogueView.heldUnavailable = true` and `truncated = true` showed neither corresponding public PLC notice on Shop. The full plan catalogue's existing copy defines both notices. This finding is separate from the arrangement refinement: the orchestrator clarified that preserving notices refers to Shop's current loading/error/stale/offline presentation and current `planCatalogueNotice` result. No new held-unavailable/truncated requirement is included in the frozen density acceptance, and no previous assertion was removed or weakened. Follow-up evaluation of that presentation gap requires its own approved scope.
 
 Verification commands: focused Vitest for the reference harness, targeted ESLint for the same file, mobile TypeScript check and scoped diff whitespace check. Test-first commit is left to the orchestrator's serial staging procedure.
+
+## Independent test-only amendment
+
+After test-first commit `23f3662a`, the new service-details assertion used the plan catalogue's `GST 18%` wording by mistake. The frozen SHP public contract and existing independent shared Shop tests require `shopGstLabel`: "GST rate set by your gym: 18%. You pay the price shown." The author corrected only that new service assertion to use the registered public Shop copy interface. The plan metadata assertion retains its separate PLC wording. No requirement, application copy, price, tax calculation or production code changed through this amendment.
+
+Two additional visible regression cases retain service details while offline or supplied availability is `out_of_stock`: View service remains enabled, complete description/GST/validity/terms open in its sheet, Reserve stays disabled, and viewing sends no reservation command or navigation. These cases were authored after the orchestrator's uncommitted presentation edits already existed. Their green result is preservation evidence, not a claimed additional red-before-implementation proof; the original six red density failures remain the test-first evidence.
+
+Amended focused run: **23/23 pass**. Targeted ESLint passes. No native UI implementation or holdout content was read, and the amendment is left for a separate test-only commit before the source commit.

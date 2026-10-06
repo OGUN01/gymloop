@@ -1,11 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { announcementPreview, businessNouns, formatDateTime, planCatalogueCopy, UI_TOKENS, type PlanCatalogueView } from '@gymloop/shared';
+import { announcementPreview, businessNouns, formatDateTime, planCatalogueCopy, shopGstLabel, UI_TOKENS, type PlanCatalogueView } from '@gymloop/shared';
 
 // Independent reference-layout tests. Fixtures and hook rendering derive from
 // existing visible native suites; no Home/Shop/announcement/UI source was read.
 type Node = { type: unknown; props: Record<string, unknown>; ancestors?: Node[] };
 const h = vi.hoisted(() => ({
-  cursor: 0, slots: [] as unknown[], effects: [] as Array<() => unknown>, changed: false,
+  cursor: 0, slots: [] as unknown[], effects: [] as Array<() => unknown>, changed: false, online: true,
   post: vi.fn(), push: vi.fn(), markRead: vi.fn(), scrollTo: vi.fn(), reloadPlans: vi.fn(),
 }));
 vi.mock('react', async original => {
@@ -48,7 +48,7 @@ vi.mock('react-native-safe-area-context', () => ({ SafeAreaView: 'SafeAreaView',
 vi.mock('react-native-svg', () => ({ default: 'Svg', Svg: 'Svg', Path: 'Path', G: 'G', Circle: 'Circle', Rect: 'Rect', Defs: 'Defs', ClipPath: 'ClipPath', LinearGradient: 'LinearGradient', RadialGradient: 'RadialGradient', Stop: 'Stop' }));
 vi.mock('lucide-react-native', () => new Proxy({}, { get: (_target, name) => name === 'then' ? undefined : String(name), has: () => true }));
 vi.mock('expo-router', () => ({ useRouter: () => ({ push: h.push, replace: vi.fn() }), useLocalSearchParams: () => ({}), Link: 'Link', Redirect: 'Redirect' }));
-vi.mock('expo-network', () => ({ useNetworkState: () => ({ isConnected: true, isInternetReachable: true }), getNetworkStateAsync: async () => ({ isConnected: true, isInternetReachable: true }), addNetworkStateListener: () => ({ remove: vi.fn() }) }));
+vi.mock('expo-network', () => ({ useNetworkState: () => ({ isConnected: h.online, isInternetReachable: h.online }), getNetworkStateAsync: async () => ({ isConnected: h.online, isInternetReachable: h.online }), addNetworkStateListener: () => ({ remove: vi.fn() }) }));
 vi.mock('expo-secure-store', () => ({ getItemAsync: async () => null, setItemAsync: vi.fn(), deleteItemAsync: vi.fn() }));
 vi.mock('expo-font', () => ({ useFonts: () => [true, null], isLoaded: () => true, loadAsync: async () => undefined }));
 vi.mock('expo-haptics', () => ({ selectionAsync: async () => undefined, impactAsync: async () => undefined, notificationAsync: async () => undefined }));
@@ -74,7 +74,7 @@ vi.mock('../../components/ui', async original => {
   const capture = (type: string) => (props: Record<string, unknown>) => ({ type, props: {
     ...props, rendered: (actual[type] as (props: Record<string, unknown>) => unknown)(props),
   } });
-  return { ...actual, Screen: capture('Screen'), Display: capture('Display'), RowAction: capture('RowAction'), ActionButton: capture('ActionButton') };
+  return { ...actual, Screen: capture('Screen'), Sheet: capture('Sheet'), Display: capture('Display'), RowAction: capture('RowAction'), ActionButton: capture('ActionButton') };
 });
 const snapshot = {
   member: { fullName: 'Aarav Sharma', memberCode: 'LAYOUT-101', email: 'member@example.test', phone: '+917000000101', goal: 5, restDays: [] },
@@ -171,7 +171,7 @@ async function measureSection(label: string, y: number) {
   await render();
 }
 beforeEach(() => {
-  vi.resetModules(); h.slots = []; h.cursor = 0; h.effects = []; h.changed = false;
+  vi.resetModules(); h.slots = []; h.cursor = 0; h.effects = []; h.changed = false; h.online = true;
   planView = { plans: [plan], truncated: false, heldUnavailable: false, held: null };
   planState = { phase: 'ready', loadedAt: null, staleReason: null, offline: false };
   catalogue = { items: [product, service], reservations, truncated: false, serverTime: '2026-10-06T04:30:00Z' };
@@ -236,7 +236,25 @@ describe('NAVC-008/012 compact supporting catalogue contract', () => {
     expect(text()).toMatch(/Available/);
     await press(/^View service$/i);
     expect(text()).toContain(longService.description); expect(text()).toContain(longService.cancellationTerms);
-    expect(text()).toMatch(/GST 18%/); expect(text()).toMatch(/30 days/); expect(h.push).not.toHaveBeenCalled();
+    expect(text()).toContain(shopGstLabel(longService.gstRateBp, businessNouns('gym').place)); expect(text()).toMatch(/30 days/); expect(h.push).not.toHaveBeenCalled();
+  });
+
+  it.each([['offline', false, 'available'], ['out of stock', true, 'out_of_stock']] as const)('retains read-only service details while %s and keeps Reserve disabled', async (_label, online, availability) => {
+    const detailedService = { ...service, name: 'Read-only complete assessment service', description: 'Read-only service description sentinel', gstRateBp: 1800, cancellationTerms: 'Read-only service terms sentinel', availability, availableQuantity: availability === 'out_of_stock' ? 0 : 1 };
+    catalogue = { ...catalogue, items: [product, detailedService] }; await mount('shop');
+    h.online = online; await render();
+    if (!online) expect(text()).toMatch(/offline/i);
+    const view = action(/^View service$/i);
+    const viewButton = nodes.find(node => node.type === 'Pressable' && node.ancestors?.includes(view));
+    expect(viewButton?.props.disabled).not.toBe(true);
+    const reads = h.post.mock.calls.length; await press(/^View service$/i);
+    expect(text()).toContain(detailedService.description); expect(text()).toContain(detailedService.cancellationTerms);
+    expect(text()).toContain(shopGstLabel(detailedService.gstRateBp, businessNouns('gym').place)); expect(text()).toMatch(/30 days/);
+    const sheet = nodes.find(node => node.type === 'Sheet' && node.props.visible === true); expect(sheet, 'open service details sheet').toBeDefined();
+    const reserve = nodes.find(node => node.type === 'ActionButton' && node.ancestors?.includes(sheet!) && labels(node).some(value => /^Reserve(?:\s|$)/i.test(value)));
+    expect(reserve, 'service Reserve action').toBeDefined(); expect(reserve?.props.disabled).toBe(true);
+    expect(h.post).toHaveBeenCalledTimes(reads); expect(h.push).not.toHaveBeenCalled();
+    expect(h.post.mock.calls.filter(([path]) => /^\/api\/shop\/reservations(?:\/|$)/.test(path))).toEqual([]);
   });
 
   it('retains full product and supporting service photo dimensions with catalogue names and product Reserve', async () => {
