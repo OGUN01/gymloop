@@ -301,7 +301,7 @@ end;
 
 -- ============ D5. event failure rolls the tick back without enqueueing ============
 savepoint d5;
-select is(pg_temp.probe($q$create or replace function app.push_configuration_ready(p_tenant_id uuid) returns boolean language sql stable security definer set search_path = '' as $fn$ select case when p_tenant_id = (select ('84000000-0000-4000-8000-'||lpad(250::text,12,'0'))::uuid) then (select (1/0)) else exists (select 1 from public.push_provider_configurations c where c.tenant_id = p_tenant_id and c.firebase_project_id = 'samuraiapi-51996' and c.activated_at is not null and c.activated_at <= statement_timestamp()) end $fn$$q$),'OK','PSD-004: a readiness seam failing for one fixture tenant is installed');
+select is(pg_temp.probe($q$create or replace function app.push_configuration_ready(p_tenant_id uuid) returns boolean language sql stable security definer set search_path = '' as $fn$ select case when p_tenant_id = (select ('84000000-0000-4000-8000-'||lpad(250::text,12,'0'))::uuid) then (select exists (select 1/0)) else exists (select 1 from public.push_provider_configurations c where c.tenant_id = p_tenant_id and c.firebase_project_id = 'samuraiapi-51996' and c.activated_at is not null and c.activated_at <= statement_timestamp()) end $fn$$q$),'OK','PSD-004: a readiness seam failing for one fixture tenant is installed');
 create temp table d5_pre as select pg_temp.reads_now() r, pg_temp.sends_now() s;
 select set_config('request.jwt.claims','',true);
 create temp table d5_err as select pg_temp.tickerr() e;
