@@ -47,8 +47,11 @@ vi.mock('expo-network', () => ({
   getNetworkStateAsync: async () => ({ isConnected: seam.network, isInternetReachable: seam.network }),
   addNetworkStateListener: (callback: typeof seam.networkListener) => { seam.networkListener = callback; return { remove: vi.fn() }; },
 }));
-vi.mock('expo-router', () => ({ router: { push: vi.fn(), replace: vi.fn() }, useRouter: () => ({ push: vi.fn(), replace: vi.fn() }) }));
-vi.mock('react-native', () => ({ View: 'View', Text: 'Text', ScrollView: 'ScrollView', Pressable: 'Pressable', TextInput: 'TextInput', ActivityIndicator: 'ActivityIndicator', StyleSheet: { create: (styles: unknown) => styles }, Platform: { OS: 'android' } }));
+vi.mock('expo-router', async () => {
+  const { useEffect } = await import('react');
+  return { router: { push: vi.fn(), replace: vi.fn() }, useRouter: () => ({ push: vi.fn(), replace: vi.fn() }), useFocusEffect: (callback: () => void | (() => void)) => useEffect(callback, [callback]) };
+});
+vi.mock('react-native', () => ({ View: 'View', Text: 'Text', ScrollView: 'ScrollView', Pressable: 'Pressable', TextInput: 'TextInput', ActivityIndicator: 'ActivityIndicator', StyleSheet: { create: (styles: unknown) => styles }, Platform: { OS: 'android' }, AppState: { currentState: 'active', addEventListener: () => ({ remove: vi.fn() }) } }));
 vi.mock('../../components/ui', () => {
   const host = (name: string) => (props: Props) => ({ type: name, props });
   return {

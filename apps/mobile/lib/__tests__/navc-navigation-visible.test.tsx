@@ -7,7 +7,7 @@ const h = vi.hoisted(() => ({
   identity: { kind: 'member', userId: 'nav-user', tenantId: 'nav-tenant', memberId: 'nav-member' } as GymloopIdentity,
   type: 'gym' as 'gym' | 'dance' | 'yoga' | 'martial_arts' | 'studio',
   visibility: { enabled: true as boolean | null, loading: false, error: null as string | null, reload: vi.fn(async () => undefined) },
-  pathname: '/(member)/index', section: undefined as string | undefined, replace: vi.fn(), effects: [] as Array<() => unknown>,
+  pathname: '/(member)/index', section: undefined as string | string[] | undefined, replace: vi.fn(), effects: [] as Array<() => unknown>,
 }));
 vi.mock('react', async original => ({ ...await original<typeof import('react')>(), useEffect: (effect: () => unknown) => { h.effects.push(effect); } }));
 vi.mock('../mobile-context', () => ({ useMobile: () => ({ ready: true, identity: h.identity, session: { user: { id: 'nav-user' } }, palette: UI_TOKENS.colors.light, businessType: h.type, nouns: businessNouns(h.type) }) }));
@@ -117,6 +117,11 @@ describe('NAVC authorized member layout', () => {
   });
   it('confirmed Off returns a selected primary Classes destination to Home', async () => {
     h.pathname = '/(member)/classes'; h.visibility.enabled = false;
+    const result = await layout();
+    expect(h.replace.mock.calls.some(([path]) => path === '/(member)' || path === '/(member)/' || path === '/(member)/index') || result.some(node => node.type === 'redirect' && ['/(member)', '/(member)/', '/(member)/index'].includes(String(node.props.href)))).toBe(true);
+  });
+  it.each(['bookings', 'training'])('confirmed Off treats malformed array [%s, anything] as primary Classes and returns Home', async section => {
+    h.pathname = '/(member)/classes'; h.section = [section, 'anything']; h.visibility.enabled = false;
     const result = await layout();
     expect(h.replace.mock.calls.some(([path]) => path === '/(member)' || path === '/(member)/' || path === '/(member)/index') || result.some(node => node.type === 'redirect' && ['/(member)', '/(member)/', '/(member)/index'].includes(String(node.props.href)))).toBe(true);
   });

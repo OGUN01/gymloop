@@ -52,7 +52,10 @@ vi.mock('react-native', () => ({
   Animated: { View: host('animated-view'), ScrollView: host('animated-scroll'), event: () => () => undefined, Value: class { value: number; constructor(value: number) { this.value = value; } interpolate() { return 0; } setValue() {} }, timing: () => ({ start: () => undefined, stop: () => undefined }), spring: () => ({ start: () => undefined, stop: () => undefined }), loop: () => ({ start: () => undefined, stop: () => undefined }), parallel: () => ({ start: () => undefined, stop: () => undefined }) },
   Easing: { linear: (value: number) => value, out: (value: unknown) => value, inOut: (value: unknown) => value, ease: (value: number) => value },
 }));
-vi.mock('expo-router', () => ({ useRouter: () => ({ push: vi.fn(), replace: vi.fn() }), useLocalSearchParams: () => ({}), Tabs: Object.assign(host('tabs'), { Screen: host('tab') }), Link: host('link') }));
+vi.mock('expo-router', async () => {
+  const { useEffect } = await import('react');
+  return { useRouter: () => ({ push: vi.fn(), replace: vi.fn() }), useLocalSearchParams: () => ({}), Tabs: Object.assign(host('tabs'), { Screen: host('tab') }), Link: host('link'), useFocusEffect: (callback: () => void | (() => void)) => useEffect(callback, [callback]) };
+});
 vi.mock('expo-camera', () => ({ CameraView: host('camera'), useCameraPermissions: () => [{ granted: false }, vi.fn()] }));
 vi.mock('expo-network', () => ({ getNetworkStateAsync: async () => ({ isConnected: false }), addNetworkStateListener: () => ({ remove: () => undefined }) }));
 vi.mock('expo-crypto', () => ({ randomUUID: () => 'event' }));
