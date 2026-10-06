@@ -1,0 +1,1004 @@
+{
+  "observedUtc": "2026-10-06T22:02:33.437857+00:00",
+  "subject": {
+    "workflow": "CI",
+    "runId": 37528725170,
+    "sourceCommit": "c77cfbaf60054951fae707bc5bdb62f801d43b41",
+    "url": "https://github.com/OGUN01/gymloop/actions/runs/37528725170"
+  },
+  "authorization": "Exactly one unchanged failed-job retry after verified baseline completion; no automatic second retry",
+  "originalAttempt": {
+    "run": {
+      "conclusion": "failure",
+      "created_at": "2026-10-06T20:44:26Z",
+      "event": "push",
+      "head_sha": "c77cfbaf60054951fae707bc5bdb62f801d43b41",
+      "html_url": "https://github.com/OGUN01/gymloop/actions/runs/37528725170",
+      "id": 37528725170,
+      "name": "CI",
+      "run_attempt": 1,
+      "run_started_at": "2026-10-06T20:44:26Z",
+      "status": "completed",
+      "updated_at": "2026-10-06T21:05:00Z"
+    },
+    "jobs": {
+      "jobs": [
+        {
+          "completed_at": "2026-10-06T20:44:41Z",
+          "conclusion": "success",
+          "id": 112492290966,
+          "name": "deno-check",
+          "started_at": "2026-10-06T20:44:29Z",
+          "status": "completed",
+          "steps": [
+            {
+              "completed_at": "2026-10-06T20:44:31Z",
+              "conclusion": "success",
+              "name": "Set up job",
+              "started_at": "2026-10-06T20:44:30Z",
+              "status": "completed"
+            },
+            {
+              "completed_at": "2026-10-06T20:44:35Z",
+              "conclusion": "success",
+              "name": "Run actions/checkout@v7",
+              "started_at": "2026-10-06T20:44:31Z",
+              "status": "completed"
+            },
+            {
+              "completed_at": "2026-10-06T20:44:37Z",
+              "conclusion": "success",
+              "name": "Run denoland/setup-deno@v2",
+              "started_at": "2026-10-06T20:44:35Z",
+              "status": "completed"
+            },
+            {
+              "completed_at": "2026-10-06T20:44:39Z",
+              "conclusion": "success",
+              "name": "Run deno check --config supabase/functions/deno.json supabase/functions/**/*.ts",
+              "started_at": "2026-10-06T20:44:37Z",
+              "status": "completed"
+            },
+            {
+              "completed_at": "2026-10-06T20:44:39Z",
+              "conclusion": "success",
+              "name": "Post Run denoland/setup-deno@v2",
+              "started_at": "2026-10-06T20:44:39Z",
+              "status": "completed"
+            },
+            {
+              "completed_at": "2026-10-06T20:44:39Z",
+              "conclusion": "success",
+              "name": "Post Run actions/checkout@v7",
+              "started_at": "2026-10-06T20:44:39Z",
+              "status": "completed"
+            },
+            {
+              "completed_at": "2026-10-06T20:44:39Z",
+              "conclusion": "success",
+              "name": "Complete job",
+              "started_at": "2026-10-06T20:44:39Z",
+              "status": "completed"
+            }
+          ]
+        },
+        {
+          "completed_at": "2026-10-06T21:04:59Z",
+          "conclusion": "failure",
+          "id": 112492291275,
+          "name": "gates",
+          "started_at": "2026-10-06T20:44:29Z",
+          "status": "completed",
+          "steps": [
+            {
+              "completed_at": "2026-10-06T20:44:30Z",
+              "conclusion": "success",
+              "name": "Set up job",
+              "started_at": "2026-10-06T20:44:30Z",
+              "status": "completed"
+            },
+            {
+              "completed_at": "2026-10-06T20:44:34Z",
+              "conclusion": "success",
+              "name": "Run actions/checkout@v7",
+              "started_at": "2026-10-06T20:44:31Z",
+              "status": "completed"
+            },
+            {
+              "completed_at": "2026-10-06T20:44:47Z",
+              "conclusion": "success",
+              "name": "Run pnpm/action-setup@v6",
+              "started_at": "2026-10-06T20:44:34Z",
+              "status": "completed"
+            },
+            {
+              "completed_at": "2026-10-06T20:44:54Z",
+              "conclusion": "success",
+              "name": "Run actions/setup-node@v7",
+              "started_at": "2026-10-06T20:44:47Z",
+              "status": "completed"
+            },
+            {
+              "completed_at": "2026-10-06T20:45:00Z",
+              "conclusion": "success",
+              "name": "Run pnpm install --frozen-lockfile",
+              "started_at": "2026-10-06T20:44:54Z",
+              "status": "completed"
+            },
+            {
+              "completed_at": "2026-10-06T20:45:24Z",
+              "conclusion": "success",
+              "name": "typecheck",
+              "started_at": "2026-10-06T20:45:00Z",
+              "status": "completed"
+            },
+            {
+              "completed_at": "2026-10-06T20:45:37Z",
+              "conclusion": "success",
+              "name": "lint",
+              "started_at": "2026-10-06T20:45:24Z",
+              "status": "completed"
+            },
+            {
+              "completed_at": "2026-10-06T20:46:14Z",
+              "conclusion": "success",
+              "name": "build",
+              "started_at": "2026-10-06T20:45:37Z",
+              "status": "completed"
+            },
+            {
+              "completed_at": "2026-10-06T20:47:49Z",
+              "conclusion": "success",
+              "name": "test",
+              "started_at": "2026-10-06T20:46:14Z",
+              "status": "completed"
+            },
+            {
+              "completed_at": "2026-10-06T20:49:39Z",
+              "conclusion": "success",
+              "name": "test:scripts",
+              "started_at": "2026-10-06T20:47:49Z",
+              "status": "completed"
+            },
+            {
+              "completed_at": "2026-10-06T20:50:14Z",
+              "conclusion": "success",
+              "name": "install Playwright Chromium",
+              "started_at": "2026-10-06T20:49:39Z",
+              "status": "completed"
+            },
+            {
+              "completed_at": "2026-10-06T21:04:51Z",
+              "conclusion": "failure",
+              "name": "test:e2e accessibility",
+              "started_at": "2026-10-06T20:50:14Z",
+              "status": "completed"
+            },
+            {
+              "completed_at": "2026-10-06T21:04:54Z",
+              "conclusion": "success",
+              "name": "knip",
+              "started_at": "2026-10-06T21:04:51Z",
+              "status": "completed"
+            },
+            {
+              "completed_at": "2026-10-06T21:04:55Z",
+              "conclusion": "success",
+              "name": "jscpd",
+              "started_at": "2026-10-06T21:04:54Z",
+              "status": "completed"
+            },
+            {
+              "completed_at": "2026-10-06T21:04:57Z",
+              "conclusion": "success",
+              "name": "depcruise",
+              "started_at": "2026-10-06T21:04:55Z",
+              "status": "completed"
+            },
+            {
+              "completed_at": "2026-10-06T21:04:58Z",
+              "conclusion": "success",
+              "name": "registry-lint",
+              "started_at": "2026-10-06T21:04:57Z",
+              "status": "completed"
+            },
+            {
+              "completed_at": "2026-10-06T21:04:58Z",
+              "conclusion": "success",
+              "name": "renewal-reminder-windows",
+              "started_at": "2026-10-06T21:04:58Z",
+              "status": "completed"
+            },
+            {
+              "completed_at": "2026-10-06T21:04:58Z",
+              "conclusion": "success",
+              "name": "escape-hatches",
+              "started_at": "2026-10-06T21:04:58Z",
+              "status": "completed"
+            },
+            {
+              "completed_at": "2026-10-06T21:04:58Z",
+              "conclusion": "skipped",
+              "name": "Post Run actions/setup-node@v7",
+              "started_at": "2026-10-06T21:04:58Z",
+              "status": "completed"
+            },
+            {
+              "completed_at": "2026-10-06T21:04:58Z",
+              "conclusion": "success",
+              "name": "Post Run pnpm/action-setup@v6",
+              "started_at": "2026-10-06T21:04:58Z",
+              "status": "completed"
+            },
+            {
+              "completed_at": "2026-10-06T21:04:58Z",
+              "conclusion": "success",
+              "name": "Post Run actions/checkout@v7",
+              "started_at": "2026-10-06T21:04:58Z",
+              "status": "completed"
+            },
+            {
+              "completed_at": "2026-10-06T21:04:58Z",
+              "conclusion": "success",
+              "name": "Complete job",
+              "started_at": "2026-10-06T21:04:58Z",
+              "status": "completed"
+            }
+          ]
+        }
+      ],
+      "total_count": 2
+    },
+    "accessibilitySummary": {
+      "failedCases": 2,
+      "passedCases": 96,
+      "durationMinutes": 14.6,
+      "eachFailureRepeatedOnConfiguredRetry": true
+    },
+    "visibleFailures": [
+      {
+        "file": "tests/e2e/phase8-accessibility.spec.ts",
+        "testLine": 91,
+        "assertionLine": 98,
+        "case": "superAdmin landing page passes accessibility in light mode",
+        "failure": "First accessible H1 not found within 5000ms; before axe analysis"
+      },
+      {
+        "file": "tests/e2e/phase8-accessibility.spec.ts",
+        "testLine": 91,
+        "assertionLine": 98,
+        "case": "superAdmin landing page passes accessibility in dark mode",
+        "failure": "First accessible H1 not found within 5000ms; before axe analysis"
+      }
+    ],
+    "retainedWorkflowArtifactCount": 0
+  },
+  "priorComparableRun": {
+    "runId": 37527819062,
+    "sourceCommit": "f3453f74591fc4792e39fe8904e34fb4402ff759",
+    "failedVisibleCase": "super admin gym detail passes accessibility in dark mode",
+    "file": "tests/e2e/phase8-accessibility.spec.ts",
+    "testLine": 205,
+    "assertionLine": 216,
+    "failedCases": 1,
+    "passedCases": 97,
+    "eachFailureRepeatedOnConfiguredRetry": true,
+    "appsWebVisibleTestAndAccessibilityConfigUnchangedThroughC77": true
+  },
+  "baselineVerificationGate": {
+    "runId": 37519113387,
+    "attempt": 1,
+    "sourceCommit": "6802d201df51afc4adc77ade6fa8394dfea5f9f0",
+    "status": "completed",
+    "overallConclusion": "failure",
+    "overallFailureIsExpectedOldCommittedTypeSnapshotDrift": true,
+    "verificationSource": "Explicit release message from root/native_baseline_evidence_observer; protected logs plus GitHub API metadata",
+    "nativePgTapActuallyPassed": true,
+    "nativeJobId": 112460049913,
+    "nativeJobConclusion": "success",
+    "nativeFiles": 163,
+    "nativeTests": 16329,
+    "nativeResult": "PASS",
+    "nativeCompletedUtc": "2026-10-06T21:46:40Z",
+    "serialSeedDryRunSucceeded": true,
+    "seedJobId": 112517801045,
+    "seedJobConclusion": "success",
+    "seedStartedUtc": "2026-10-06T21:46:42Z",
+    "seedCompletedUtc": "2026-10-06T21:47:27Z",
+    "seedActualRollbackVerdictVerified": true,
+    "seedVisibleVerifier": "34/34 rolled-back PASS",
+    "seedIndependentVerifier": "26/26 rolled-back PASS; aggregate only, no body read by retry agent",
+    "seedSerialAfterNativeCompletion": true,
+    "noFurtherDatabaseNativeOrSeedRunAuthorized": true
+  },
+  "retryInvocation": {
+    "requestedUtc": "2026-10-06T21:48:48.961983+00:00",
+    "command": "gh run rerun 37528725170 --failed",
+    "commandIssuedExactlyOnce": true,
+    "onlyFailedOrdinaryCiJobRequested": true,
+    "sourceCommitUnchanged": "c77cfbaf60054951fae707bc5bdb62f801d43b41",
+    "baselineObservedBeforeRequest": {
+      "conclusion": "failure",
+      "head_sha": "6802d201df51afc4adc77ade6fa8394dfea5f9f0",
+      "id": 37519113387,
+      "run_attempt": 1,
+      "status": "completed",
+      "updated_at": "2026-10-06T21:47:28Z"
+    },
+    "ordinaryObservedBeforeRequest": {
+      "conclusion": "failure",
+      "head_sha": "c77cfbaf60054951fae707bc5bdb62f801d43b41",
+      "id": 37528725170,
+      "run_attempt": 1,
+      "status": "completed",
+      "updated_at": "2026-10-06T21:05:00Z"
+    },
+    "finalDatabaseObservedBeforeRequest": {
+      "conclusion": "failure",
+      "head_sha": "c77cfbaf60054951fae707bc5bdb62f801d43b41",
+      "id": 37528725159,
+      "run_attempt": 1,
+      "status": "completed",
+      "updated_at": "2026-10-06T21:47:43Z"
+    },
+    "cliExitCode": 0,
+    "cliAcceptedRequest": true,
+    "commandReturnedUtc": "2026-10-06T21:48:50.873500+00:00"
+  },
+  "retryAttempt": {
+    "run": {
+      "conclusion": "success",
+      "created_at": "2026-10-06T20:44:26Z",
+      "event": "push",
+      "head_sha": "c77cfbaf60054951fae707bc5bdb62f801d43b41",
+      "html_url": "https://github.com/OGUN01/gymloop/actions/runs/37528725170",
+      "id": 37528725170,
+      "name": "CI",
+      "run_attempt": 2,
+      "run_started_at": "2026-10-06T21:48:52Z",
+      "status": "completed",
+      "updated_at": "2026-10-06T22:02:02Z"
+    },
+    "jobs": {
+      "jobs": [
+        {
+          "completed_at": "2026-10-06T22:02:01Z",
+          "conclusion": "success",
+          "id": 112518708326,
+          "name": "gates",
+          "started_at": "2026-10-06T21:48:56Z",
+          "status": "completed",
+          "steps": [
+            {
+              "completed_at": "2026-10-06T21:48:58Z",
+              "conclusion": "success",
+              "name": "Set up job",
+              "started_at": "2026-10-06T21:48:57Z",
+              "status": "completed"
+            },
+            {
+              "completed_at": "2026-10-06T21:49:01Z",
+              "conclusion": "success",
+              "name": "Run actions/checkout@v7",
+              "started_at": "2026-10-06T21:48:58Z",
+              "status": "completed"
+            },
+            {
+              "completed_at": "2026-10-06T21:49:08Z",
+              "conclusion": "success",
+              "name": "Run pnpm/action-setup@v6",
+              "started_at": "2026-10-06T21:49:01Z",
+              "status": "completed"
+            },
+            {
+              "completed_at": "2026-10-06T21:49:17Z",
+              "conclusion": "success",
+              "name": "Run actions/setup-node@v7",
+              "started_at": "2026-10-06T21:49:08Z",
+              "status": "completed"
+            },
+            {
+              "completed_at": "2026-10-06T21:49:23Z",
+              "conclusion": "success",
+              "name": "Run pnpm install --frozen-lockfile",
+              "started_at": "2026-10-06T21:49:17Z",
+              "status": "completed"
+            },
+            {
+              "completed_at": "2026-10-06T21:49:46Z",
+              "conclusion": "success",
+              "name": "typecheck",
+              "started_at": "2026-10-06T21:49:23Z",
+              "status": "completed"
+            },
+            {
+              "completed_at": "2026-10-06T21:50:00Z",
+              "conclusion": "success",
+              "name": "lint",
+              "started_at": "2026-10-06T21:49:46Z",
+              "status": "completed"
+            },
+            {
+              "completed_at": "2026-10-06T21:50:37Z",
+              "conclusion": "success",
+              "name": "build",
+              "started_at": "2026-10-06T21:50:00Z",
+              "status": "completed"
+            },
+            {
+              "completed_at": "2026-10-06T21:52:11Z",
+              "conclusion": "success",
+              "name": "test",
+              "started_at": "2026-10-06T21:50:37Z",
+              "status": "completed"
+            },
+            {
+              "completed_at": "2026-10-06T21:54:00Z",
+              "conclusion": "success",
+              "name": "test:scripts",
+              "started_at": "2026-10-06T21:52:11Z",
+              "status": "completed"
+            },
+            {
+              "completed_at": "2026-10-06T21:54:24Z",
+              "conclusion": "success",
+              "name": "install Playwright Chromium",
+              "started_at": "2026-10-06T21:54:00Z",
+              "status": "completed"
+            },
+            {
+              "completed_at": "2026-10-06T22:01:50Z",
+              "conclusion": "success",
+              "name": "test:e2e accessibility",
+              "started_at": "2026-10-06T21:54:24Z",
+              "status": "completed"
+            },
+            {
+              "completed_at": "2026-10-06T22:01:54Z",
+              "conclusion": "success",
+              "name": "knip",
+              "started_at": "2026-10-06T22:01:50Z",
+              "status": "completed"
+            },
+            {
+              "completed_at": "2026-10-06T22:01:54Z",
+              "conclusion": "success",
+              "name": "jscpd",
+              "started_at": "2026-10-06T22:01:54Z",
+              "status": "completed"
+            },
+            {
+              "completed_at": "2026-10-06T22:01:57Z",
+              "conclusion": "success",
+              "name": "depcruise",
+              "started_at": "2026-10-06T22:01:54Z",
+              "status": "completed"
+            },
+            {
+              "completed_at": "2026-10-06T22:01:57Z",
+              "conclusion": "success",
+              "name": "registry-lint",
+              "started_at": "2026-10-06T22:01:57Z",
+              "status": "completed"
+            },
+            {
+              "completed_at": "2026-10-06T22:01:57Z",
+              "conclusion": "success",
+              "name": "renewal-reminder-windows",
+              "started_at": "2026-10-06T22:01:57Z",
+              "status": "completed"
+            },
+            {
+              "completed_at": "2026-10-06T22:01:57Z",
+              "conclusion": "success",
+              "name": "escape-hatches",
+              "started_at": "2026-10-06T22:01:57Z",
+              "status": "completed"
+            },
+            {
+              "completed_at": "2026-10-06T22:01:57Z",
+              "conclusion": "success",
+              "name": "Post Run actions/setup-node@v7",
+              "started_at": "2026-10-06T22:01:57Z",
+              "status": "completed"
+            },
+            {
+              "completed_at": "2026-10-06T22:01:57Z",
+              "conclusion": "success",
+              "name": "Post Run pnpm/action-setup@v6",
+              "started_at": "2026-10-06T22:01:57Z",
+              "status": "completed"
+            },
+            {
+              "completed_at": "2026-10-06T22:01:58Z",
+              "conclusion": "success",
+              "name": "Post Run actions/checkout@v7",
+              "started_at": "2026-10-06T22:01:57Z",
+              "status": "completed"
+            },
+            {
+              "completed_at": "2026-10-06T22:01:58Z",
+              "conclusion": "success",
+              "name": "Complete job",
+              "started_at": "2026-10-06T22:01:58Z",
+              "status": "completed"
+            }
+          ]
+        },
+        {
+          "completed_at": "2026-10-06T20:44:41Z",
+          "conclusion": "success",
+          "id": 112518711334,
+          "name": "deno-check",
+          "started_at": "2026-10-06T20:44:29Z",
+          "status": "completed",
+          "steps": [
+            {
+              "completed_at": "2026-10-06T20:44:31Z",
+              "conclusion": "success",
+              "name": "Set up job",
+              "started_at": "2026-10-06T20:44:30Z",
+              "status": "completed"
+            },
+            {
+              "completed_at": "2026-10-06T20:44:35Z",
+              "conclusion": "success",
+              "name": "Run actions/checkout@v7",
+              "started_at": "2026-10-06T20:44:31Z",
+              "status": "completed"
+            },
+            {
+              "completed_at": "2026-10-06T20:44:37Z",
+              "conclusion": "success",
+              "name": "Run denoland/setup-deno@v2",
+              "started_at": "2026-10-06T20:44:35Z",
+              "status": "completed"
+            },
+            {
+              "completed_at": "2026-10-06T20:44:39Z",
+              "conclusion": "success",
+              "name": "Run deno check --config supabase/functions/deno.json supabase/functions/**/*.ts",
+              "started_at": "2026-10-06T20:44:37Z",
+              "status": "completed"
+            },
+            {
+              "completed_at": "2026-10-06T20:44:39Z",
+              "conclusion": "success",
+              "name": "Post Run denoland/setup-deno@v2",
+              "started_at": "2026-10-06T20:44:39Z",
+              "status": "completed"
+            },
+            {
+              "completed_at": "2026-10-06T20:44:39Z",
+              "conclusion": "success",
+              "name": "Post Run actions/checkout@v7",
+              "started_at": "2026-10-06T20:44:39Z",
+              "status": "completed"
+            },
+            {
+              "completed_at": "2026-10-06T20:44:39Z",
+              "conclusion": "success",
+              "name": "Complete job",
+              "started_at": "2026-10-06T20:44:39Z",
+              "status": "completed"
+            }
+          ]
+        }
+      ],
+      "total_count": 2
+    }
+  },
+  "concurrency": {
+    "referencedFinalDatabaseRunId": 37528725159,
+    "referencedFinalDatabaseRunSource": "c77cfbaf60054951fae707bc5bdb62f801d43b41",
+    "finalDatabaseObservedBeforeRetryRequest": {
+      "conclusion": "failure",
+      "head_sha": "c77cfbaf60054951fae707bc5bdb62f801d43b41",
+      "id": 37528725159,
+      "run_attempt": 1,
+      "status": "completed",
+      "updated_at": "2026-10-06T21:47:43Z"
+    },
+    "referencedFinalDatabaseAlreadyCompletedBeforeRetryRequest": true,
+    "finalDatabaseRunAtLastObservation": {
+      "conclusion": "failure",
+      "created_at": "2026-10-06T20:44:26Z",
+      "event": "push",
+      "head_sha": "c77cfbaf60054951fae707bc5bdb62f801d43b41",
+      "html_url": "https://github.com/OGUN01/gymloop/actions/runs/37528725159",
+      "id": 37528725159,
+      "name": "DB",
+      "run_attempt": 1,
+      "run_started_at": "2026-10-06T20:44:26Z",
+      "status": "completed",
+      "updated_at": "2026-10-06T21:47:43Z"
+    },
+    "finalDatabaseJobsAtLastObservation": {
+      "jobs": [
+        {
+          "completed_at": "2026-10-06T21:47:42Z",
+          "conclusion": "success",
+          "id": 112518128895,
+          "name": "pgtap-rollback",
+          "started_at": "2026-10-06T21:47:31Z",
+          "status": "completed",
+          "steps": [
+            {
+              "completed_at": "2026-10-06T21:47:32Z",
+              "conclusion": "success",
+              "name": "Set up job",
+              "started_at": "2026-10-06T21:47:31Z",
+              "status": "completed"
+            },
+            {
+              "completed_at": "2026-10-06T21:47:38Z",
+              "conclusion": "success",
+              "name": "Run actions/checkout@v7",
+              "started_at": "2026-10-06T21:47:32Z",
+              "status": "completed"
+            },
+            {
+              "completed_at": "2026-10-06T21:47:39Z",
+              "conclusion": "success",
+              "name": "Run node scripts/check-pgtap-rollback.mjs",
+              "started_at": "2026-10-06T21:47:38Z",
+              "status": "completed"
+            },
+            {
+              "completed_at": "2026-10-06T21:47:39Z",
+              "conclusion": "success",
+              "name": "Post Run actions/checkout@v7",
+              "started_at": "2026-10-06T21:47:39Z",
+              "status": "completed"
+            },
+            {
+              "completed_at": "2026-10-06T21:47:39Z",
+              "conclusion": "success",
+              "name": "Complete job",
+              "started_at": "2026-10-06T21:47:39Z",
+              "status": "completed"
+            }
+          ]
+        },
+        {
+          "completed_at": "2026-10-06T21:47:41Z",
+          "conclusion": "failure",
+          "id": 112518129191,
+          "name": "database-recovery-preflight",
+          "started_at": "2026-10-06T21:47:31Z",
+          "status": "completed",
+          "steps": [
+            {
+              "completed_at": "2026-10-06T21:47:33Z",
+              "conclusion": "success",
+              "name": "Set up job",
+              "started_at": "2026-10-06T21:47:32Z",
+              "status": "completed"
+            },
+            {
+              "completed_at": "2026-10-06T21:47:38Z",
+              "conclusion": "success",
+              "name": "Run actions/checkout@v7",
+              "started_at": "2026-10-06T21:47:33Z",
+              "status": "completed"
+            },
+            {
+              "completed_at": "2026-10-06T21:47:38Z",
+              "conclusion": "success",
+              "name": "Run actions/setup-node@v7",
+              "started_at": "2026-10-06T21:47:38Z",
+              "status": "completed"
+            },
+            {
+              "completed_at": "2026-10-06T21:47:39Z",
+              "conclusion": "failure",
+              "name": "Require the previous armed attempt's verified restoration",
+              "started_at": "2026-10-06T21:47:38Z",
+              "status": "completed"
+            },
+            {
+              "completed_at": "2026-10-06T21:47:39Z",
+              "conclusion": "skipped",
+              "name": "Post Run actions/setup-node@v7",
+              "started_at": "2026-10-06T21:47:39Z",
+              "status": "completed"
+            },
+            {
+              "completed_at": "2026-10-06T21:47:40Z",
+              "conclusion": "success",
+              "name": "Post Run actions/checkout@v7",
+              "started_at": "2026-10-06T21:47:39Z",
+              "status": "completed"
+            },
+            {
+              "completed_at": "2026-10-06T21:47:40Z",
+              "conclusion": "success",
+              "name": "Complete job",
+              "started_at": "2026-10-06T21:47:40Z",
+              "status": "completed"
+            }
+          ]
+        },
+        {
+          "completed_at": "2026-10-06T21:47:41Z",
+          "conclusion": "skipped",
+          "id": 112518224527,
+          "name": "migrate",
+          "started_at": "2026-10-06T21:47:42Z",
+          "status": "completed",
+          "steps": []
+        },
+        {
+          "completed_at": "2026-10-06T21:47:41Z",
+          "conclusion": "skipped",
+          "id": 112518226653,
+          "name": "schema-drift",
+          "started_at": "2026-10-06T21:47:42Z",
+          "status": "completed",
+          "steps": []
+        },
+        {
+          "completed_at": "2026-10-06T21:47:42Z",
+          "conclusion": "skipped",
+          "id": 112518230687,
+          "name": "native-selector",
+          "started_at": "2026-10-06T21:47:43Z",
+          "status": "completed",
+          "steps": []
+        },
+        {
+          "completed_at": "2026-10-06T21:47:42Z",
+          "conclusion": "skipped",
+          "id": 112518231076,
+          "name": "pgtap",
+          "started_at": "2026-10-06T21:47:43Z",
+          "status": "completed",
+          "steps": []
+        },
+        {
+          "completed_at": "2026-10-06T21:47:42Z",
+          "conclusion": "skipped",
+          "id": 112518232574,
+          "name": "timeout-guardian",
+          "started_at": "2026-10-06T21:47:43Z",
+          "status": "completed",
+          "steps": []
+        },
+        {
+          "completed_at": "2026-10-06T21:47:42Z",
+          "conclusion": "skipped",
+          "id": 112518232940,
+          "name": "native-job-metadata",
+          "started_at": "2026-10-06T21:47:43Z",
+          "status": "completed",
+          "steps": []
+        },
+        {
+          "completed_at": "2026-10-06T21:47:42Z",
+          "conclusion": "skipped",
+          "id": 112518233581,
+          "name": "seed-dry-run",
+          "started_at": "2026-10-06T21:47:43Z",
+          "status": "completed",
+          "steps": []
+        }
+      ],
+      "total_count": 9
+    },
+    "rootProvidedContext": {
+      "source": "Root coordination message after retry invocation",
+      "finalDatabasePreflightRefusedBeforeDatabaseTestExecution": true,
+      "readinessCredentialRetired": true,
+      "cleanupChecksAllThreePassed": true,
+      "rawDatabaseLogsOrCredentialsReadByRetryAgent": false
+    },
+    "metadataTransitions": [
+      {
+        "observedUtc": "2026-10-06T21:27:44.523536+00:00",
+        "runs": [
+          {
+            "conclusion": null,
+            "created_at": "2026-10-06T19:27:31Z",
+            "event": "push",
+            "head_sha": "6802d201df51afc4adc77ade6fa8394dfea5f9f0",
+            "html_url": "https://github.com/OGUN01/gymloop/actions/runs/37519113387",
+            "id": 37519113387,
+            "name": "DB",
+            "run_attempt": 1,
+            "run_started_at": "2026-10-06T19:27:31Z",
+            "status": "in_progress",
+            "updated_at": "2026-10-06T19:28:43Z"
+          },
+          {
+            "conclusion": "failure",
+            "created_at": "2026-10-06T20:44:26Z",
+            "event": "push",
+            "head_sha": "c77cfbaf60054951fae707bc5bdb62f801d43b41",
+            "html_url": "https://github.com/OGUN01/gymloop/actions/runs/37528725170",
+            "id": 37528725170,
+            "name": "CI",
+            "run_attempt": 1,
+            "run_started_at": "2026-10-06T20:44:26Z",
+            "status": "completed",
+            "updated_at": "2026-10-06T21:05:00Z"
+          },
+          {
+            "conclusion": null,
+            "created_at": "2026-10-06T20:44:26Z",
+            "event": "push",
+            "head_sha": "c77cfbaf60054951fae707bc5bdb62f801d43b41",
+            "html_url": "https://github.com/OGUN01/gymloop/actions/runs/37528725159",
+            "id": 37528725159,
+            "name": "DB",
+            "run_attempt": 1,
+            "run_started_at": "2026-10-06T20:44:26Z",
+            "status": "pending",
+            "updated_at": "2026-10-06T20:44:27Z"
+          }
+        ]
+      },
+      {
+        "observedUtc": "2026-10-06T21:49:21.289881+00:00",
+        "runs": [
+          {
+            "conclusion": "failure",
+            "created_at": "2026-10-06T19:27:31Z",
+            "event": "push",
+            "head_sha": "6802d201df51afc4adc77ade6fa8394dfea5f9f0",
+            "html_url": "https://github.com/OGUN01/gymloop/actions/runs/37519113387",
+            "id": 37519113387,
+            "name": "DB",
+            "run_attempt": 1,
+            "run_started_at": "2026-10-06T19:27:31Z",
+            "status": "completed",
+            "updated_at": "2026-10-06T21:47:28Z"
+          },
+          {
+            "conclusion": null,
+            "created_at": "2026-10-06T20:44:26Z",
+            "event": "push",
+            "head_sha": "c77cfbaf60054951fae707bc5bdb62f801d43b41",
+            "html_url": "https://github.com/OGUN01/gymloop/actions/runs/37528725170",
+            "id": 37528725170,
+            "name": "CI",
+            "run_attempt": 2,
+            "run_started_at": "2026-10-06T21:48:52Z",
+            "status": "in_progress",
+            "updated_at": "2026-10-06T21:48:57Z"
+          },
+          {
+            "conclusion": "failure",
+            "created_at": "2026-10-06T20:44:26Z",
+            "event": "push",
+            "head_sha": "c77cfbaf60054951fae707bc5bdb62f801d43b41",
+            "html_url": "https://github.com/OGUN01/gymloop/actions/runs/37528725159",
+            "id": 37528725159,
+            "name": "DB",
+            "run_attempt": 1,
+            "run_started_at": "2026-10-06T20:44:26Z",
+            "status": "completed",
+            "updated_at": "2026-10-06T21:47:43Z"
+          }
+        ]
+      },
+      {
+        "observedUtc": "2026-10-06T22:02:31.956885+00:00",
+        "runs": [
+          {
+            "conclusion": "failure",
+            "created_at": "2026-10-06T19:27:31Z",
+            "event": "push",
+            "head_sha": "6802d201df51afc4adc77ade6fa8394dfea5f9f0",
+            "html_url": "https://github.com/OGUN01/gymloop/actions/runs/37519113387",
+            "id": 37519113387,
+            "name": "DB",
+            "run_attempt": 1,
+            "run_started_at": "2026-10-06T19:27:31Z",
+            "status": "completed",
+            "updated_at": "2026-10-06T21:47:28Z"
+          },
+          {
+            "conclusion": "success",
+            "created_at": "2026-10-06T20:44:26Z",
+            "event": "push",
+            "head_sha": "c77cfbaf60054951fae707bc5bdb62f801d43b41",
+            "html_url": "https://github.com/OGUN01/gymloop/actions/runs/37528725170",
+            "id": 37528725170,
+            "name": "CI",
+            "run_attempt": 2,
+            "run_started_at": "2026-10-06T21:48:52Z",
+            "status": "completed",
+            "updated_at": "2026-10-06T22:02:02Z"
+          },
+          {
+            "conclusion": "failure",
+            "created_at": "2026-10-06T20:44:26Z",
+            "event": "push",
+            "head_sha": "c77cfbaf60054951fae707bc5bdb62f801d43b41",
+            "html_url": "https://github.com/OGUN01/gymloop/actions/runs/37528725159",
+            "id": 37528725159,
+            "name": "DB",
+            "run_attempt": 1,
+            "run_started_at": "2026-10-06T20:44:26Z",
+            "status": "completed",
+            "updated_at": "2026-10-06T21:47:43Z"
+          }
+        ]
+      }
+    ],
+    "otherDatabaseWorkflowsNotEnumeratedByThisReceipt": true,
+    "lockingCauseProven": false
+  },
+  "separateReadOnlyDeployedProbe": {
+    "observedUtc": "2026-10-06T21:10:19.776984+00:00",
+    "authHttpStatus": 200,
+    "authSeconds": 7.234,
+    "readOnlyScope": "fleet_metrics and deployed platform pages only; Auth session created",
+    "noSqlSeedOrBusinessCommands": true,
+    "tokensPasswordsRawOwnerDataRetained": false,
+    "checks": [
+      {
+        "kind": "fleet_metrics_rpc",
+        "attempt": 1,
+        "httpStatus": 200,
+        "seconds": 4.172,
+        "safeErrorCode": null,
+        "fleetTopLevelShape": true
+      },
+      {
+        "kind": "fleet_metrics_rpc",
+        "attempt": 2,
+        "httpStatus": 200,
+        "seconds": 3.453,
+        "safeErrorCode": null,
+        "fleetTopLevelShape": true
+      },
+      {
+        "kind": "fleet_metrics_rpc",
+        "attempt": 3,
+        "httpStatus": 200,
+        "seconds": 3.047,
+        "safeErrorCode": null,
+        "fleetTopLevelShape": true
+      },
+      {
+        "kind": "deployed_platform_html",
+        "path": "/platform",
+        "httpStatus": 200,
+        "seconds": 4.843,
+        "finalPathMatches": true,
+        "h1ElementPresent": true,
+        "fleetLoadErrorMarkerPresent": false,
+        "detailLoadErrorMarkerPresent": false,
+        "gymUnavailableMarkerPresent": false
+      },
+      {
+        "kind": "deployed_platform_html",
+        "path": "/platform/00000001-0000-4000-8000-000000000001",
+        "httpStatus": 200,
+        "seconds": 3.359,
+        "finalPathMatches": true,
+        "h1ElementPresent": true,
+        "fleetLoadErrorMarkerPresent": false,
+        "detailLoadErrorMarkerPresent": false,
+        "gymUnavailableMarkerPresent": false
+      }
+    ]
+  },
+  "privateInputSha256": {
+    "accessibility-original-run-metadata.json": "052CD7D5CB6FE319F6AC49FC6162598AADE55549DB2D588F2B50A14E8FD61605",
+    "accessibility-original-job-metadata.json": "616E2F44A6034590E249445C1E539BAB283958EAFF89F56AB618EED0DE72BC66",
+    "ci-c77-e2e-visible-filtered.log": "3C5F4804752CAA7B55A953A785E90E337D3EB97A90B8D39B8BC57404E8EDF3AD",
+    "fleet-read-probe-safe.json": "8C2C9E041DB7B10332F918ED3F15D84566153883727C4C1EBF617331ABE40131"
+  },
+  "limitations": [
+    "Original CI retained no failure screenshot, error-context or trace artifact.",
+    "The api.server_error log contains no route or RPC error code; an RPC failure, schema rejection or slow page completion cannot be distinguished retrospectively.",
+    "Successful later reads and varying cases do not prove a database lock or remove the original failures.",
+    "The referenced final database run metadata is recorded, including completion before retry if observed; other database workflows are not enumerated and this retry is not a controlled database-isolation experiment."
+  ],
+  "appTestOrReleaseCodeChangedForRetry": false,
+  "additionalRetryAutomaticallyIssued": false,
+  "sqlSeedNativeRerunPlayAdbOrAabActionPerformedByThisAgent": false,
+  "passwordsTokensRawOwnerDataOrHeldTestBodiesRetainedInPublicReceipt": false
+}
