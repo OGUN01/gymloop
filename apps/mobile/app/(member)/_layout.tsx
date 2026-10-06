@@ -2,7 +2,7 @@ import { useEffect } from 'react';
 import { View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { UI_TOKENS } from '@gymloop/shared';
-import { Redirect, useLocalSearchParams, usePathname, useRouter } from 'expo-router';
+import { Redirect, useGlobalSearchParams, usePathname, useRouter } from 'expo-router';
 import { RoleTabs } from '../../components/role-tabs';
 import { Body, ErrorRetry, LoadingState, RowAction, Screen } from '../../components/ui';
 import { useMobile } from '../../lib/mobile-context';
@@ -13,7 +13,7 @@ export default function MemberLayout() {
   const insets = useSafeAreaInsets();
   const visibility = useMemberClassVisibility();
   const pathname = usePathname();
-  const { section } = useLocalSearchParams<{ section?: string | string[] }>();
+  const { section } = useGlobalSearchParams<{ section?: string | string[] }>();
   const router = useRouter();
   const destination = typeof section === 'string' ? section : undefined;
   const secondary = destination === 'bookings' || destination === 'training';
