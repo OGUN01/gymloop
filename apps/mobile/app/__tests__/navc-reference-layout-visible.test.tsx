@@ -2,10 +2,11 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { announcementPreview, businessNouns, formatDateTime, planCatalogueCopy, shopGstLabel, UI_TOKENS, type PlanCatalogueView } from '@gymloop/shared';
 
 // Independent reference-layout tests. Fixtures and hook rendering derive from
-// existing visible native suites; no Home/Shop/announcement/UI source was read.
+// existing visible native suites. The heading refinement reads only the public
+// Title fit interface; no Home/Shop/announcement route source was read.
 type Node = { type: unknown; props: Record<string, unknown>; ancestors?: Node[] };
 const h = vi.hoisted(() => ({
-  cursor: 0, slots: [] as unknown[], effects: [] as Array<() => unknown>, changed: false, online: true,
+  cursor: 0, slots: [] as unknown[], effects: [] as Array<() => unknown>, changed: false, online: true, fontScale: 1,
   post: vi.fn(), push: vi.fn(), markRead: vi.fn(), scrollTo: vi.fn(), reloadPlans: vi.fn(),
 }));
 vi.mock('react', async original => {
@@ -37,7 +38,7 @@ vi.mock('react-native', () => ({
   ActivityIndicator: 'ActivityIndicator', TextInput: 'TextInput', KeyboardAvoidingView: 'KeyboardAvoidingView',
   StyleSheet: { create: (styles: unknown) => styles, hairlineWidth: 1, absoluteFillObject: {}, flatten: (styles: unknown) => styles },
   Platform: { OS: 'android', select: (values: Record<string, unknown>) => values.android },
-  Dimensions: { get: () => ({ width: 390, height: 844 }) }, useWindowDimensions: () => ({ width: 390, height: 844, scale: 1, fontScale: 1 }),
+  Dimensions: { get: () => ({ width: 390, height: 844 }) }, useWindowDimensions: () => ({ width: 390, height: 844, scale: 1, fontScale: h.fontScale }),
   useColorScheme: () => 'light', AppState: { currentState: 'active', addEventListener: () => ({ remove: vi.fn() }) },
   AccessibilityInfo: { announceForAccessibility: vi.fn(), isReduceMotionEnabled: async () => false, addEventListener: () => ({ remove: vi.fn() }) },
   // Both public scroll components mount the same imperative ScrollView host.
@@ -171,7 +172,7 @@ async function measureSection(label: string, y: number) {
   await render();
 }
 beforeEach(() => {
-  vi.resetModules(); h.slots = []; h.cursor = 0; h.effects = []; h.changed = false; h.online = true;
+  vi.resetModules(); h.slots = []; h.cursor = 0; h.effects = []; h.changed = false; h.online = true; h.fontScale = 1;
   planView = { plans: [plan], truncated: false, heldUnavailable: false, held: null };
   planState = { phase: 'ready', loadedAt: null, staleReason: null, offline: false };
   catalogue = { items: [product, service], reservations, truncated: false, serverTime: '2026-10-06T04:30:00Z' };
@@ -328,6 +329,25 @@ describe('NAVC-008/012 approved Shop section links', () => {
   });
 });
 describe('NAVC-009/012 approved compact Home', () => {
+  it.each([1, 1.35])('retains the complete single-line fitted Announcements native header at font scale %s', async fontScale => {
+    h.fontScale = fontScale; await mount('announcements');
+    const heading = nativeText('Announcements');
+    expect(heading.props.accessibilityRole).toBe('header');
+    expect(heading.props.children).toBe('Announcements');
+    expect(heading.props.numberOfLines).toBe(1);
+    expect(heading.props.adjustsFontSizeToFit).toBe(true);
+    expect(heading.props.allowFontScaling).not.toBe(false);
+    expect(heading.props.ellipsizeMode).toBeUndefined();
+    expect(style(heading)).toMatchObject({
+      fontSize: UI_TOKENS.typography.pageTitle.size,
+      lineHeight: UI_TOKENS.typography.pageTitle.lineHeight,
+      color: UI_TOKENS.colors.light.primaryText,
+    });
+    expect(nodes.filter(node => node.type === 'Text' && node.props.accessibilityRole === 'header' && words(node.props.children) === 'Announcements')).toHaveLength(1);
+    cards.forEach(card => expect(text()).toContain(card.title));
+    expect(h.markRead).not.toHaveBeenCalled();
+  });
+
   it('weekly visits use the existing accented metric Display without a hero figure', async () => {
     await mount('home');
     const figure = nodes.find(node => node.type === 'Display' && new RegExp(`^${snapshot.weekVisits}(?:\\s|$)`).test(words(node.props.children)));
