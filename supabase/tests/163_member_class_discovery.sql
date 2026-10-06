@@ -76,9 +76,9 @@ insert into public.platform_users(user_id,role,full_name,email,is_active) values
 do $fixture$ declare previous_claims text := current_setting('request.jwt.claims',true); begin
  perform pg_temp.claim(28,1,jsonb_build_object('tenant_id',null));
  insert into public.organizations(id,name,gym_code,status,timezone) values
- (pg_temp.u(1),'NAVC A','NAVC163A','active','Pacific/Kiritimati'),
- (pg_temp.u(2),'NAVC B','NAVC163B','active','Asia/Kolkata'),
- (pg_temp.u(3),'NAVC Missing','NAVC163C','active','Asia/Kolkata');
+ (pg_temp.u(1),'NAVC A','NV163A','active','Pacific/Kiritimati'),
+ (pg_temp.u(2),'NAVC B','NV163B','active','Asia/Kolkata'),
+ (pg_temp.u(3),'NAVC Missing','NV163C','active','Asia/Kolkata');
  insert into public.branches(id,tenant_id,name,is_default,timezone) values
  (pg_temp.u(11),pg_temp.u(1),'East home',true,'Pacific/Kiritimati'),
  (pg_temp.u(12),pg_temp.u(1),'West commitment',false,'Etc/GMT+12'),
