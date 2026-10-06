@@ -223,7 +223,7 @@ jobs:
           const refused = findNonRolledBackTests([{ path, content: readFileSync(path, 'utf8') }]);
           if (refused.length) throw new Error('Refusing a seed proof that can commit');
           JS
-            supabase db query --linked -f /tmp/batch2_seed_run.sql > /tmp/batch2_seed_result.json
+            supabase db query --linked --output-format json -f /tmp/batch2_seed_run.sql > /tmp/batch2_seed_result.json
             python - "$proof" <<'PY'
           import json, pathlib, re, sys
           proof = pathlib.Path(sys.argv[1]).read_text()
