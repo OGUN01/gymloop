@@ -59,7 +59,7 @@
 -- Either outcome is a lawful pin; the declaration/implementation
 -- reconciliation is a builder/critic decision, not a silent test edit.
 --
--- Assertion count basis: plan(149) counts EMITTED assertions (141 plain
+-- Assertion count basis: plan(137) counts EMITTED assertions (129 plain
 -- top-level plus eight adaptive: duplicate Vault entry one, blank Vault
 -- entry one, cyclic wrap exclusion one, lock-overlap five). The eight
 -- adaptive assertions EMIT through top-level CASE statements whose taken arm
@@ -72,7 +72,11 @@ begin;
 set local role postgres;
 set local search_path=extensions,public;
 select set_config('request.jwt.claims','',true);
-select plan(134);
+-- 137 = 129 top-level + 8 adaptive. (e7414c73's PSD-007 rewrite took the
+-- plain count 141 -> 127 but wrote plan(134): one short of the true 135, a
+-- latent "Bad plan" diagnostic in every sweep since; this restores the exact
+-- basis and adds the two fixture pins below.)
+select plan(137);
 
 -- Temp seam tables must exist before the language-SQL helpers that reference them.
 create temp table seam_reads(n integer);
@@ -267,6 +271,20 @@ select is((select dedupe_key from public.notifications where tenant_id=pg_temp.a
 -- ============ D3. deterministic bounded wrap at 103 eligible tenants ============
 select pg_temp.event_tenant(g) from generate_series(200,302) g;
 select pg_temp.config(g, now()-interval '1 hour') from generate_series(200,302) g;
+-- PSD-004's bounded wrap is defined over exactly the eligible set the driver
+-- selects from, and that set is every ready configuration — not just the wrap
+-- fixture. The D2 mixed-readiness tenant (pg_temp.aid(11)) was activated in D2
+-- and nothing above deactivates it, so without this step the eligible pool at
+-- the bounded tick is 104: the 100-bound then excludes FOUR tenants, which
+-- four rotates with the tick's minute offset, and when aid(11)'s index sits
+-- inside the window its D2-created dedupe key suppresses a second event —
+-- the sweep-37389309267 failure shape (99 aggregates, 99 distinct, a fourth
+-- "missing" tenant that was in fact the fourth excluded one). Deactivate the
+-- D2 tenant so the eligible pool is exactly the 103 wrap-fixture tenants the
+-- assertions below reason about; the global eligible count is pinned so the
+-- fixture cannot silently drift again.
+select is(pg_temp.probe($q$update public.push_provider_configurations set activated_at = null where tenant_id = pg_temp.aid(11)$q$),'OK','PSD-004: the D2 mixed-readiness tenant is deactivated before the bounded tick');
+select is((select count(*)::integer from public.push_provider_configurations where app.push_configuration_ready(tenant_id)),103,'PSD-004: exactly the 103 wrap-fixture tenants are eligible driver-wide');
 select set_config('request.jwt.claims','',true);
 select is((select count(*)::integer from public.push_provider_configurations where tenant_id between pg_temp.aid(200) and pg_temp.aid(302) and activated_at<=statement_timestamp()),103,'PSD-004: all 103 wrap-fixture tenants are ready');
 create temp table d3_res as select pg_temp.tickj() r;
