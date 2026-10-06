@@ -1408,6 +1408,28 @@ select is_empty(
         and n.nspname = 'app' and p.proname = 'guard_pt_policy_write'
         and p.pronargs = 0 and p.prorettype = 'trigger'::regtype
         and not p.prosecdef
+    ), member_class_visibility_guard_triggers as (
+      -- NAVC-004 owner-approved 2026-10-06: one exact new-field write guard,
+      -- not a table exemption or permission to admit any other trigger.
+      select t.oid, t.tgrelid from pg_trigger t
+      join pg_class c on c.oid = t.tgrelid
+      join pg_namespace cn on cn.oid = c.relnamespace
+      join pg_proc p on p.oid = t.tgfoid
+      join pg_namespace n on n.oid = p.pronamespace
+      where cn.nspname = 'public' and c.relname = 'organization_settings'
+        and t.tgname = 'organization_settings_guard_member_class_visibility'
+        and not t.tgisinternal and t.tgtype = 23 and t.tgenabled = 'O'
+        and t.tgnargs = 0 and t.tgqual is null and t.tgattr::text = ''
+        and n.nspname = 'app' and p.proname = 'guard_member_class_visibility_write'
+        and p.pronargs = 0 and p.prorettype = 'trigger'::regtype
+        and not p.prosecdef and p.provolatile = 'v'
+        and pg_get_userbyid(p.proowner) = 'postgres'
+        and coalesce(p.proconfig @> array['search_path=""'], false)
+        and not has_function_privilege('anon', p.oid, 'EXECUTE')
+        and not has_function_privilege('authenticated', p.oid, 'EXECUTE')
+        and not has_function_privilege('service_role', p.oid, 'EXECUTE')
+        and not exists (select 1 from aclexplode(coalesce(p.proacl, acldefault('f', p.proowner))) acl
+                         where acl.grantee = 0 and acl.privilege_type = 'EXECUTE')
     ), pt_completion_guard_triggers as (
       -- PTF immutable causal provenance: exact UPDATE OF column shape, no WHEN.
       select t.oid, t.tgrelid from pg_trigger t
@@ -1559,6 +1581,7 @@ select is_empty(
        and t.oid not in (select oid from push_device_guard_triggers)
        and t.oid not in (select oid from shop_invariant_triggers)
        and t.oid not in (select oid from pt_policy_guard_triggers)
+       and t.oid not in (select oid from member_class_visibility_guard_triggers)
        and t.oid not in (select oid from pt_completion_guard_triggers)
        and t.oid not in (select oid from wallet_conversion_evidence_triggers)
        and t.oid not in (select oid from legacy_attestation_guard_triggers)
@@ -1573,6 +1596,13 @@ select is_empty(
        select 1 from wallet_conversion_evidence_triggers t
        join pg_class c on c.oid = t.tgrelid where c.relname::text = expected.table_name
      )
+    union all
+    select 'organization_settings.missing_or_invalid_member_class_visibility_guard'
+      where exists (
+        select 1 from pg_attribute a
+        where a.attrelid = to_regclass('public.organization_settings')
+          and a.attname = 'member_classes_enabled' and a.attnum > 0 and not a.attisdropped
+      ) and not exists (select 1 from member_class_visibility_guard_triggers)
     union all
     select c.relname || '.missing_or_invalid_preview_read_only'
       from preview_tables c

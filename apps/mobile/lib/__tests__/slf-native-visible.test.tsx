@@ -61,15 +61,17 @@ describe('SLF native member surface (red until built)', () => {
     const rendered = render({});
     expect(rendered).toContain('Monthly Unlimited');
     expect(rendered).toMatch(/₹1,500/);
-    expect(rendered).toMatch(/2026-09-01/);
-    expect(rendered).toMatch(/2026-12-31/);
+    // NAVC-012 changes displayed date copy only; the new route test pins
+    // the unchanged ISO input command sent to the existing Freeze hook.
+    expect(rendered).toMatch(/1\s+(?:Sep|Sept|September)|(?:Sep|Sept|September)\s+1/i);
+    expect(rendered).toMatch(/31\s+(?:Dec|December)|(?:Dec|December)\s+31/i);
   });
 
   it('bar 2 shows the frozen request copy with the business noun and the requested interval', () => {
     const rendered = render({ state: state({ requests: [request()] }) });
     expect(rendered).toMatch(/This is a request\. Your gym must approve it\./);
-    expect(rendered).toMatch(/2026-10-10/);
-    expect(rendered).toMatch(/2026-10-17/);
+    expect(rendered).toMatch(/10\s+(?:Oct|October)|(?:Oct|October)\s+10/i);
+    expect(rendered).toMatch(/17\s+(?:Oct|October)|(?:Oct|October)\s+17/i);
   });
 
   it('SLF-018 renders awaiting-desk-adoption, awaiting-approval, scheduled, paused, completed, cancelled, rejected and expired distinctly', () => {
@@ -112,9 +114,13 @@ describe('SLF native member surface (red until built)', () => {
     expect(rendered).not.toMatch(/queued|will send when (back )?online/i);
   });
 
-  it('SLF-016 renewal routes to the /member/buy destination, no second renewal endpoint', () => {
+  // NAVC-012 cheap native copy, owner-approved 2026-10-06: the formerly
+  // rendered internal route becomes friendly renewal help. The existing
+  // contextual Buy destination is independently covered by NAVC-007/008.
+  it('SLF-016 keeps friendly renewal and Buy help without leaking an internal route', () => {
     const rendered = render({});
-    expect(rendered).toMatch(/\/member\/buy/);
+    expect(rendered).toMatch(/renew|buy|purchase requests/i);
+    expect(rendered).not.toMatch(/\/(?:member|api)\//);
   });
 
   it('bar 9: touch targets are at least 48dp and no tab chrome is rendered', () => {
