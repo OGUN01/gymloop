@@ -43,13 +43,15 @@ describe('native desk Classes navigation integration', () => {
       ['index', 'Check-in'], ['classes', 'Classes'], ['members', 'Members'], ['follow-ups', 'Follow-ups'], ['more', 'More'],
     ]);
   });
-  // TRV: the owner-approved trainer-only fifth desk tab sits before More; other roles see no change.
-  it('exposes desk Classes and the trainer-only Training tab for trainer', () => {
+  // NAVC-007 owner-approved on 2026-10-06 replaces the sixth trainer tab
+  // with the hidden native route and contextual trainer More access.
+  it('exposes desk Classes and hides native Training for trainer', () => {
     state.businessType = 'gym';
     state.identity = { kind: 'staff', role: 'trainer', userId: 'integration-user', tenantId: 'integration-tenant', staffId: 'integration-staff' };
     expect(screens(true).filter(item => !item.hidden).map(item => [item.name, item.title])).toEqual([
-      ['index', 'Check-in'], ['classes', 'Classes'], ['members', 'Members'], ['follow-ups', 'Follow-ups'], ['training', 'Training'], ['more', 'More'],
+      ['index', 'Check-in'], ['classes', 'Classes'], ['members', 'Members'], ['follow-ups', 'Follow-ups'], ['more', 'More'],
     ]);
+    expect(screens(true).find(item => item.name === 'training')?.hidden).toBe(true);
   });
   it.each([['gym', 'Classes'], ['dance', 'Batches'], ['yoga', 'Classes'], ['martial_arts', 'Classes'], ['studio', 'Classes']] as const)('uses %s class wording', (businessType, title) => {
     state.businessType = businessType;
@@ -59,7 +61,7 @@ describe('native desk Classes navigation integration', () => {
   it('retains exactly the five accepted member destinations', () => {
     state.businessType = 'gym'; state.identity = { kind: 'member', userId: 'integration-member', tenantId: 'integration-tenant', memberId: 'integration-member-id' };
     expect(screens().filter(item => !item.hidden).map(item => [item.name, item.title])).toEqual([
-      ['index', 'Home'], ['classes', 'Classes'], ['shop', 'Shop'], ['activity', 'Activity'], ['you', 'You'],
+      ['index', 'Home'], ['classes', 'Classes'], ['shop', 'Shop'], ['you', 'You'], ['activity', 'Activity'],
     ]);
     expect(screens().find(item => item.name === 'gym')?.hidden).toBe(true);
   });

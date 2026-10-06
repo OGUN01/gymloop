@@ -48,9 +48,10 @@ function screens(desk = false) {
 describe('accepted member information architecture — native', () => {
   beforeEach(() => { state.businessType = 'gym'; });
 
-  it('mounts Home, Classes, Shop, Activity and You in their accepted order', () => {
+  // Owner-approved NAVC-002 (2026-10-06) places You before Activity.
+  it('mounts Home, Classes, Shop, You and Activity in their accepted order', () => {
     expect(screens().filter(screen => !screen.hidden).map(screen => [screen.name, screen.title])).toEqual([
-      ['index', 'Home'], ['classes', 'Classes'], ['shop', 'Shop'], ['activity', 'Activity'], ['you', 'You'],
+      ['index', 'Home'], ['classes', 'Classes'], ['shop', 'Shop'], ['you', 'You'], ['activity', 'Activity'],
     ]);
   });
 

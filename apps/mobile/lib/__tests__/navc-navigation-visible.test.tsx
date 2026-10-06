@@ -7,7 +7,7 @@ const h = vi.hoisted(() => ({
   identity: { kind: 'member', userId: 'nav-user', tenantId: 'nav-tenant', memberId: 'nav-member' } as GymloopIdentity,
   type: 'gym' as 'gym' | 'dance' | 'yoga' | 'martial_arts' | 'studio',
   visibility: { enabled: true as boolean | null, loading: false, error: null as string | null, reload: vi.fn(async () => undefined) },
-  pathname: '/(member)/index', replace: vi.fn(), effects: [] as Array<() => unknown>,
+  pathname: '/(member)/index', section: undefined as string | undefined, replace: vi.fn(), effects: [] as Array<() => unknown>,
 }));
 vi.mock('react', async original => ({ ...await original<typeof import('react')>(), useEffect: (effect: () => unknown) => { h.effects.push(effect); } }));
 vi.mock('../mobile-context', () => ({ useMobile: () => ({ ready: true, identity: h.identity, session: { user: { id: 'nav-user' } }, palette: UI_TOKENS.colors.light, businessType: h.type, nouns: businessNouns(h.type) }) }));
@@ -23,7 +23,7 @@ vi.mock('expo-router', () => ({
   Redirect: (props: Record<string, unknown>) => createElement('redirect', props),
   usePathname: () => h.pathname, useSegments: () => ['(member)', h.pathname.split('/').at(-1)],
   useRouter: () => ({ replace: h.replace, push: vi.fn() }), router: { replace: h.replace, push: vi.fn() },
-  useLocalSearchParams: () => ({}),
+  useLocalSearchParams: () => ({ section: h.section }),
 }));
 function nodes(value: ReactNode): Array<{ type: unknown; props: Record<string, unknown> }> {
   const found: Array<{ type: unknown; props: Record<string, unknown> }> = [];
@@ -43,7 +43,7 @@ function shown(list: Awaited<ReturnType<typeof tabs>>) {
 }
 beforeEach(() => {
   h.identity = { kind: 'member', userId: 'nav-user', tenantId: 'nav-tenant', memberId: 'nav-member' }; h.type = 'gym';
-  h.visibility = { enabled: true, loading: false, error: null, reload: vi.fn(async () => undefined) }; h.pathname = '/(member)/index'; h.effects = []; h.replace.mockReset();
+  h.visibility = { enabled: true, loading: false, error: null, reload: vi.fn(async () => undefined) }; h.pathname = '/(member)/index'; h.section = undefined; h.effects = []; h.replace.mockReset();
 });
 describe('NAVC primary and secondary native navigation', () => {
   it.each(['gym', 'dance', 'yoga', 'martial_arts', 'studio'] as const)('enabled %s shows the exact five destinations with fixed Classes label', async type => {
@@ -83,11 +83,16 @@ describe('NAVC authorized member layout', () => {
     const result = await layout(); expect(result.filter(node => node.type === 'tab')).toHaveLength(0);
     const action = result.find(node => typeof (node.props.onRetry ?? node.props.onPress) === 'function');
     expect(action, 'unresolved visibility has a rendered recovery action').toBeDefined();
-    await (action?.props.onRetry ?? action?.props.onPress as () => unknown)(); expect(h.visibility.reload).toHaveBeenCalled();
+    await ((action?.props.onRetry ?? action?.props.onPress) as () => unknown)(); expect(h.visibility.reload).toHaveBeenCalled();
   });
   it('confirmed Off returns a selected primary Classes destination to Home', async () => {
     h.pathname = '/(member)/classes'; h.visibility.enabled = false;
     const result = await layout();
     expect(h.replace.mock.calls.some(([path]) => path === '/(member)' || path === '/(member)/' || path === '/(member)/index') || result.some(node => node.type === 'redirect' && ['/(member)', '/(member)/', '/(member)/index'].includes(String(node.props.href)))).toBe(true);
+  });
+  it.each(['bookings', 'training'])('confirmed Off preserves contextual %s access on the hidden Classes route', async section => {
+    h.pathname = '/(member)/classes'; h.section = section; h.visibility.enabled = false;
+    const result = await layout(); expect(h.replace).not.toHaveBeenCalled(); expect(result.some(node => node.type === 'redirect')).toBe(false);
+    expect(shown(result.filter(node => node.type === 'tab'))).toEqual([['index', 'Home'], ['shop', 'Shop'], ['you', 'You'], ['activity', 'Activity']]);
   });
 });

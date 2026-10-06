@@ -45,24 +45,25 @@ const staffIdentity = (role: 'gym_owner' | 'gym_manager' | 'front_desk' | 'train
   ({ kind: 'staff', role, userId: 'integration-user', tenantId: 'integration-tenant', staffId: 'integration-staff' });
 
 describe('TRV-001 trainer-only desk entry', () => {
-  it('exposes the Training tab for a trainer', () => {
+  // Owner-approved NAVC-007 changes discovery, preserving trainer authority:
+  // Training is a hidden route reached from More, never a sixth tab.
+  it('retains the hidden native Training route for a trainer', () => {
     seam.businessType = 'gym';
     seam.identity = staffIdentity('trainer');
     const training = screens(true).find(item => item.name === 'training');
     expect(training).toBeDefined();
-    expect(training!.hidden).toBe(false);
-    expect(training!.title).toBe('Training');
+    expect(training!.hidden).toBe(true);
   });
   it.each(['gym_owner', 'gym_manager', 'front_desk'] as const)('shows no Training tab for %s', role => {
     seam.businessType = 'gym';
     seam.identity = staffIdentity(role);
-    expect(screens(true).some(item => item.name === 'training')).toBe(false);
+    expect(screens(true).filter(item => item.name === 'training' && !item.hidden)).toEqual([]);
   });
   it('retains exactly the five accepted member destinations', () => {
     seam.businessType = 'gym';
     seam.identity = { kind: 'member', userId: 'integration-member', tenantId: 'integration-tenant', memberId: 'integration-member-id' };
     expect(screens().filter(item => !item.hidden).map(item => [item.name, item.title])).toEqual([
-      ['index', 'Home'], ['classes', 'Classes'], ['shop', 'Shop'], ['activity', 'Activity'], ['you', 'You'],
+      ['index', 'Home'], ['classes', 'Classes'], ['shop', 'Shop'], ['you', 'You'], ['activity', 'Activity'],
     ]);
   });
 });

@@ -9,7 +9,6 @@ const { state } = vi.hoisted(() => ({ state: {
   effects: [] as Array<() => unknown>, error: false, loading: false,
   empty: false, desk: false, trainer: false, count: 1, section: undefined as string | string[] | undefined, push: vi.fn(), browser: vi.fn(), plans: vi.fn(),
 } }));
-const stored = 'Stored gym member trainer message';
 const nouns = {
   yoga: { place: 'studio', session: 'class', sessions: 'classes', class: 'class', classes: 'classes', member: 'member', members: 'members', trainer: 'teacher' },
   martial_arts: { place: 'academy', session: 'class', sessions: 'classes', class: 'class', classes: 'classes', member: 'student', members: 'students', trainer: 'instructor' },
@@ -120,7 +119,7 @@ vi.mock('../../components/training-section', () => ({ TrainingSection: () => cre
 vi.mock('../../lib/use-announcements', () => ({ useAnnouncements: () => feed }));
 
 function press(tree: ReactNode, label: RegExp) {
-  const found = nodes(tree).filter(node => typeof node.props.onPress === 'function' && label.test(`${text(node)} ${String(node.props.accessibilityLabel ?? '')}`));
+  const found = nodes(tree).filter(node => typeof node.props.onPress === 'function' && [text(node), String(node.props.accessibilityLabel ?? '')].some(candidate => label.test(candidate.trim())));
   expect(found.length, `action ${label}`).toBeGreaterThan(0);
   (found[0]!.props.onPress as () => void)();
 }

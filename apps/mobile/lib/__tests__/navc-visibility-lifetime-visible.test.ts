@@ -24,7 +24,7 @@ vi.mock('react', async original => {
     useCallback: (callback: unknown, deps?: readonly unknown[]) => { const index = h.cursor++; if (changed(h.deps[index], deps)) { h.slots[index] = callback; h.deps[index] = deps; } return h.slots[index]; },
     useEffect: (callback: () => unknown, deps?: readonly unknown[]) => { const index = h.cursor++; if (changed(h.deps[index], deps)) { h.deps[index] = deps; h.effects.push({ index, callback }); } },
   };
-  return { ...actual, ...hooks, default: { ...(actual.default as Record<string, unknown>), ...hooks } };
+  return { ...actual, ...hooks, default: { ...((actual as unknown as Record<string, unknown>).default as Record<string, unknown> | undefined), ...hooks } };
 });
 const client = {};
 vi.mock('../mobile-context', () => ({ useMobile: () => ({ identity: h.identity, ready: h.ready, session: h.session, supabase: client }) }));
@@ -65,6 +65,10 @@ describe('NAVC-006 confirmed visibility and authorized lifetime', () => {
     h.read.mockResolvedValue(null); await draw().reload(); const result = await settle();
     expect(result.enabled).toBe(confirmed); expect(result.error).toEqual(expect.any(String));
   });
+  it('same exact identity reuses a confirmed value immediately while a remount refresh is unresolved', async () => {
+    draw(); expect((await settle()).enabled).toBe(true); unmount(); h.read.mockReturnValue(new Promise(() => undefined));
+    expect(draw().enabled).toBe(true); expect((await settle()).enabled).toBe(true);
+  });
   it.each(['userId', 'tenantId', 'memberId'] as const)('%s replacement clears confirmed values before its read settles', async key => {
     draw(); expect((await settle()).enabled).toBe(true); h.read.mockReturnValue(new Promise(() => undefined));
     h.identity = { kind: 'member', userId: 'visibility-user', tenantId: 'visibility-tenant', memberId: 'visibility-member', [key]: 'replaced-identity' };
@@ -74,6 +78,12 @@ describe('NAVC-006 confirmed visibility and authorized lifetime', () => {
     const old = deferred<boolean | null>(); h.read.mockReturnValueOnce(old.promise).mockResolvedValue(false);
     draw(); await settle(); h.identity = { kind: 'member', userId: 'new-user', tenantId: 'new-tenant', memberId: 'new-member' };
     draw(); expect((await settle()).enabled).toBe(false); old.resolve(true); expect((await settle()).enabled).toBe(false);
+  });
+  it('a sign-out and same-identity return permanently revokes the earlier pending read', async () => {
+    const old = deferred<boolean | null>(); h.read.mockReturnValueOnce(old.promise).mockResolvedValue(false); draw(); await settle();
+    h.identity = { kind: 'unlinked' }; h.session = null; draw(); await settle();
+    h.identity = { kind: 'member', userId: 'visibility-user', tenantId: 'visibility-tenant', memberId: 'visibility-member' }; h.session = {}; draw(); expect((await settle()).enabled).toBe(false);
+    old.resolve(true); expect((await settle()).enabled).toBe(false);
   });
   it('sign-out clears cache and a same-identity return does not revive it', async () => {
     draw(); expect((await settle()).enabled).toBe(true); h.identity = { kind: 'unlinked' }; h.session = null;
