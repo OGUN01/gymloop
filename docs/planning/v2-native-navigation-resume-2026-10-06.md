@@ -28,9 +28,12 @@ The first board is the approved visual bar: [orange reference](../design/v2-nav-
 
 ## State at latest update
 
-- Contract commit **f0622e55**: spec: freeze member navigation and Classes discovery contract. Strict OpenSpec validation passed. Thirteen plan/spec/reference files committed. No application implementation or Classes migration has been written yet.
+- Contract commit **f0622e55**: spec: freeze member navigation and Classes discovery contract. Strict OpenSpec validation passed. Thirteen plan/spec/reference files committed. Durable handoff and AGENTS pointer committed at **0b8d9ada**. Active goal created; owner explicitly authorized maximum parallel agents.
+- Independent native tests are committed first: **a19c2608**, **af83e505**, **2ce8a4fc** cover navigation/lifetime/Home/Shop/Classes/Freeze (79 new cases). Independent baseline/browser-harness amendments committed **77fa342a** preserve cancellation/refusal/lifetime assertions; focused three amended suites pass 73/73. Home/Shop pass 25/25; Freeze new and existing pass 11/11. Production native drafts exist but are not yet committed; the full mobile suite is running.
+- Database visible tests **7a62b514**: 115 SQL assertions, 69 shared and 32 API cases; independent private holdout **8d36b9ed**: 141 assertions, never read by implementers. Owner 26 tests committed **ca64852** before editor construction; the independent browser/type harness amendment is in 77fa342a. Shared new/existing 147 and API 32 pass. Owner 25/26 passed before a root-owned retry-copy correction; rerun pending. No new SQL has been executed on Cloud.
+- Additive SQL, strict API, owner editor/read and shared/native wrappers are drafted. Fresh **class_discovery_final_blind_critic** gave scoped static GO, no P1/P2, having read no tests, progress notes or runtime state. Earlier advisory critic had an accidental visible search leak and is not the required blind sign-off. Generated DB metadata is intentionally still old until CI applies this migration; type checks currently have six expected new-column/RPC errors, never hand-fixed. Expo is running offline solely to regenerate local route types for the new announcements destination.
 - Main baseline was **e3ee8e1e**, also remote main, from another session's DB test fix. Shared workspace contains unrelated work: tracked docs/evidence/v2/parallel-media-pay-progress.md and many untracked historical artifacts. Never stage all or undo them.
-- Existing focused native baseline: three files, 22 tests passed. It covered old navigation/Shop behavior, not the new contract. New independent tests are being authored and have not yet been committed.
+- Native Classes/cache builder reported 50 new focused cases green and scoped lint clean. A separate native integration reviewer and local gate runner are active. Static review is not device/runtime acceptance; final visual critic awaits real screenshots.
 - DB workflow **37409145394** at e3ee8e1e remains in progress: migrate/schema-drift/rollback passed, full pgTAP running. Do not run a competing local Cloud sweep or push another migration while this run is active. Previous runs failed and took roughly 110–124 minutes; full green is not yet proven.
 - Historical backfill cannot be proven simply by post-migration pgTAP fixtures. Authors cover new defaults and later owner choices; deployment preflight/postflight and independent migration review must provide historical qualification evidence. Do not expose a privileged backfill API just for tests.
 - Device serial **INPZT8DQPJROKFXC**, OnePlus DN2101, connected/USB powered, battery 48% at last check. Both in.fitcruxx.v2check and in.fitcruxx.app are installed. Latest exploratory capture was black because screen was asleep; it is not acceptance proof. Existing before-UI screenshots from earlier analysis are under docs/evidence/screens/2026-10-06-device-*.
@@ -42,17 +45,24 @@ The runtime currently allows four active agents total (root plus three). Use all
 | Agent | Responsibility / state |
 | --- | --- |
 | /root | Contract and handoff, native UI implementer, serial staging/commits/push/device/gates; never writes tests or reads holdout |
-| /root/native_nav_test_author | Implementation-blind native visible author. Written navigation (18), visibility lifetime (13), Home/context (18) groups; Shop harness and Classes group in progress. Owns apps/mobile/**/__tests__ only |
-| /root/class_discovery_visible_author | Independent DB/shared/API visible author; new rollback-wrapped visible SQL and strict client/API tests in progress; no migration reads or Cloud sweeps |
-| /root/class_discovery_holdout_author | Independent holdout SQL author; contents private. Report only path/count/general coverage/readiness; no visible or implementation reads |
+| /root/native_nav_test_author | Finished implementation-blind native tests and independent baseline/browser/type amendments; root never edited any test |
+| /root/class_discovery_visible_author | Finished independent DB/shared/API/owner visible tests; no migration reads or Cloud sweeps |
+| /root/class_discovery_holdout_author | Completed private supabase/tests-holdout/163_member_class_discovery_holdout.sql, 141 assertions, rollback/plan count checked; Cloud unexecuted |
+| /root/class_discovery_builder | Draft SQL/shared/API/owner settings complete; rerunning owner after author fixes. No holdout access, constants/registry edits or manual apply |
+| /root/native_classes_builder | Finished scoped native visibility/cache/layout and Classes presentation; 50 new focused tests pass |
+| /root/native_nav_integration_reviewer | Fresh read-only production integration review; no tests/holdout/Cloud reads |
+| /root/native_nav_gates_runner | Local tooling gates only; no source edits or Cloud sweep |
+| /root/class_discovery_final_blind_critic | Finished required scoped static blind security GO, no P1/P2; runtime unapplied |
 
 Read-only classes_plan_review and buyer_readiness_review finished without edits. The owner interruption interrupted the three active authors; root resumed them with followup_task. Agent names only work within this live chat; in a new chat inspect status, preserve existing files, and reconstruct these independent roles with fresh agents as needed.
 
+Existing CLS-026 pins statement_timestamp for class time semantics. The own-read absolute 28-day horizon is expressed as 672 hours to preserve DST semantics. Existing class eligibility and command fields remain unchanged.
+
 ## Immediate next steps
 
-1. Finish and commit ready red test groups separately from implementation; do not let root or a builder edit test files. For amendments to old expected IA, the approved spec author records why and root uses spec: test commit. Preserve public declarations at f0622e55.
-2. Root builds native nav/context/Home/Shop after its tests are committed. As slots free, use a separate Classes-boundary implementer for SQL/shared/API/owner settings and a native hook/Classes implementer if needed, with disjoint ownership and registry/constant appends coordinated by root.
-3. No source fan-out before the relevant tests/public contract are fixed. Obtain fresh-context security and visual critics separately from builders.
+1. Collect full mobile and tooling gate results, owner rerun and independent native integration review. Fix production findings without editing tests. Registry owner entries and scoped reuse decision are drafted by root. Preserve public declarations at f0622e55.
+2. Finish Expo local route generation; distinguish expected unapplied schema metadata errors from new failures. Update this file and tasks at coherent checkpoints; root serially commits/stages only task files, never unrelated workspace changes.
+3. Security static blind GO is complete; obtain fresh visual review after real artifact screenshots. No SQL runtime/backfill proof exists yet.
 4. Wait previous DB CI before migration landing; CI applies it. Generate packages/db/types/database.ts via Supabase CLI only after apply. Integrate new typed reads and member visibility only when available; do not fabricate types or hide errors as Off.
 5. Run relevant gates, safe C:/gc build, exact-artifact device journeys and fresh screenshots. Push coherent green units on main, verify CI, archive only completed OpenSpec requirements and update this handoff.
 

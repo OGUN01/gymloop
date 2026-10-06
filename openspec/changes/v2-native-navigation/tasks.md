@@ -1,7 +1,7 @@
 ## 1. Freeze and test
 
 - [x] 1.1 Record owner-approved scope, visual bar, EARS scenarios and public declarations; verify strict OpenSpec validation before fan-out.
-- [ ] 1.2 Commit implementation-blind visible native/API/database tests and independent holdout database tests first; verify native red assertions and rollback wrapper lint without running a competing Cloud sweep.
+- [x] 1.2 Commit implementation-blind visible native/API/database tests and independent holdout database tests first; verify native red assertions and rollback wrapper lint without running a competing Cloud sweep. Red and amendment commits are recorded in the durable handoff; SQL runtime remains in 2.1/2.2.
 
 ## 2. Classes configuration and commitment boundary
 
