@@ -40,7 +40,7 @@ export function Screen({ children, footer, scrollRef }: { children: ReactNode; f
   const topFade = scrollY.interpolate({ inputRange: [0, space[4]], outputRange: [0, 1], extrapolate: 'clamp' });
   return <View style={[styles.screenFrame, { backgroundColor: palette.canvas, paddingTop: insets.top }]}>
     <View style={styles.screenBody}>
-      <Animated.ScrollView ref={scrollRef} contentContainerStyle={[styles.screen, footer ? styles.screenWithFooter : null]} keyboardShouldPersistTaps="handled" onScroll={Animated.event([{ nativeEvent: { contentOffset: { y: scrollY } } }], { useNativeDriver: true })}>{children}</Animated.ScrollView>
+      <Animated.ScrollView ref={scrollRef ?? null} contentContainerStyle={[styles.screen, footer ? styles.screenWithFooter : null]} keyboardShouldPersistTaps="handled" onScroll={Animated.event([{ nativeEvent: { contentOffset: { y: scrollY } } }], { useNativeDriver: true })}>{children}</Animated.ScrollView>
       <CanvasFade edge="top" style={styles.fadeTop} opacity={topFade} />
       {footer
         ? <View pointerEvents="box-none" style={styles.footer}><CanvasFade edge="bottom" /><View style={[styles.dock, { backgroundColor: palette.canvas }]}>{footer}</View></View>
