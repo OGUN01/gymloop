@@ -3,7 +3,7 @@ import { useBusinessNouns } from '../lib/use-business-nouns';
 import { Tabs } from 'expo-router';
 import { Building2, CalendarDays, ChartNoAxesColumn, Dumbbell, House, ListTodo, LogIn, MoreHorizontal, ShoppingBag, UserRound, UsersRound } from 'lucide-react-native';
 import { UI_TOKENS } from '@gymloop/shared';
-import { StyleSheet, Text, View, type ColorValue } from 'react-native';
+import { StyleSheet, Text, View, useWindowDimensions, type ColorValue } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useMobile } from '../lib/mobile-context';
 import { FONT } from './ui';
@@ -24,8 +24,11 @@ export function RoleTabs({ desk = false, memberClassesEnabled = true }: { desk?:
   const nouns = useBusinessNouns();
   const { palette, businessType } = useMobile();
   const insets = useSafeAreaInsets();
+  const { fontScale } = useWindowDimensions();
+  const labelScale = Math.max(fontScale, 1);
+  const barHeight = Math.max(UI_TOKENS.geometry.targets.touch + space[3], styles.slot.height + UI_TOKENS.typography.eyebrow.lineHeight * labelScale + space[3] + space[0]);
   const names = desk ? [{ name: 'index', title: 'Check-in', Icon: LogIn }, { name: 'classes', title: humanize(nouns.classes), Icon: CalendarDays }, { name: 'members', title: humanize(nouns.members), Icon: UsersRound }, { name: 'follow-ups', title: 'Follow-ups', Icon: ListTodo }, { name: 'more', title: 'More', Icon: MoreHorizontal }] : [{ name: 'index', title: 'Home', Icon: House }, { name: 'classes', title: 'Classes', Icon: CalendarDays }, { name: 'shop', title: 'Shop', Icon: ShoppingBag }, { name: 'you', title: 'You', Icon: UserRound }, { name: 'activity', title: 'Activity', Icon: ChartNoAxesColumn }];
-  return <Tabs screenOptions={{ headerShown: false, tabBarActiveTintColor: palette.primaryAction, tabBarInactiveTintColor: palette.secondaryText, tabBarStyle: { backgroundColor: palette.canvas, borderTopColor: palette.decorativeSeparator, borderTopWidth: 1, elevation: 0, height: UI_TOKENS.geometry.targets.touch + space[3] + insets.bottom, paddingBottom: insets.bottom + space[0] }, tabBarItemStyle: { minHeight: UI_TOKENS.geometry.targets.touch, paddingTop: 0 }, tabBarIconStyle: styles.slot, tabBarLabel: ({ color, children }) => <Text numberOfLines={1} adjustsFontSizeToFit style={[styles.label, { color }]}>{children}</Text> }}>{names.map(({ name, title, Icon }) => <Tabs.Screen key={name} name={name} options={{ title, ...(!desk && name === 'classes' && !memberClassesEnabled ? { href: null } : {}), tabBarIcon: icon(Icon) }} />)}
+  return <Tabs screenOptions={{ headerShown: false, tabBarActiveTintColor: palette.primaryAction, tabBarInactiveTintColor: palette.secondaryText, tabBarStyle: { backgroundColor: palette.canvas, borderTopColor: palette.decorativeSeparator, borderTopWidth: 1, elevation: 0, height: barHeight + insets.bottom, paddingBottom: insets.bottom + space[0] }, tabBarItemStyle: { minHeight: UI_TOKENS.geometry.targets.touch, paddingTop: 0 }, tabBarIconStyle: styles.slot, tabBarLabel: ({ color, children }) => <Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={1 / labelScale} style={[styles.label, { color }]}>{children}</Text> }}>{names.map(({ name, title, Icon }) => <Tabs.Screen key={name} name={name} options={{ title, ...(!desk && name === 'classes' && !memberClassesEnabled ? { href: null } : {}), tabBarIcon: icon(Icon) }} />)}
     {!desk && <Tabs.Screen name="gym" options={{ title: `My ${nouns.place}`, href: null, tabBarIcon: icon(businessType === 'gym' || businessType == null ? Dumbbell : Building2) }} />}
     {!desk && <Tabs.Screen name="buy" options={{ title: 'Buy', href: null }} />}
     {!desk && <Tabs.Screen name="freeze-requests" options={{ title: 'Freeze requests', href: null }} />}
@@ -34,7 +37,7 @@ export function RoleTabs({ desk = false, memberClassesEnabled = true }: { desk?:
   </Tabs>;
 }
 const styles = StyleSheet.create({
-  label: { width: '100%', flexShrink: 1, textAlign: 'center', fontFamily: FONT.medium, fontSize: UI_TOKENS.typography.eyebrow.size, lineHeight: UI_TOKENS.typography.eyebrow.lineHeight },
+  label: { width: '100%', flexShrink: 0, textAlign: 'center', fontFamily: FONT.medium, fontSize: UI_TOKENS.typography.eyebrow.size, lineHeight: UI_TOKENS.typography.eyebrow.lineHeight },
   // The icon slot starts on the tab bar's rule: the bar, 4, the 22 glyph (where it sat before), then 4 to the label.
   slot: { height: UI_TOKENS.icons.currentStrokeWidth + space[0] + ICON_SIZE + space[0], alignItems: 'center', gap: space[0] },
   indicator: { width: space[4], height: UI_TOKENS.icons.currentStrokeWidth, borderBottomLeftRadius: UI_TOKENS.icons.currentStrokeWidth, borderBottomRightRadius: UI_TOKENS.icons.currentStrokeWidth },
