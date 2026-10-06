@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { announcementPreview, businessNouns, UI_TOKENS } from '@gymloop/shared';
+import { announcementPreview, businessNouns, formatDateTime, planCatalogueCopy, UI_TOKENS, type PlanCatalogueView } from '@gymloop/shared';
 
 // Independent reference-layout tests. Fixtures and hook rendering derive from
 // existing visible native suites; no Home/Shop/announcement/UI source was read.
@@ -63,8 +63,7 @@ vi.mock('../../lib/mobile-context', () => ({ useMobile: () => ({
 }) }));
 vi.mock('../../lib/use-member-snapshot', () => ({ useMemberSnapshot: () => ({ data: snapshot, error: null, loading: false, reload: vi.fn() }) }));
 vi.mock('../../lib/use-member-plans', () => ({ useMemberPlans: () => ({ state: {
-  phase: 'ready', view: { plans: [{ id: 'plan-a', name: 'Current monthly catalogue plan', description: null, durationDays: 30, pricePaise: '150000', currency: 'INR', gstRateBp: 0, held: false }], truncated: false, heldUnavailable: false, held: null },
-  loadedAt: null, staleReason: null, offline: false,
+  ...planState, view: planView,
 }, reload: h.reloadPlans }) }));
 vi.mock('../../lib/use-announcements', () => ({ useAnnouncements: () => feed }));
 vi.mock('../../lib/offline-check-in', () => ({ saveOfflineCheckIn: vi.fn(), loadOfflineCheckIns: async () => [], clearOfflineCheckIns: vi.fn(), shouldReplayOnSignal: () => false, createReplayCoordinator: () => ({ requestReplay: vi.fn() }) }));
@@ -92,13 +91,17 @@ const cards = ['First shared closure', 'Second shared event', 'Third unseen shar
   editedAt: null, expiresAt: null, changeNote: null, readState: 'unread' as const, readAt: null,
 }));
 const feed = { cards, loading: false, stale: false, error: null, fetchedAt: null, reload: vi.fn(async () => undefined), markRead: h.markRead };
-const product = { itemId: '72000000-0000-4000-8000-000000000701', section: 'products', name: 'Complete long recovery product catalogue name', description: 'Actual product description', pricePaise: '199900', currency: 'INR', gstRateBp: 0, validityDays: 30, cancellationTerms: 'Ask desk', quoteVersion: '72000000-0000-4000-8000-000000000799', categoryId: '72000000-0000-4000-8000-000000000711', categoryName: 'Recovery essentials', imageUrl: null, availability: 'available', availableQuantity: 2 };
+const plan: PlanCatalogueView['plans'][number] = { id: 'plan-a', name: 'Current monthly catalogue plan', description: null, durationDays: 30, pricePaise: '150000', currency: 'INR', gstRateBp: 0, held: false };
+let planView: PlanCatalogueView = { plans: [plan], truncated: false, heldUnavailable: false, held: null };
+let planState = { phase: 'ready', loadedAt: null as string | null, staleReason: null as 'offline' | 'refresh_failed' | null, offline: false };
+const product = { itemId: '72000000-0000-4000-8000-000000000701', section: 'products', name: 'Complete long recovery product catalogue name', description: 'Actual product description', pricePaise: '199900', currency: 'INR', gstRateBp: 0, validityDays: 30, cancellationTerms: 'Ask desk', quoteVersion: '72000000-0000-4000-8000-000000000799', categoryId: '72000000-0000-4000-8000-000000000711', categoryName: 'Recovery essentials', imageUrl: null as string | null, availability: 'available', availableQuantity: 2 };
+const service = { ...product, itemId: '72000000-0000-4000-8000-000000000702', section: 'services', name: 'Actual assessment service' };
 const reservations = Array.from({ length: 11 }, (_, index) => ({
   reservationId: `72000000-0000-4000-8000-${String(index + 800).padStart(12, '0')}`, itemId: product.itemId, itemName: `Existing reservation ${index + 1} sentinel`, section: 'products',
   quantity: 1, unitPricePaise: '199900', totalPaise: '199900', currency: 'INR', state: 'reserved',
   createdAt: '2026-10-06T04:30:00Z', expiresAt: '2099-10-07T04:30:00Z', cancelReason: null, termsChanged: false, orderId: null, imageUrl: null,
 }));
-const catalogue = { items: [product, { ...product, itemId: '72000000-0000-4000-8000-000000000702', section: 'services', name: 'Actual assessment service' }], reservations, truncated: false, serverTime: '2026-10-06T04:30:00Z' };
+let catalogue = { items: [product, service], reservations, truncated: false, serverTime: '2026-10-06T04:30:00Z' };
 let screen: () => unknown;
 let nodes: Node[] = [];
 function flatten(value: unknown, ancestors: Node[] = []): void {
@@ -132,6 +135,20 @@ function words(value: unknown): string {
 }
 function labels(node: Node): string[] { return ['children', 'title', 'meta', 'detail', 'message', 'label', 'accessibilityLabel'].map(key => words(node.props[key]).trim()); }
 function text(): string { return nodes.flatMap(labels).join(' ').replace(/\s+/g, ' '); }
+function style(node: Node): Record<string, unknown> {
+  const value = typeof node.props.style === 'function' ? (node.props.style as (state: unknown) => unknown)({ pressed: false }) : node.props.style;
+  return Object.assign({}, ...[value].flat(Infinity).filter(value => value && typeof value === 'object')) as Record<string, unknown>;
+}
+function nativeText(label: string): Node {
+  const node = nodes.find(node => node.type === 'Text' && words(node.props.children).trim() === label);
+  expect(node, `complete native text ${label}`).toBeDefined(); return node!;
+}
+function wrappingRow(...children: Node[]): Node {
+  const common = children[0]?.ancestors?.filter(node => node.type === 'View' && children.every(child => child.ancestors?.includes(node))).at(-1);
+  expect(common, 'shared native row').toBeDefined();
+  expect(style(common!)).toMatchObject({ flexDirection: 'row', flexWrap: 'wrap', gap: UI_TOKENS.geometry.spacing[2] });
+  return common!;
+}
 function action(label: RegExp): Node {
   const node = nodes.find(node => typeof node.props.onPress === 'function' && labels(node).some(value => label.test(value)));
   expect(node, `native action ${label}`).toBeDefined(); return node!;
@@ -155,8 +172,111 @@ async function measureSection(label: string, y: number) {
 }
 beforeEach(() => {
   vi.resetModules(); h.slots = []; h.cursor = 0; h.effects = []; h.changed = false;
+  planView = { plans: [plan], truncated: false, heldUnavailable: false, held: null };
+  planState = { phase: 'ready', loadedAt: null, staleReason: null, offline: false };
+  catalogue = { items: [product, service], reservations, truncated: false, serverTime: '2026-10-06T04:30:00Z' };
   h.push.mockReset(); h.scrollTo.mockReset(); h.markRead.mockReset().mockResolvedValue(undefined); h.reloadPlans.mockReset().mockResolvedValue(undefined);
   h.post.mockReset().mockImplementation(async (path: string) => path === '/api/shop/catalogue' ? { ok: true, data: catalogue } : { ok: false, error: { code: 'network_failed', message: 'Try again.' } });
+});
+
+describe('NAVC-008/012 compact supporting catalogue contract', () => {
+  it('uses quiet section, refresh, plan and service actions beside concise collection copy', async () => {
+    await mount('shop');
+    expect(text()).toContain('Reserve now. Pay at the front desk.');
+    for (const label of ['Products', 'Plans', 'Services', 'Refresh shop', 'View plans', 'View service']) {
+      const link = action(new RegExp(`^${label}$`, 'i'));
+      expect(link.type).toBe('RowAction'); expect(link.props.quiet, `${label} quiet action`).toBe(true);
+      const button = nodes.find(node => node.type === 'Pressable' && node.ancestors?.includes(link));
+      expect(button?.props.accessibilityRole).toBe('button');
+      expect(style(button!)).toMatchObject({ borderWidth: 0, minHeight: UI_TOKENS.geometry.targets.touch });
+    }
+    await press(/^View plans$/i);
+    expect(h.push.mock.calls.some(([path]) => path === '/(member)/gym?section=plans' || typeof path === 'object' && path.pathname === '/(member)/gym' && path.params?.section === 'plans')).toBe(true);
+  });
+
+  it('pairs a complete long plan name and section-sized accented price in one wrapping heading', async () => {
+    const longPlan = { ...plan, name: 'Complete long monthly membership plan for guided strength and recovery' };
+    planView = { ...planView, plans: [longPlan] }; await mount('shop');
+    const name = nativeText(longPlan.name);
+    expect(name.props.numberOfLines).toBeUndefined(); expect(name.props.allowFontScaling).not.toBe(false);
+    const price = nodes.find(node => node.type === 'Display' && words(node.props.children).trim() === '₹1,500');
+    expect(price, 'plan price Display').toBeDefined(); expect(price?.props.size).toBe('section'); expect(price?.props.accent).toBe(true);
+    wrappingRow(name, price!);
+    const buy = action(/^Buy$/i); expect(buy).toBeDefined(); await press(/^Buy$/i);
+    expect(h.push.mock.calls.some(([path]) => path === '/(member)/buy' || typeof path === 'object' && path.pathname === '/(member)/buy')).toBe(true);
+  });
+
+  it('keeps held-plan duration, status and GST in a wrapping metadata row and retains description', async () => {
+    const heldPlan = { ...plan, held: true, gstRateBp: 1800, description: 'Complete guided plan description sentinel' };
+    planView = { ...planView, plans: [heldPlan] }; await mount('shop');
+    const duration = nodes.find(node => node.type === 'Text' && /^(?:for )?30 days$/.test(words(node.props.children).trim()));
+    expect(duration, 'plan duration').toBeDefined();
+    const badge = nativeText('Your plan'); const gst = nativeText('GST 18%');
+    wrappingRow(duration!, badge, gst);
+    expect(text()).toContain(heldPlan.description);
+  });
+
+  it.each(['offline', 'refresh_failed'] as const)('retains the existing %s stale plan notice and current offers', async staleReason => {
+    const loadedAt = '2026-10-02T06:30:00Z';
+    planState = { ...planState, loadedAt, staleReason, offline: staleReason === 'offline' }; await mount('shop');
+    const copy = planCatalogueCopy(businessNouns('gym'));
+    const notice = staleReason === 'offline' ? copy.staleOffline(formatDateTime(loadedAt, 'Asia/Kolkata')) : copy.staleRefresh(formatDateTime(loadedAt, 'Asia/Kolkata'));
+    expect(text()).toContain(notice);
+    expect(text()).toContain(plan.name); expect(action(/^View plans$/i)).toBeDefined(); expect(action(/^Buy$/i)).toBeDefined();
+  });
+
+  it('keeps a long service name, accented price and quiet View service in a compact wrapping row', async () => {
+    const longService = { ...service, name: 'Complete long mobility and recovery assessment service name', description: 'Complete service description sentinel', pricePaise: '250000', gstRateBp: 1800, cancellationTerms: 'Complete service cancellation terms sentinel' };
+    catalogue = { ...catalogue, items: [product, longService] }; await mount('shop');
+    const name = nativeText(longService.name);
+    expect(name.props.numberOfLines).toBeUndefined(); expect(name.props.allowFontScaling).not.toBe(false);
+    const price = nodes.find(node => node.type === 'Display' && words(node.props.children).trim() === '₹2,500');
+    expect(price, 'service price Display').toBeDefined(); expect(price?.props.size).toBe('section'); expect(price?.props.accent).toBe(true);
+    const view = action(/^View service$/i); expect(view.props.quiet).toBe(true); wrappingRow(name, price!, view);
+    expect(text()).toMatch(/Available/);
+    await press(/^View service$/i);
+    expect(text()).toContain(longService.description); expect(text()).toContain(longService.cancellationTerms);
+    expect(text()).toMatch(/GST 18%/); expect(text()).toMatch(/30 days/); expect(h.push).not.toHaveBeenCalled();
+  });
+
+  it('retains full product and supporting service photo dimensions with catalogue names and product Reserve', async () => {
+    const picturedProduct = { ...product, imageUrl: 'https://fixture.example.test/product.jpg' };
+    const picturedService = { ...service, imageUrl: 'https://fixture.example.test/service.jpg' };
+    catalogue = { ...catalogue, items: [picturedProduct, picturedService] }; await mount('shop');
+    for (const [item, side] of [[picturedProduct, UI_TOKENS.geometry.targets.touch + UI_TOKENS.geometry.spacing[6]], [picturedService, UI_TOKENS.geometry.targets.touch + UI_TOKENS.geometry.spacing[3]]] as const) {
+      const photo = nodes.find(node => node.type === 'Image' && (node.props.source as { uri?: string } | undefined)?.uri === item.imageUrl);
+      expect(photo, `${item.section} actual photo`).toBeDefined(); expect(style(photo!)).toMatchObject({ width: side, height: side });
+      const name = nativeText(item.name); expect(name.props.numberOfLines).toBeUndefined();
+    }
+    expect(text()).toContain(product.categoryName); expect(action(/^Reserve$/i)).toBeDefined();
+    const productPrice = nodes.find(node => node.type === 'Display' && words(node.props.children).trim() === '₹1,999');
+    expect(productPrice?.props.accent).toBe(true);
+  });
+});
+
+describe('NAVC existing RowAction optional quiet seam', () => {
+  it.each([false, true])('quiet action keeps complete text, native accessibility and disabled=%s', async disabled => {
+    const { RowAction } = await import('../../components/ui'); const onPress = vi.fn();
+    screen = () => RowAction({ children: 'Complete quiet action label', onPress, disabled }); await render();
+    const ordinary = nodes.find(node => node.type === 'Pressable'); expect(ordinary).toBeDefined();
+    screen = () => RowAction({ children: 'Complete quiet action label', onPress, quiet: true, disabled } as Parameters<typeof RowAction>[0]); await render();
+    const button = nodes.find(node => node.type === 'Pressable'); expect(button).toBeDefined();
+    expect(style(button!)).toMatchObject({ minHeight: UI_TOKENS.geometry.targets.touch, borderWidth: 0 });
+    expect(button?.props.accessibilityRole).toBe('button'); expect(button?.props.disabled).toBe(disabled);
+    expect(button?.props.accessibilityState).toEqual(ordinary?.props.accessibilityState);
+    const label = nativeText('Complete quiet action label'); expect(style(label).color).toBe(UI_TOKENS.colors.light.primaryAction);
+    expect(label.props.numberOfLines).toBeUndefined(); expect(label.props.allowFontScaling).not.toBe(false);
+    if (!disabled) { await (button!.props.onPress as () => unknown)(); expect(onPress).toHaveBeenCalledTimes(1); }
+  });
+
+  it.each([undefined, false])('ordinary RowAction quiet=%s retains its outline, size and hit slop', async quiet => {
+    const { RowAction } = await import('../../components/ui');
+    screen = () => RowAction({ children: 'Ordinary existing action', onPress: vi.fn(), ...(quiet === undefined ? {} : { quiet }) } as Parameters<typeof RowAction>[0]); await render();
+    const button = nodes.find(node => node.type === 'Pressable'); expect(button).toBeDefined();
+    expect(style(button!)).toMatchObject({ minHeight: UI_TOKENS.geometry.targets.interactive, borderWidth: 1 });
+    expect(button?.props.hitSlop).toBe(UI_TOKENS.geometry.spacing[0]); expect(button?.props.accessibilityRole).toBe('button');
+    expect(text()).toContain('Ordinary existing action');
+  });
 });
 describe('NAVC-008/012 approved Shop section links', () => {
   it.each([['Products', 157], ['Plans', 607], ['Services', 1179]] as const)('%s reaches its measured position in the existing scroll column', async (label, y) => {
