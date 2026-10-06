@@ -1,0 +1,21 @@
+{
+  "kind": "root-read-only-catalog-follow-up",
+  "recordedAtUtc": "2026-10-06T11:52:51Z",
+  "projectRef": "pecxrpskmfeuyzngvewq",
+  "transport": "supabase CLI db query --linked --output-format json",
+  "databaseName": "postgres",
+  "databaseOid": 5,
+  "isReplica": false,
+  "approvedMigration20261006040000Present": true,
+  "currentRelations": [
+    { "oid": 16716, "schema": "auth", "name": "sessions", "kind": "r" },
+    { "oid": 16971, "schema": "auth", "name": "oauth_clients", "kind": "r" },
+    { "oid": 136833, "schema": "public", "name": "audit_log", "kind": "r" }
+  ],
+  "interpretation": "The failure log records DROP TRIGGER at visible fixture line566. Its raw lock cycle refers to16716 and16971. The current catalog maps these to auth relations, not audit_log. This follow-up does not establish historical catalog identity, the competing backend/query, or the underlying cause of that cycle.",
+  "readOnly": true,
+  "heldBodiesRead": false,
+  "migrationsApplied": false,
+  "productionConfigurationChanged": false,
+  "releaseAccepted": false
+}

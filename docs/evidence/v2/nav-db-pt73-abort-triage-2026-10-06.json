@@ -1,0 +1,140 @@
+{
+  "kind": "independent-visible-baseline-abort-triage",
+  "runId": 37443247398,
+  "head": "26c1c4adfbbf8375e835b24272c8e8fdaa0d80ae",
+  "jobId": 112201963843,
+  "file": "supabase/tests/73_pt_front.sql",
+  "fileSha256": "42C6ABF643519740BBF23636C1C71DAA4E729385B8EDDE45363BE089377A2408",
+  "observed": {
+    "errorTimestampUtc": "2026-10-06T10:18:48.529303Z",
+    "fileLine": 566,
+    "error": "deadlock detected",
+    "SQLSTATE": null,
+    "SQLSTATE_note": "The inspected CI excerpt identifies deadlock detected but does not print the numeric SQLSTATE.",
+    "statement": "drop trigger pt73_reject_waiver_audit on public.audit_log;",
+    "processCycle": [
+      {
+        "pid": 3226110,
+        "wants": "AccessExclusiveLock",
+        "relationOID": 16716,
+        "databaseOID": 5,
+        "blockedBy": 3230169
+      },
+      {
+        "pid": 3230169,
+        "wants": "RowShareLock",
+        "relationOID": 16971,
+        "databaseOID": 5,
+        "blockedBy": 3226110
+      }
+    ],
+    "exitStatus": 3,
+    "plan": 356,
+    "executedAssertions": 215,
+    "failedExecutedAssertions": 0,
+    "unexecutedAssertions": 141,
+    "fullRun": {
+      "files": 161,
+      "assertions": 16015,
+      "result": "FAIL",
+      "wallClockSeconds": 7704,
+      "dependentSeed": "SKIPPED"
+    },
+    "exactRelationOidNames": "Root read-only current primary/postgres DB OID5:16716=auth.sessions;16971=auth.oauth_clients; public.audit_log=136833. Mapping differs from recorded cleanup target; no temporal OID identity or other backend/query inference is made."
+  },
+  "publicSupport": [
+    {
+      "path": "openspec/changes/pt-front/proposal.md",
+      "requirements": [
+        "PTF-013",
+        "PTF-016",
+        "PTF-024",
+        "PTF-025"
+      ],
+      "summary": "Member cancellation cutoff semantics and atomic waiver/audit/notice behavior; no requirement to drop synthetic test triggers between phases."
+    },
+    {
+      "path": "openspec/changes/pt-front/completed-pack-waiver-amendment.md",
+      "lines": [
+        19,
+        23
+      ],
+      "additionalLine": 35,
+      "summary": "Existing locks, fresh command clock after locks, original validity, real owner/manager, exact restore and atomic audit/notice; every failed step rolls back."
+    }
+  ],
+  "visibleAssertionSupport": [
+    {
+      "lines": [
+        554,
+        557
+      ],
+      "summary": "Active pack late cancellation and nonfinal causal flag assertions completed."
+    },
+    {
+      "lines": [
+        563,
+        565
+      ],
+      "summary": "Synthetic audit command failure is asserted Z7301 and entire evidence graph must equal atomic_before; both preceded observed cleanup abort."
+    },
+    {
+      "lines": [
+        567,
+        574
+      ],
+      "summary": "Notice Z7302 injection and full evidence rollback are planned after aborted audit cleanup and were not executed in this run."
+    },
+    {
+      "lines": [
+        1016,
+        1033
+      ],
+      "summary": "Same audit and notice trigger names are re-created/dropped for completed-pack atomicity; all these later assertions remain required."
+    }
+  ],
+  "classification": {
+    "observedFailure": "Abort reported at fixture DROP TRIGGER cleanup; actual lock-cycle cause is unproven",
+    "productionRequirementFailureProven": false,
+    "clockFailureProven": false,
+    "acceptance": "NO_GO: full356/356, all full DB files, dependent normal seed and drift still required. Passing215 assertions does not accept the skipped141."
+  },
+  "minimalSupportedRemedy": {
+    "scope": "No remedy approved for execution. Unchanged356 focused reproduction first, then one unchanged full confirmation if green.",
+    "proposal": "Guarded tenant-scoped trigger arm/disarm is a conditional proposal only if repeat/evidence supports a fixture repair; it is not an established remedy for the unexplained current relation-lock mapping.",
+    "preserve": "Every one of356 assertion statements, labels, predicates, exact comparisons, BEGIN/plan/finalROLLBACK; no plan reduction, catching/retrying deadlock as a passing test, eligibility/clock changes, production setting or mutex.",
+    "validation": "Root will execute unchanged356 focused rollback validation with no active DB workflows, exact project/hash/plan guard and catalog plus own-fixture-target restoration receipts before considering any test alteration."
+  },
+  "clockPrerequisites": [
+    "pg_temp.slot(day_offset,minute) derives Asia/Kolkata local date from each statement_timestamp; repeated fixture calls used as expected values must remain on the same gym-local calendar day.",
+    "Membership and pack validity are generated relative to app.gym_today: broad valid cases span previous2days through+60/+90; negative/null/last-day validity cases remain deliberate refusals.",
+    "Successful booking fixtures use day offsets1..12 and full offered grids; they must remain at least60minutes ahead, less than28days away, inside original validity and compatible with membership/trainer branch.",
+    "Late active/completed forfeitures use168-hour consuming policy against day2/day5/day6 starts; early policy fixture uses24hours against day3. Keep those intended cutoff sides unchanged.",
+    "Exact cutoff, one second before/after, and start-at-now assertions at414..430 create and cancel in one CTE statement sharing statement_timestamp. Do not freeze or replace production clocks, sleep across the boundary or relax predicates.",
+    "Branch-day proof at808..829 computes a Pacific/Kiritimati start from its own current date and tests exact membership end-day boundary; preserve that separate timezone.",
+    "Fresh locked waiver validity remains authoritative. Run bounded validation away from Asia/Kolkata midnight so fixture date drift does not confound the DDL repair."
+  ],
+  "boundaries": {
+    "productionPTRead": false,
+    "heldFilesOpened": false,
+    "CloudSQLExecuted": false,
+    "deviceUsed": false,
+    "CIActionsExecuted": false,
+    "repositoryEdits": false,
+    "incidentalDisclosure": "First overly broad failed-log filter also returned unrelated SQLSTATE diagnostic comments and a held-file success summary. No held source/file body was opened, those lines were not investigated or used, and subsequent failure reads were narrowed to73_pt_front.sql:566 and its lock detail."
+  },
+  "amendmentProvenance": {
+    "previousCertificateSha256": "D36B840178C45408B070C3DA63A08EC82D8B334D4662E5BAFB2CB9035711B7F6",
+    "previousCertificateCopy": "C:/Users/Harsh/AppData/Local/Temp/gymloop-seed-independent-f519c20b-4de8-450e-8e59-0da4313aafa8/bounded-replay/pt73-visible-ci-abort-triage-pre-amendment.json",
+    "rootReadonlyMapping": {
+      "projectRef": "pecxrpskmfeuyzngvewq",
+      "database": "postgres",
+      "databaseOID": 5,
+      "auth_sessions": 16716,
+      "auth_oauth_clients": 16971,
+      "public_audit_log": 136833,
+      "approvedMigration": "20261006040000"
+    },
+    "correction": "Recorded SQL statement location and observed lock relations are separate evidence. Earlier attribution of the AccessExclusiveLock to audit_log is withdrawn. Competing PID/query and root cause remain unproven."
+  }
+}

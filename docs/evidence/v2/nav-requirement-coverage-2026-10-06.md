@@ -1,6 +1,6 @@
 # Navigation and Classes requirement evidence — 2026-10-06
 
-This index preserves the approved scope of `v2-native-navigation`. It is an acceptance evidence map, not a claim that the release is complete. The full database/seed run, latest app CI and archive are still required.
+This index preserves the approved scope of `v2-native-navigation`. It is an acceptance evidence map, not a claim that the release is complete. At17:22IST latesta86 app37450490220, held37450490251 and immutability37450490240 are green. Full DB37443247398 failed on visible73 cleanup deadlock (356planned/215executed/0failed), with141 unexecuted and dependent seed skipped. Full database/seed acceptance and archive remain required. The audit table below preserves its earlier pending statuses; the [current review](nav-discovery-review-2026-10-06.md) supersedes latest-CI status without substituting focused evidence for the full database gate.
 
 ## Independent case certificates
 

@@ -1,5 +1,13 @@
 # Native navigation and Classes discovery review — 2026-10-06
 
+## Final gate recovery checkpoint, 17:22 IST
+
+Exacta86ba293 app37450490220, held37450490251 and immutability37450490240 are GREEN. The previous eb65 Appearance failure remains recorded below; no web/assertion/timeout edit was made for its unchanged confirmation. The UI,30 accepted device captures and restoration are complete.
+
+Full DB37443247398 finished FAIL at11:38:17UTC:161files/16,015 executed assertions, solely visible73_pt_front.sql incomplete, plan356/ran215/Failed0/exit3. Its line566 DROP TRIGGER aborted with a deadlock at10:18:48UTC;141 assertions remain unexecuted and dependent seed was skipped. Migrate, rollback and schema drift are green. Current Supabase tree and DB dependency trees still equal26c1c4ad. This is not accepted regression completion and does not prove a production/clock mismatch.
+
+The [independent visible-only triage](nav-db-pt73-abort-triage-2026-10-06.json), original Windows SHA256 `24FF5EFEC24DC055A155C50677A8336D08A213C439CC220AF5DA2A2669EF6F6F` / canonical LF SHA256 `0B0991A1DBA4AA45EB7A1D2455FBBCAA3A555B0D0063E50EEC852E1554B72DBE`, and a separate recovery reviewer support unchanged focused356 verification, explicit schema/target-data restoration and then one unchanged full confirmation if the focused proof passes with no competing DB/seed work. [Root read-only catalog evidence](nav-db-pt73-catalog-2026-10-06.json) records the current auth relation mapping of the logged OIDs; historical identity and the competing backend/cause remain unproven. No fixture/source edits, test weakening, guessed clock repair or repeated full reruns are authorized by this record. Tasks4.2/4.4 and archive remain open. At this checkpoint no replay or rerun has executed.
+
 ## Requirement audit and CI checkpoint, 15:59 IST
 
 The [requirement index](nav-requirement-coverage-2026-10-06.md) and exact separate visible/held certificates now distinguish actual device proof, host assertions and authoritative SQL gates. The visible-only auditor verifies eight suites **297/297** and actual all-five saved-type rendering/mixed service/filter/independent-booking assertions. Held-only coverage limitations and initial311/312 timeout followed by isolated29/29 are explicit. All8visible/7held current file hashes match the certificates, with no test/source/Cloud/device edits and no held-body reads by root. The real demo timetable remains empty; no populated or five-live-type device claim is made.
