@@ -8,3 +8,7 @@
 - Product cards retain the full product name, actual category, honest photo/placeholder, availability, prominent existing-primary price and reachable Reserve action. Supporting service cards remain compact.
 
 Independent visible tests may import current public declarations, existing UI interfaces and visible fixture harnesses, but must not read the Home/Shop implementation or holdout suites. Test-first evidence precedes reference-layout source refinements.
+
+## Device label fit refinement
+
+The first five-tab desk capture exposed a truncated Follow-ups label at the OnePlus default text scale. Under NAVC-012, primary labels retain their complete canonical titles, use the existing eyebrow-size token and medium font, and render through native Text with one line and adjustsFontSizeToFit enabled. Font scaling stays enabled. Fitting is confined to the label's own tab width; existing colors, icons, touch targets, routes and role rules stay unchanged. Independent rendered tests precede the change; fresh OnePlus default and 1.3 text-scale captures must verify visual fit, with the original scale restored afterward.

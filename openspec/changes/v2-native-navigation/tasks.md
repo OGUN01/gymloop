@@ -7,7 +7,7 @@
 
 - [x] 2.1 Build one additive migration for visibility, canonical owner command, direct-field guard, backfill and own-bookings read; verify independent visible/holdout acceptance, rollback checks and fresh security critic. Root-only rollback runs: visible115/115, independentheld141/141 and historical36/36; catalog digests restored after each; fresh scoped security GO recorded.
 - [ ] 2.2 Land through CI after the preceding DB run finishes, generate types with the authorized CLI and add typed shared/native readers and strict owner API; verify schema drift, API contracts, registry and focused tests.
-- [ ] 2.3 Add owner/manager Show Classes to members control to class settings; verify On/Off/no-op/refusal and preserve existing class-settings fields.
+- [x] 2.3 Add owner/manager Show Classes to members control to class settings; verify On/Off/no-op/refusal and preserve existing class-settings fields. Independent visible26 plus API/shared tests pass; canonical deployed owner/desk/trainer E2E3/3 proves persistence, no-op, restoration and permission presentation.
 - [x] 2.4 Integrate exact-identity native visibility loading/cache/resume/focus behavior; verify NAVC-002/003/006 and late-read/sign-out tests. Full mobile713/713 and affected independentheld141/141 pass; source GO includes canonical initial-read account exit. Device refresh/On/Off remains in4.3.
 
 ## 3. Native presentation
