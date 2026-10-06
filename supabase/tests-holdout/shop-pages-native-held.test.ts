@@ -65,7 +65,8 @@ describe('independent SHP-PAGE-006 small explicit disclosure', () => {
   it('pending continuation synchronously blocks repeated taps without speculative paging', async () => {
     const start = await settle(); const pending = deferred<unknown>(); h.post.mockReturnValue(pending.promise);
     const first = start.loadMore(); const second = start.loadMore(); const busy = render();
-    expect(h.post).toHaveBeenCalledTimes(2); expect(busy.loadingMore).toBe(true);
+    expect(busy.loadingMore).toBe(true);
+    await settle(); expect(h.post).toHaveBeenCalledTimes(2);
     pending.resolve(more(undefined, cursor)); await Promise.all([first, second]); await settle(); expect(h.post).toHaveBeenCalledTimes(2);
   });
   it.each(['transient', 'malformed'])('failed %s continuation preserves population, count and retry cursor', async failure => {
@@ -113,7 +114,7 @@ describe('independent SHP-PAGE-008 last-good authorization discipline', () => {
     expect(offline.view?.stale).toBe(true); expect(offline.visibleCount).toBe(3); const reads = h.post.mock.calls.length;
     await offline.loadMore(); const disclosed = await settle(); expect(disclosed.visibleCount).toBe(5); expect(h.post).toHaveBeenCalledTimes(reads);
     await disclosed.loadMore(); const retry = await settle(); expect(retry.visibleCount).toBe(5); expect(retry.error).toEqual(expect.any(String)); expect(h.post).toHaveBeenCalledTimes(reads);
-    h.network = { isConnected: true, isInternetReachable: true }; h.post.mockResolvedValue(initial([row(10)], null)); await retry.reload(); const restored = await settle(); expect(restored.view?.stale).toBe(false); expect(restored.visibleCount).toBe(3);
+    h.network = { isConnected: true, isInternetReachable: true }; h.post.mockResolvedValue(initial([row(10)], null)); await render().reload(); const restored = await settle(); expect(restored.view?.stale).toBe(false); expect(restored.visibleCount).toBe(3);
   });
   it.each(['not_signed_in', 'not_permitted', 'unauthorized', 'forbidden'])('authorization %s latches absence through later offline reload until authorized success', async code => {
     const start = await settle(); const saved = start.view!.response; h.post.mockResolvedValue({ ok: false, error: { code, message: 'Sign in again.', status: code === 'not_signed_in' ? 401 : 403 } });

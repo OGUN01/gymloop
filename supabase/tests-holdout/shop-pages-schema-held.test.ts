@@ -3,7 +3,8 @@ import { describe, expect, it } from 'vitest';
 import * as shop from '../../packages/shared/src/api/shop';
 
 type Schema = { safeParse(input: unknown): { success: boolean }; parse(input: unknown): unknown };
-const publicSchemas = shop as unknown as Record<string, Schema>;
+type PublicSchemas = { shopReservationCursorSchema: Schema; shopPageRequestSchema: Schema; shopPageResponseSchema: Schema; shopCatalogueRequestSchema: Schema; shopMemberCancelRequestSchema: Schema; shopCatalogueResponseSchema: Schema };
+const publicSchemas = shop as unknown as PublicSchemas;
 const id = '92030000-0000-4000-8000-000000000001';
 const instant = '2026-10-07T00:00:00.987654+05:30';
 const cursor = { createdAt: instant, id };
@@ -63,7 +64,7 @@ describe('independent SHP-PAGE-002/004/005/009 response and released schemas', (
     expect(publicSchemas.shopPageResponseSchema.parse(more({ reservations: [reservation()], nextAfter: cursor }))).toEqual(more({ reservations: [reservation()], nextAfter: cursor }));
   });
   it('released catalogue and member cancellation retain their strict empty requests', () => {
-    for (const name of ['shopCatalogueRequestSchema', 'shopMemberCancelRequestSchema']) {
+    for (const name of ['shopCatalogueRequestSchema', 'shopMemberCancelRequestSchema'] as const) {
       expect(publicSchemas[name].parse({})).toEqual({});
       for (const body of [{ mode: 'initial' }, { after: cursor }, { nextAfter: cursor }, { memberId: id }]) expect(publicSchemas[name].safeParse(body).success).toBe(false);
     }

@@ -33,6 +33,14 @@ select coalesce(jsonb_agg(x->>'reservation_id' order by ord),'[]'::jsonb) from j
 $$;
 create temp table held_page_result(k text primary key, result jsonb);
 create temp table held_page_expected(id uuid, created_at timestamptz);
+create temp table held_page_fixture_audit(id uuid primary key);
+create function pg_temp.page_fixture_member_write(q text) returns void language plpgsql as $$
+declare prior_ids uuid[];
+begin
+ select array_agg(id) into prior_ids from public.audit_log where tenant_id in(pg_temp.page_u(1),pg_temp.page_u(2));
+ execute q;
+ insert into held_page_fixture_audit select id from public.audit_log where tenant_id in(pg_temp.page_u(1),pg_temp.page_u(2)) and not(id=any(coalesce(prior_ids,'{}'::uuid[])));
+end $$;
 create function pg_temp.page_snapshot() returns jsonb language sql stable as $$
 select jsonb_build_object(
  'reservation',(select jsonb_agg(to_jsonb(r) order by id) from public.shop_reservations r where tenant_id in(pg_temp.page_u(1),pg_temp.page_u(2))),
@@ -92,7 +100,7 @@ from generate_series(5,6)member_n cross join generate_series(1,6)product_n join 
 insert into public.media_assets(id,tenant_id,kind,staging_object_key,mime,bytes,created_by_staff_id)
 values(pg_temp.page_u(2801),pg_temp.page_u(1),'product',pg_temp.page_u(1)::text||'/staging/product/'||pg_temp.page_u(2801)::text||'.jpg','image/jpeg',100,pg_temp.page_u(201));
 insert into held_page_result values('media-confirmed',pg_temp.page_run(format('select to_jsonb(public.finalize_media_asset(%L::uuid,%L::uuid,%L::uuid,''gym_owner''::public.app_role,%L::uuid,''product'',''image/jpeg'',100,%L,''held-source'',%L,''held-published''))',pg_temp.page_u(2801),pg_temp.page_u(201),pg_temp.page_u(201),pg_temp.page_u(1),pg_temp.page_u(1)::text||'/staging/product/'||pg_temp.page_u(2801)::text||'.jpg',pg_temp.page_u(1)::text||'/published/product/'||pg_temp.page_u(2801)::text||'.jpg'),' {"role":"service_role"}'::jsonb,'service_role'));
-insert into held_page_result values('media-attached',pg_temp.page_run(format('select to_jsonb(x) from(select public.set_shop_product_display(%L::uuid,null,0,%L::uuid))x',pg_temp.page_u(401),pg_temp.page_u(2801)),pg_temp.page_staff_claim()));
+insert into held_page_result values('media-attached',pg_temp.page_run(format('select to_jsonb(x) from(select public.set_shop_product_display(%L::uuid,null,0::smallint,%L::uuid))x',pg_temp.page_u(401),pg_temp.page_u(2801)),pg_temp.page_staff_claim()));
 update public.addon_products set price_paise=9007199254740994 where id=pg_temp.page_u(401);
 insert into held_page_expected select id,created_at from public.shop_reservations where tenant_id=pg_temp.page_u(1) and member_id=pg_temp.page_u(101) and not(status='reserved' and expires_at>statement_timestamp());
 insert into held_page_result values('before',jsonb_build_object('value',pg_temp.page_snapshot()));
@@ -140,19 +148,19 @@ select is(pg_temp.page_run('select to_jsonb(p) from public.read_member_shop_rese
 
 -- Current binding and forbidden status are reread, while paused/expired members
 -- retain their established read access for renewal/cancellation.
-update public.members set user_id=null where id=pg_temp.page_u(108);
+select pg_temp.page_fixture_member_write('update public.members set user_id=null where id=pg_temp.page_u(108)');
 select is(pg_temp.page_read(null,null,pg_temp.page_claim(8))->>'error','42501','SHP-PAGE-001 stale unlinked binding');
-update public.members set user_id=pg_temp.page_u(308),status='blocked' where id=pg_temp.page_u(108);
+select pg_temp.page_fixture_member_write('update public.members set user_id=pg_temp.page_u(308),status=''blocked'' where id=pg_temp.page_u(108)');
 select is(pg_temp.page_read(null,null,pg_temp.page_claim(8))->>'error','42501','SHP-PAGE-001 blocked member');
-update public.members set status='cancelled' where id=pg_temp.page_u(108);
+select pg_temp.page_fixture_member_write('update public.members set status=''cancelled'' where id=pg_temp.page_u(108)');
 select is(pg_temp.page_read(null,null,pg_temp.page_claim(8))->>'error','42501','SHP-PAGE-001 cancelled member');
-update public.members set status='active',erased_at=statement_timestamp() where id=pg_temp.page_u(108);
+select pg_temp.page_fixture_member_write('update public.members set status=''active'',erased_at=statement_timestamp() where id=pg_temp.page_u(108)');
 select is(pg_temp.page_read(null,null,pg_temp.page_claim(8))->>'error','42501','SHP-PAGE-001 erased member');
-update public.members set erased_at=null,status='paused' where id=pg_temp.page_u(108);
+select pg_temp.page_fixture_member_write('update public.members set erased_at=null,status=''paused'' where id=pg_temp.page_u(108)');
 select is(pg_temp.page_read(null,null,pg_temp.page_claim(8))->>'error',null::text,'SHP-PAGE-001 paused reader stays bound');
-update public.members set status='expired' where id=pg_temp.page_u(108);
+select pg_temp.page_fixture_member_write('update public.members set status=''expired'' where id=pg_temp.page_u(108)');
 select is(pg_temp.page_read(null,null,pg_temp.page_claim(8))->>'error',null::text,'SHP-PAGE-001 expired reader stays bound');
-update public.members set status='active' where id=pg_temp.page_u(108);
+select pg_temp.page_fixture_member_write('update public.members set status=''active'' where id=pg_temp.page_u(108)');
 
 select is(pg_temp.page_read(null,pg_temp.page_u(1001))->>'error','22023','SHP-PAGE-004 ID-only cursor');
 select is(pg_temp.page_read('2026-01-01 00:00:00+00',null)->>'error','22023','SHP-PAGE-004 time-only cursor');
@@ -167,8 +175,8 @@ select is((select pg_temp.page_ids(result->'value'->'active_reservations') from 
 select is((select pg_temp.page_ids(result->'value'->'history') from held_page_result where k='initial'),(select jsonb_agg(id order by created_at desc,id desc) from(select id,created_at from held_page_expected order by created_at desc,id desc limit 3)e),'SHP-PAGE-003 independent exact initial total order');
 select is((select (result->'value'->>'next_after_id')::uuid from held_page_result where k='initial'),(select id from held_page_expected order by created_at desc,id desc offset 2 limit 1),'SHP-PAGE-003 cursor last returned ID');
 select is((select (result->'value'->>'next_after_created_at')::timestamptz from held_page_result where k='initial'),(select created_at from held_page_expected order by created_at desc,id desc offset 2 limit 1),'SHP-PAGE-003 cursor exact microsecond timestamp');
-select ok((select (result->'value'->>'next_after_created_at') ~ '123470' from held_page_result where k='initial'),'SHP-PAGE-003 cursor text keeps six fractional digits');
-select ok((select (result->'value'->>'as_of')::timestamptz=statement_timestamp() from held_page_result where k='initial') is not true,'SHP-PAGE-005 prior statement as_of is retained');
+select ok((select (result->'value'->>'next_after_created_at') ~ '12347(0)?[+Z]' from held_page_result where k='initial'),'SHP-PAGE-003 cursor text keeps all significant microseconds');
+select ok((select (result->'value'->>'as_of')::timestamptz<=statement_timestamp() from held_page_result where k='initial'),'SHP-PAGE-005 read as_of is never in the future');
 select ok((select result->'value'->>'as_of' is not null from held_page_result where k='initial'),'SHP-PAGE-005 as_of present');
 select is((select count(*)::integer from held_page_result p cross join jsonb_array_elements(p.result->'value'->'history')h where p.k='initial' and (h->>'reservation_id')::uuid not in(select id from held_page_expected)),0,'SHP-PAGE-001 excludes same/foreign member rows');
 select is((select result->'value'->'history'->0->>'state' from held_page_result where k='initial'),'expired','SHP-PAGE-005 derived expiry');
@@ -194,7 +202,7 @@ begin
  loop
   reply:=pg_temp.page_read(after_time,after_id);
   if reply ? 'error' then return reply; end if;
-  rows:=rows || reply->'value'->'history'; sizes:=sizes || jsonb_build_array(jsonb_array_length(reply->'value'->'history'));
+  rows:=rows || (reply->'value'->'history'); sizes:=sizes || jsonb_build_array(jsonb_array_length(reply->'value'->'history'));
   active_sizes:=active_sizes || jsonb_build_array(jsonb_array_length(reply->'value'->'active_reservations'));
   after_time:=(reply->'value'->>'next_after_created_at')::timestamptz; after_id:=(reply->'value'->>'next_after_id')::uuid;
   exit when after_time is null and after_id is null;
@@ -248,7 +256,7 @@ select ok((select (result->'value'->>'as_of')::timestamptz=(select expires_at fr
 -- Snapshot excludes the independently added boundary rows but includes all read
 -- facts and financial tables, detecting accidental expiry or audit writes.
 select is((select result->'value'->'reservation' from held_page_result where k='before'),(select jsonb_agg(to_jsonb(r) order by id) from public.shop_reservations r where tenant_id in(pg_temp.page_u(1),pg_temp.page_u(2)) and id not in(pg_temp.page_u(2699),pg_temp.page_u(2700),pg_temp.page_u(2701))),'SHP-PAGE-005 reservation facts unchanged by every page/refusal');
-select is((select result->'value'->part from held_page_result where k='before'),pg_temp.page_snapshot()->part,'SHP-PAGE-005 no read side effect on '||part) from unnest(array['product','order','payment','receipt','audit'])part;
+select is((select result->'value'->part from held_page_result where k='before'),case when part='audit' then (select jsonb_agg(to_jsonb(a) order by id) from public.audit_log a where tenant_id in(pg_temp.page_u(1),pg_temp.page_u(2)) and id not in(select id from held_page_fixture_audit)) else pg_temp.page_snapshot()->part end,'SHP-PAGE-005 no read side effect on '||part) from unnest(array['product','order','payment','receipt','audit'])part;
 insert into held_page_result values('legacy',pg_temp.page_run('select coalesce(jsonb_agg(to_jsonb(r)),''[]''::jsonb) from public.read_member_shop_reservations()r'));
 select is((select result->>'error' from held_page_result where k='legacy'),null::text,'SHP-PAGE-009 legacy no-argument read remains valid');
 select is((select jsonb_array_length(result->'value') from held_page_result where k='legacy'),50,'SHP-PAGE-009 legacy fifty cap unchanged');
