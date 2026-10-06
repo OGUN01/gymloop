@@ -224,8 +224,10 @@ select is(pg_temp.capture('booking',$$select * from public.book_class_session(pg
 set local role postgres;
 select is((select member_classes_enabled from public.organization_settings where tenant_id=pg_temp.u(1)),false,'NAVC-015: adding active service and booked session does not rerun backfill');
 select set_config('request.jwt.claims','',true);
-insert into public.notifications(id,tenant_id,member_id,channel,category,status,payload)
- values(pg_temp.u(701),pg_temp.u(1),pg_temp.u(101),'in_app','class_update','sent',jsonb_build_object('body','A retained class message','kind','class_update'));
+-- COM lifecycle fixtures enter scheduled/classified/deduplicated with no event
+-- evidence (phase6-comms-contract.md section 4; visible 33_comms_commands.sql).
+insert into public.notifications(id,tenant_id,member_id,channel,category,status,dedupe_key,scheduled_for,sent_at,delivered_at,payload)
+ values(pg_temp.u(701),pg_temp.u(1),pg_temp.u(101),'in_app','class_update','scheduled','navc163-retained:'||pg_temp.u(701),statement_timestamp(),null,null,jsonb_build_object('body','A retained class message','kind','class_update'));
 insert into pg_temp.saved values('class-state',pg_temp.class_state());
 set local role authenticated;
 select pg_temp.claim(21);
