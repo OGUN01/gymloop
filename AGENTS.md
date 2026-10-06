@@ -44,6 +44,7 @@ Every unit of work follows the **Gauntlet Loop**, no round-count budget, exits o
 | The 33 production gates and their current status | `docs/gates.md` |
 | How to start a new feature / migration / endpoint / RLS policy / payment flow | `.claude/skills/*/SKILL.md` |
 | Current system truth vs. in-flight proposals | `openspec/specs/`, `openspec/changes/` |
+| Resume the owner-approved 2026-10-06 native navigation/Classes change | `docs/planning/v2-native-navigation-resume-2026-10-06.md` (active handoff; read before continuing this change) |
 | Real values for env vars | `.env.local` (gitignored) — names only in `.env.example` |
 | Sign-ins for simulating any role against the demo gym | `docs/demo-accounts.md` |
 
