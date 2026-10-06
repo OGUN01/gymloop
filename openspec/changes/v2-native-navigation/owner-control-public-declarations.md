@@ -1,0 +1,12 @@
+# Owner visibility presentation — frozen author boundary
+
+Owner-approved NAVC-004 setting label is **Show Classes to members**. Help: “Show a Classes tab in the member app. Manage availability and new bookings in the class catalogue.” Owner/manager schedule settings show this separately from existing cancellation and cross-branch settings; these existing request/read shapes stay unchanged.
+
+- New `loadClassVisibility(client: SupabaseClient<Database>): Promise<boolean | null>` in apps/web/lib/classes.ts reads the current caller's visible organization_settings.member_classes_enabled via existing staff RLS. Null means failed/missing read, never Off. No caller tenant argument.
+- New named `MemberClassVisibilityEditor({enabled}: {enabled: boolean | null})` in apps/web/app/(console)/classes/schedule/member-class-visibility-editor.tsx is a client component alongside the existing ClassSettingsEditor.
+- A known boolean renders a labelled checkbox and separate Save Classes visibility button. The draft follows user changes. Save submits strict `PUT /api/class-visibility` JSON `{enabled: draft}` through the current authenticated web request pattern. Saving prevents duplicate submission. Confirmation updates the last confirmed value; no-op confirmation remains success without another audit. Refusal/read failure displays safe truthful feedback and never invents saved success.
+- Null renders a read-unavailable recovery state; it does not render an enabled editing control or default unchecked value. Retry refreshes the current schedule page through its router. The page's existing admin audience guard controls who sees this owner editor.
+- API result is existing ApiEnvelope `{ok: true, data: {enabled: boolean, changed: boolean}}` or the safe error envelope; database remains canonical authority. UI does not update other setting fields or call a direct Supabase write.
+- Public new guard admission: organization_settings_guard_member_class_visibility on organization_settings; BEFORE ROW INSERT/UPDATE (tgtype23); zero-arg postgres-owned volatile empty-path INVOKER app.guard_member_class_visibility_write(), execution denied to session roles. Visible meta catalogue must admit this exact approved boundary, preserving all existing assertions.
+
+This declaration freezes names and observable inputs/outputs before the independent owner-control visible author sees any implementation. It does not add a commercial feature or change NAVC behavior.
