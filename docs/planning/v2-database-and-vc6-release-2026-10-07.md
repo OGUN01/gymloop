@@ -10,7 +10,7 @@
 
 Work directly on main, no branch/PR. Freeze each contract before independent test authors; commit red tests first and implementation separately. Land coherent units serially, wait for a preceding full DB run before the next migration, and archive completed OpenSpec changes. Preserve unrelated dirty/untracked work.
 
-## Current truth
+## Initial discovery (historical; latest checkpoint supersedes it)
 
 - Shop's old caller-scoped reservation RPC caps its read at fifty; current native Load more discloses already fetched rows. The new initial transport will read all active holds (at most five) plus three history rows and one hidden lookahead; continuations read five history rows and one hidden lookahead. Initially only three total rows are visible. This can preload at most eight public reservation rows and avoids fetching fifty historical rows.
 - Accepted full DB baseline: run `37486763607`, source `23f5566900b6999e25bcac5e9f39f4e97b95871f`, 161 files / 16,156 tests PASS, native wall 7,788 seconds. Source execution inputs match closed main f91a7451. No new performance implementation or benchmark exists yet.
@@ -28,7 +28,19 @@ Production AAB requires applicationId `in.fitcruxx.app`, label FitCruxx, OAuth s
 
 Existing pilot exceptions (ADR-159/168), manual-only payments, unresolved HTTPS App Links proof and native Firebase/push setup are not silently turned into passed gates by this upload. Do not expand the release to unrelated feature implementation. Keep actual Console draft/review/published status distinct.
 
-## Current execution checkpoint (7 October, 04:25 IST)
+## Current execution checkpoint (7 October, after b0022c23)
+
+Concrete client fix is committed b0022c23 after independent red79b1c651 and original-author-only fixture corrections df8f0278. Each separate Windows native suite now passes3/3, including actual positive raw TAP/two independently checked per-file timers and eight genuine native failures. Frozen visibleSHA749604af2a8ca8c6cdfb4d9583435f3e2518c5384f1a934b5db4fc52b1cf691c; heldSHAcd9b98f19505d76fbf184a81d3cde48150b570c4406a03a0300c5110ee361d51. Source critic GO. No backend/app/schema/SQL inputs changed.
+
+Strict unarmed classification contract2695c0d1/d79b18ba is frozen and registered before implementation. Independent99visible/120held tests were committed red3c9270fd; new pure scripts/pgtap/unarmed-precheck.mjs and workflow integration are written but UNCOMMITTED. All219 initial cases PASS and the exact real historical packet classifies verified:true without claiming native success/restoration. Fresh source critic approves workflow transport/old armed scans, but caught an existing-DBV UTC shape defect: expanded years/pre-epoch times must refuse. Contractb41a7972 makes that adopted shape explicit; original independent authors are appending small genuine-red regressions before the minimal timestamp predicate repair. Do not push source or start Cloud work until that fix and final gates/critic are green.
+
+Protected actual historical packet: trial4-unarmed-private-proof.json SHA2751f77673b9b49518d284079e6ae8b79afb64dc0d179f0dc82ccf559a67275a under C:/fr-sealed-20261007; independently downloaded1784-byte smoke ZIP matches API digest1091ff970e9a3b0cfe2f04771d6218211b0c5549147536e8b7cf17b59e543caa. Selected-attempt provider run/jobs, cleanup, complete4-artifact listing and historical Git blobs are bound. Independent source-only historical attestation GO. NATIVE_DB_UNARMED_PRECHECK_RECEIPTS is NOT yet published. No recovery artifact exists for that exact attempt; historical d0b DB stays FAILED and seed SKIPPED. Ordinary d0b CI37541539027, held37541539070 and immutability37541538990 are all SUCCESS.
+
+Fresh checksum-verified/protected C:/fr7-20261007 and C:/fr7w-20261007 plus trial5-physical-20261007 proof directory are prepared, UNREGISTERED. Private register-start-trial5.ps1 is being corrected/reviewed before execution: actual Docker config image ID must differ correctly from the registry manifest digest, registration.bindingSha256 must be the launch-binding hash, canonical watchdog argv must match the sealed publisher, and postregistration failure must retire exact owned processes/registration without invented proof. Sealed launcher/watchdog/publisher bytes remain unchanged. All earlier runners retired; no readiness, listener, watchdog or native Cloud workload is live.
+
+Next: commit independent UTC tests red; repair predicate; obtain final fresh source GO and focused/full local gates; publish only the validated exact administrator attestation before queueing. Prepare all bound startup machinery before green push, register/launch/publish exact new run readiness promptly, then prove real full native/guardian/restore/seed/drift plus matched-input performance and physical cleanup. Final ordinary CI and application-byte equivalence precede closedAlpha vc6 upload. Signed artifact, nine device proofs and Play pilot remain unchanged; no upload has occurred.
+
+### Previous checkpoint (7 October, 04:25 IST)
 
 Remote main d0b3599a: DB37541539071 is COMPLETED FAILURE. Preflight, migration, generated-type drift, selector and the163-file/16329-assertion manifest succeed; hosted native job112535897865 refuses its positive client-only smoke before link/query/timeout/suite. Guardian112536226021 fails exact-recovery discovery before every Cloud step; serial seed is SKIPPED. No native Cloud workload remains. Nine completed smoke cases are not failure-equivalence evidence: the disposable psql stub handled only -f whereas the pinned official SourceHandler supplies --file. Preserve the failed run. Existing recovery protocol therefore blocks any new Cloud operation until positively verified unarmed classification is independently tested and adopted; absent recovery alone is insufficient.
 
