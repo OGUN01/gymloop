@@ -37,7 +37,7 @@ export default function MoreScreen() {
   const label = [styles.label, { color: palette.primaryText }];
   return <Screen>
     <View><Eyebrow>{branch?.name ?? 'Front desk'}</Eyebrow><Title>More</Title><Body muted>Walk-in leads, appearance and your account.</Body></View>
-    <LedgerSection title="Timetable"><Row title="Classes" onPress={() => router.push('/(desk)/classes')} accessibilityHint="Opens Classes" /><Row title="Training" meta="Opens the web console" accessibilityHint="Opens the authenticated Training web console in your browser" onPress={() => { void WebBrowser.openBrowserAsync(new URL('/training', webOrigin).toString()); }} /></LedgerSection>
+    <LedgerSection title="Timetable"><Row title="Classes" onPress={() => router.push('/(desk)/classes')} accessibilityHint="Opens Classes" /><Row title="Training" meta={frontOffice ? 'Opens the web console' : 'Your clients today'} accessibilityHint={frontOffice ? 'Opens the authenticated Training web console in your browser' : 'Opens your native Training schedule'} onPress={() => { if (identity.kind === 'staff' && identity.role === 'trainer') router.push('/(desk)/training'); else void WebBrowser.openBrowserAsync(new URL('/training', webOrigin).toString()); }} /></LedgerSection>
     {frontOffice ? <View style={[styles.section, styles.leadForm, { borderColor: palette.decorativeSeparator }]}>
       <Eyebrow>New lead</Eyebrow>
       <Body muted>Take a walk-in’s details for the team to follow up.</Body>

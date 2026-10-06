@@ -13,6 +13,7 @@ import { clearOfflineCheckIns } from './offline-check-in';
 import { createMobileSupabase, resolveNativeMobileSession, signOutMobile } from './native-session';
 import { clearShopCache } from './shop-cache';
 import { clearAnnouncementCache } from './announcements';
+import { clearMemberClassVisibilityCache } from './member-class-visibility-cache';
 
 import { BUSINESS_TYPE_STORAGE_KEY, encodePersistedBusinessType, readPersistedBusinessType, resolveBusinessType } from './business-type';
 
@@ -51,7 +52,7 @@ function scopeKey(identity: GymloopIdentity): string | null {
 
 /** Attempt both revocations immediately, including when a cleanup throws before returning. */
 function clearPrivateFeatures(): Promise<void> {
-  const attempts = [clearShopCache, clearAnnouncementCache].map(clear => {
+  const attempts = [clearShopCache, clearAnnouncementCache, clearMemberClassVisibilityCache].map(clear => {
     try { return clear(); }
     catch (error) { return Promise.reject(error); }
   });

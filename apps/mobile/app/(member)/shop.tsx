@@ -1,30 +1,37 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Image, StyleSheet, View } from 'react-native';
 import { Package } from 'lucide-react-native';
+import { useRouter } from 'expo-router';
 import * as Network from 'expo-network';
-import { DEFAULT_TIMEZONE, MS_PER_HOUR, SHOP_LIMITS, SHOP_TERMS_CHANGED_NOTE, UI_TOKENS, formatMoney, groupShopItems, shopCatalogueResponseSchema, shopGstLabel, shopMaxQuantity, shopOfflineNotice, shopReservationStateWord, shopReserveNotice, shopReserveRequestSchema, type ShopCatalogueResponse, type ShopItem, type ShopReservation } from '@gymloop/shared';
-import { ActionButton, Body, EmptyState, Eyebrow, LoadingState, Row, Screen, Sheet, SheetHeader, StateMessage, Status, Title } from '../../components/ui';
+import { DEFAULT_TIMEZONE, MS_PER_HOUR, NATIVE_MEMBER_LAYOUT, SHOP_LIMITS, SHOP_TERMS_CHANGED_NOTE, UI_TOKENS, formatMoney, groupShopItems, planCatalogueCopy, planDurationLabel, planGstLabel, shopCatalogueResponseSchema, shopGstLabel, shopMaxQuantity, shopOfflineNotice, shopReservationStateWord, shopReserveNotice, shopReserveRequestSchema, type ShopCatalogueResponse, type ShopItem, type ShopReservation } from '@gymloop/shared';
+import { ActionButton, Body, Display, EmptyState, Eyebrow, LoadingState, Row, Screen, Sheet, SheetHeader, StateMessage, Status, Title } from '../../components/ui';
 import { useMobile } from '../../lib/mobile-context';
 import { useMemberSnapshot } from '../../lib/use-member-snapshot';
 import { heldUntilLabel, reserveOutcomeMessage, shopCacheScope } from '../../lib/shop';
 import { clearShopCache, nativeShopCache, readShopCache, shopCacheCurrent, writeShopCache } from '../../lib/shop-cache';
+import { useMemberPlans } from '../../lib/use-member-plans';
+import { planCatalogueNotice } from '../../lib/plan-catalogue-state';
 
-function ShopPhoto({ url }: { url: string | null }) {
+function ShopPhoto({ url, large = false }: { url: string | null; large?: boolean }) {
   const { palette } = useMobile();
   const [failed, setFailed] = useState<string | null>(null);
   let safe = false;
   try { const parsed = new URL(url ?? ''); safe = parsed.protocol === 'https:' && !parsed.username && !parsed.password; } catch { /* Invalid URLs use the same placeholder as a missing photo. */ }
-  return <View accessibilityElementsHidden importantForAccessibility="no-hide-descendants" style={[styles.photo, { backgroundColor: palette.elevatedSurface }]}>
-    {url && safe && failed !== url ? <Image accessible={false} source={{ uri: url }} style={styles.photo} resizeMode="cover" onError={() => setFailed(url)} /> : <Package size={UI_TOKENS.icons.navigationSize} color={palette.secondaryText} />}
+  return <View accessibilityElementsHidden importantForAccessibility="no-hide-descendants" style={[styles.photo, large && styles.largePhoto, { backgroundColor: palette.elevatedSurface }]}>
+    {url && safe && failed !== url ? <Image accessible={false} source={{ uri: url }} style={[styles.photo, large && styles.largePhoto]} resizeMode="cover" onError={() => setFailed(url)} /> : <Package size={UI_TOKENS.icons.navigationSize} color={palette.secondaryText} />}
   </View>;
 }
 
 export default function ShopScreen() {
-  const { identity, api, nouns } = useMobile();
+  const { identity, api, nouns, palette } = useMobile();
+  const router = useRouter();
   const post = api.post;
   const snapshot = useMemberSnapshot();
   const timeZone = snapshot.data?.gym.timezone ?? DEFAULT_TIMEZONE;
   const scope = shopCacheScope(identity);
+  const plans = useMemberPlans(scope !== null);
+  const plansCopy = planCatalogueCopy(nouns);
+  const planNotice = planCatalogueNotice(plans.state, plansCopy, timeZone);
   const network = Network.useNetworkState();
   const online = network.isConnected === true && network.isInternetReachable !== false;
   const [view, setView] = useState<{ scope: string; response: ShopCatalogueResponse; savedAt: string; stale: boolean } | null>(null);
@@ -33,6 +40,7 @@ export default function ShopScreen() {
   const [selection, setSelection] = useState<{ scope: string; item: ShopItem; quantity: number; confirm: boolean; heldUntil: string } | null>(null);
   const [cancellation, setCancellation] = useState<{ scope: string; reservation: ShopReservation } | null>(null);
   const [busy, setBusy] = useState(false);
+  const [reservationPage, setReservationPage] = useState({ scope, count: NATIVE_MEMBER_LAYOUT.reservationPreview as number });
   const currentScope = useRef(scope);
   const cacheScope = useRef(scope);
   const readRevision = useRef<object>({});
@@ -129,10 +137,16 @@ export default function ShopScreen() {
     } finally { if (current()) { command.current = null; setBusy(false); } }
   };
 
-  const renderItem = (item: ShopItem) => <Row key={item.itemId} icon={<ShopPhoto url={item.imageUrl} />} title={item.name} meta={formatMoney(item.pricePaise, item.currency)} status={<Status tone={item.availability === 'available' ? 'ok' : 'neutral'}>{item.availability === 'available' ? 'Available' : 'Out of stock'}</Status>} onPress={() => openItem(item)} accessibilityLabel={`${item.name}, ${formatMoney(item.pricePaise, item.currency)}, ${item.availability === 'available' ? 'Available' : 'Out of stock'}`} />;
+  const renderItem = (item: ShopItem) => <View key={item.itemId} style={[styles.itemCard, { borderColor: palette.decorativeSeparator }]}>
+    <Row icon={<ShopPhoto url={item.imageUrl} large={item.section === 'products'} />} title={item.name} meta={item.description || undefined} status={<Status tone={item.availability === 'available' ? 'ok' : 'neutral'}>{item.availability === 'available' ? 'Available' : 'Out of stock'}</Status>} onPress={() => openItem(item)} accessibilityLabel={`${item.name}, ${formatMoney(item.pricePaise, item.currency)}, ${item.availability === 'available' ? 'Available' : 'Out of stock'}`} />
+    <View style={styles.priceAction}><Display size="section" accent>{formatMoney(item.pricePaise, item.currency)}</Display><ActionButton secondary accessibilityLabel={`Reserve ${item.name}`} disabled={disabled || shopMaxQuantity(item) === 0} onPress={() => openItem(item)}>{item.section === 'products' ? 'Reserve' : 'View service'}</ActionButton></View>
+  </View>;
   const groups = groupShopItems(visible?.response.items ?? []);
   const reservations = visible?.response.reservations ?? [];
   const orderedReservations = [...reservations.filter(row => row.state === 'reserved'), ...reservations.filter(row => row.state !== 'reserved')];
+  const reservationCount = reservationPage.scope === scope ? reservationPage.count : NATIVE_MEMBER_LAYOUT.reservationPreview;
+  const shownReservations = orderedReservations.slice(0, reservationCount);
+  const hiddenActive = orderedReservations.slice(reservationCount).filter(row => row.state === 'reserved').length;
   return <Screen>
     <Eyebrow>{snapshot.data?.gym.displayName ?? `Your ${nouns.place}`}</Eyebrow><Title>Shop</Title>
     <Body muted>Reserve something for your next visit. Pay and collect at the front desk.</Body>
@@ -140,22 +154,31 @@ export default function ShopScreen() {
     {message ? <StateMessage>{message}</StateMessage> : null}
     {loading && !visible ? <LoadingState /> : null}
     <ActionButton secondary disabled={loading || busy} onPress={() => { setMessage(null); void reload(); }}>Refresh shop</ActionButton>
-    {orderedReservations.length ? <View><Eyebrow>Your reservations</Eyebrow>{orderedReservations.map(reservation => <View key={reservation.reservationId}>
+    <View style={styles.catalogueSection}><Eyebrow>Products</Eyebrow>{groups.products.map((group, index) => <View style={styles.productGroup} key={`${group.categoryId ?? 'uncategorised'}:${index}`}><Body strong>{group.categoryName ?? 'Other products'}</Body>{group.items.map(renderItem)}</View>)}{visible && !groups.products.length ? <Body muted>No products listed yet.</Body> : null}</View>
+    <View style={styles.catalogueSection}><Eyebrow>Plans</Eyebrow>
+      {plans.state.phase === 'loading' && !plans.state.view ? <LoadingState /> : null}
+      {planNotice ? <StateMessage tone={planNotice.tone}>{planNotice.text}</StateMessage> : null}
+      {plans.state.view?.plans.map(plan => <View key={plan.id} style={[styles.itemCard, { borderColor: palette.decorativeSeparator }]}><Body strong>{plan.name}</Body><Display size="section" accent>{formatMoney(plan.pricePaise, plan.currency)}</Display><Body muted>{planDurationLabel(plan.durationDays)}</Body>{plan.held ? <Status tone="accent">{plansCopy.badge}</Status> : null}{planGstLabel(plan.gstRateBp) ? <Body muted>{planGstLabel(plan.gstRateBp)}</Body> : null}{plan.description ? <Body>{plan.description}</Body> : null}</View>)}
+      {plans.state.view && !plans.state.view.plans.length ? <Body muted>No plans listed yet.</Body> : null}
+      <ActionButton secondary onPress={() => router.push({ pathname: '/(member)/gym', params: { section: 'plans' } })}>View plans</ActionButton>
+      {planNotice ? <ActionButton secondary onPress={() => void plans.reload()}>Refresh plans</ActionButton> : null}
+    </View>
+    <View style={styles.catalogueSection}><Eyebrow>Services</Eyebrow>{groups.services.map(renderItem)}{visible && !groups.services.length ? <Body muted>No services listed yet.</Body> : null}</View>
+    {visible && !visible.response.items.length ? <EmptyState title={`Your ${nouns.place} hasn't added anything to the shop yet.`}>Ask the front desk about available products and services.</EmptyState> : null}
+    {visible?.response.truncated ? <StateMessage>Showing the first {SHOP_LIMITS.catalogueMax} items.</StateMessage> : null}
+    <View><Row title="Purchase requests" meta="View your requests and payment confirmations" onPress={() => router.push('/(member)/buy')} accessibilityHint="Opens Buy" /><ActionButton secondary onPress={() => router.push('/(member)/buy')}>Buy</ActionButton></View>
+    {orderedReservations.length ? <View style={styles.catalogueSection}><Eyebrow>Your reservations</Eyebrow>{hiddenActive > 0 ? <StateMessage>{hiddenActive} more active reservations. Load more to see their holds and cancellation actions.</StateMessage> : null}{shownReservations.map(reservation => <View key={reservation.reservationId}>
       <Row icon={<ShopPhoto url={reservation.imageUrl} />} title={reservation.itemName} meta={`${reservation.quantity} × ${formatMoney(reservation.unitPricePaise, reservation.currency)} = ${formatMoney(reservation.totalPaise, reservation.currency)}`} status={<Status tone={reservation.state === 'reserved' ? 'ok' : 'neutral'}>{shopReservationStateWord(reservation.state)}</Status>} />
       <Body muted>{reservation.state === 'reserved' ? 'Held until' : 'Hold ended'} {heldUntilLabel(reservation.expiresAt, timeZone)}</Body>
       {reservation.termsChanged ? <StateMessage tone="warning">{SHOP_TERMS_CHANGED_NOTE}</StateMessage> : null}
       {reservation.cancelReason ? <Body>Reason from your {nouns.place}: {reservation.cancelReason}</Body> : null}
       {reservation.state === 'reserved' ? <ActionButton secondary disabled={disabled} onPress={() => { if (currentScope.current !== scope || command.current) return; if (disabled) { setMessage('Cancelling needs a connection. Check your connection and try again.'); return; } if (scope) { setMessage(null); setCancellation({ scope, reservation }); } }}>Cancel reservation</ActionButton> : null}
-    </View>)}</View> : null}
-    {groups.products.length ? <View><Eyebrow>Products</Eyebrow>{groups.products.map((group, index) => <View key={`${group.categoryId ?? 'uncategorised'}:${index}`}><Body strong>{group.categoryName ?? 'Uncategorised'}</Body>{group.items.map(renderItem)}</View>)}</View> : null}
-    {groups.services.length ? <View><Eyebrow>Other services</Eyebrow>{groups.services.map(renderItem)}</View> : null}
-    {visible && !visible.response.items.length ? <EmptyState title={`Your ${nouns.place} hasn't added anything to the shop yet.`}>Ask the front desk about available products and services.</EmptyState> : null}
-    {visible?.response.truncated ? <StateMessage>Showing the first {SHOP_LIMITS.catalogueMax} items.</StateMessage> : null}
+    </View>)}{shownReservations.length < orderedReservations.length ? <ActionButton secondary onPress={() => setReservationPage({ scope, count: reservationCount + NATIVE_MEMBER_LAYOUT.reservationLoadMore })}>Load more</ActionButton> : null}</View> : null}
     <Sheet visible={selected !== null} onClose={close}>
       {selected ? <>
         <SheetHeader title={selected.confirm ? 'Confirm reservation' : selected.item.name} control="Cancel" onControl={close} controlDisabled={busy} />
         <ShopPhoto url={selected.item.imageUrl} /><Body strong>{selected.item.name}</Body><Body>{selected.item.description}</Body>
-        <Body strong>{formatMoney(selected.item.pricePaise, selected.item.currency)}</Body>
+        <Display size="section" accent>{formatMoney(selected.item.pricePaise, selected.item.currency)}</Display>
         <Status tone={selected.item.availability === 'available' ? 'ok' : 'neutral'}>{selected.item.availability === 'available' ? 'Available' : 'Out of stock'}</Status>
         {shopGstLabel(selected.item.gstRateBp, nouns.place) ? <Body muted>{shopGstLabel(selected.item.gstRateBp, nouns.place)}</Body> : null}
         <Body muted>Validity: {selected.item.validityDays} days. {selected.item.cancellationTerms}</Body>
@@ -182,4 +205,9 @@ export default function ShopScreen() {
 const styles = StyleSheet.create({
   photo: { width: UI_TOKENS.geometry.targets.touch + UI_TOKENS.geometry.spacing[3], height: UI_TOKENS.geometry.targets.touch + UI_TOKENS.geometry.spacing[3], borderRadius: UI_TOKENS.geometry.radii.control, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
   quantity: { flexDirection: 'row', gap: UI_TOKENS.geometry.spacing[3] },
+  largePhoto: { width: UI_TOKENS.geometry.targets.touch + UI_TOKENS.geometry.spacing[6], height: UI_TOKENS.geometry.targets.touch + UI_TOKENS.geometry.spacing[6] },
+  itemCard: { borderWidth: StyleSheet.hairlineWidth, borderRadius: UI_TOKENS.geometry.radii.section, padding: UI_TOKENS.geometry.spacing[2], gap: UI_TOKENS.geometry.spacing[1] },
+  catalogueSection: { gap: UI_TOKENS.geometry.spacing[2] },
+  productGroup: { gap: UI_TOKENS.geometry.spacing[2] },
+  priceAction: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: UI_TOKENS.geometry.spacing[2] },
 });

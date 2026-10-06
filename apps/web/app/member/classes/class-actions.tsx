@@ -41,7 +41,7 @@ export function useClassCommand(scopeKey?: string) {
       }
       router.refresh(); return payload.data;
     } catch {
-      if (isCurrent()) { setMessage('The connection was interrupted. Refresh the latest schedule before trying again.'); router.refresh(); }
+      if (isCurrent()) { setMessage('The connection was interrupted. Refresh the latest schedule, then try again.'); router.refresh(); }
       return null;
     } finally { scope.pending = false; if (isCurrent()) setFeedback((old) => ({ scope, busy: false, message: old.scope === scope ? old.message : null })); }
   }

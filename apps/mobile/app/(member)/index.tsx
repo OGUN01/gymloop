@@ -9,7 +9,7 @@ import * as Crypto from 'expo-crypto';
 import * as Haptics from 'expo-haptics';
 import * as Network from 'expo-network';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { GREETING_HOURS, toLocalDate, UI_TOKENS } from '@gymloop/shared';
+import { GREETING_HOURS, NATIVE_MEMBER_LAYOUT, toLocalDate, UI_TOKENS } from '@gymloop/shared';
 import { CalendarCheck, CircleAlert, CircleCheck, Clock3, CreditCard, MessageSquareMore, ScanLine } from 'lucide-react-native';
 import { ActionButton, Body, Display, Eyebrow, FONT, Initials, LoadingState, Row, Rule, Screen, StateMessage, Status, Title, WeekRhythm, dayLabel, statusTone, statusWord } from '../../components/ui';
 import { useMobile } from '../../lib/mobile-context';
@@ -141,21 +141,21 @@ export default function MemberHome() {
     <View style={styles.lower}>
       <View style={styles.week}>
         <View accessible accessibilityLabel={`${data.weekVisits} of ${data.member.goal} visits this week`}>
-          <Display size="hero">{data.weekVisits}<Text style={styles.of}> of </Text>{data.member.goal}</Display>
+          <Display size="hero" accent>{data.weekVisits}<Text style={styles.of}> of </Text>{data.member.goal}</Display>
           <Text style={[styles.weekCaption, { color: palette.primaryText }]}>visits this week</Text>
         </View>
         <WeekRhythm days={rhythmDays} />
         <Body muted>{remaining === 0 ? 'Weekly goal complete. Nice work.' : `${remaining} more ${remaining === 1 ? 'visit' : 'visits'} to your weekly goal.`}</Body>
       </View>
-      <AnnouncementsSection feed={announcementFeed} timezone={data.gym.timezone} />
       {/* One ruled ledger, as on web: membership, the latest message when there is one, and the last visit — every row
           the same anatomy (icon, text, trailing status, chevron). */}
       <View>
         <Rule />
-        <Row icon={<CreditCard color={palette.primaryText} {...icon} />} title={data.membership ? data.membership.planName : 'No membership is visible'} meta={data.membership?.endsOn ? `Ends ${dayLabel(data.membership.endsOn, data.gym.timezone)}` : undefined} trailing={data.membership ? <Status tone={statusTone(data.membership.status)}>{statusWord(data.membership.status)}</Status> : undefined} onPress={() => router.push('/(member)/gym')} accessibilityLabel={data.membership ? `Membership, ${data.membership.planName}, ${statusWord(data.membership.status)}${data.membership.endsOn ? `, ends ${dayLabel(data.membership.endsOn, data.gym.timezone)}` : ''}` : 'Membership details'} />
-        {data.messages[0] ? <Row icon={<MessageSquareMore color={palette.primaryText} {...icon} />} title={`Latest from your ${nouns.place}`} meta={data.messages[0].body} trailing={data.messages[0].status === 'sent' ? <Status tone="accent">New</Status> : undefined} onPress={() => router.push('/(member)/gym')} accessibilityLabel={`Latest from your ${nouns.place}: ${data.messages[0].body}`} /> : null}
+        <Row icon={<CreditCard color={palette.primaryText} {...icon} />} title={data.membership ? data.membership.planName : 'No membership is visible'} meta={data.membership?.endsOn ? `Ends ${dayLabel(data.membership.endsOn, data.gym.timezone)}` : undefined} trailing={data.membership ? <Status tone={statusTone(data.membership.status)}>{statusWord(data.membership.status)}</Status> : undefined} onPress={() => router.push({ pathname: '/(member)/gym', params: { section: 'membership' } })} accessibilityLabel={data.membership ? `Membership, ${data.membership.planName}, ${statusWord(data.membership.status)}${data.membership.endsOn ? `, ends ${dayLabel(data.membership.endsOn, data.gym.timezone)}` : ''}` : 'Membership details'} />
+        {data.messages[0] ? <Row icon={<MessageSquareMore color={palette.primaryText} {...icon} />} title="Messages for you" meta={data.messages[0].body} trailing={data.messages[0].status === 'sent' ? <Status tone="accent">New</Status> : undefined} onPress={() => router.push({ pathname: '/(member)/gym', params: { section: 'messages' } })} accessibilityLabel={`Messages for you: ${data.messages[0].body}`} /> : null}
         {lastVisitText ? <Row icon={<CalendarCheck color={palette.primaryText} {...icon} />} title="Last visit" meta={lastVisitText} onPress={() => router.push('/(member)/activity')} accessibilityLabel={`Last visit, ${lastVisitText}`} accessibilityHint="Opens Activity" /> : null}
       </View>
+      <AnnouncementsSection feed={announcementFeed} timezone={data.gym.timezone} previewLimit={NATIVE_MEMBER_LAYOUT.homeAnnouncementCards} onViewAll={() => router.push('/(member)/announcements')} />
     </View>
   </Screen>;
 }

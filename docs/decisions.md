@@ -2006,6 +2006,12 @@ Installed expo-notifications exposes native Android tokens as type android;
 provider FCM identity is not inferred from a mock's fcm discriminator.
 <!-- SLF private preparation reuse declaration, 2026-10-04. -->
 
+### NAVC discovery and presentation reuse record — 2026-10-06
+
+The owner approved the narrow Classes discovery migration after the original UI-only brief. The switch controls discovery independently of business type and catalogue scheduling; it never changes booking eligibility or existing commitments. Registry and code searches found the canonical class actor/audit, member session projection/decoder, HTTP command boundary, owner command hook, native scoped readers, announcement feed and design tokens. These are reused. Existing check-in/PT/settings guards protect their own fields and cannot protect a new visibility field without expanding unrelated contracts, so the additive field-only guard is declared and independently tested. The separate own-booking reader is necessary because the existing catalogue filters service/branch browsing and cannot preserve commitments after those settings change. The app-run confirmed visibility cache follows exact user/tenant/member identity and joins existing private cleanup; it creates no persisted identity store.
+
+The owner editor uses the registered useClassCommand rather than duplicating pending/offline/preview/lifetime transport. The only existing-hook edit clarifies retry wording. Native screens reuse Screen, LedgerSection, Row, ActionButton, announcement/version handling, formatDay, humanized business nouns and primaryAction. The new announcement destination is required for a separate full feed; existing inline expansion cannot be a non-primary route. Native preview counts live in constants.ts; Shop's Load more reveals the existing response and does not claim database pagination. Freeze changes are presentation only and preserve its existing hook and ISO payload. Personal Messages for you and shared From your gym/studio/academy remain distinct; no notification bell is introduced.
+
 **SLF private preparation capability (mechanical implementation declaration,
 2026-10-04).** Existing prepare/finish/lock/consistency helpers are reused; an
 ordinary GUC, caller temporary object or advisory marker cannot prove exact

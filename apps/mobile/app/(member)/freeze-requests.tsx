@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useRouter } from 'expo-router';
 import { DEFAULT_TIMEZONE, SLF_LIMITS, freezeRequestCopy, freezeRequestRefusalMessage } from '@gymloop/shared';
-import { Text } from 'react-native';
+import { KeyboardAvoidingView, Platform } from 'react-native';
 import { ActionButton, Body, Field, Screen, StateMessage, Title } from '../../components/ui';
 import { MemberFreezeBody } from '../../components/freeze-requests';
 import { useMemberFreezeRequests } from '../../lib/member-freeze-requests';
@@ -45,7 +45,7 @@ export default function FreezeRequestsScreen() {
     if (!answer.ok) setNotice(answer.offline ? copy.offlineNotice : freezeRequestRefusalMessage(answer.code ?? 'operation_failed'));
     else setNotice(null);
   };
-  return <Screen footer={<Body muted>{copy.requestNotice}</Body>}>
+  return <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}><Screen>
     <Title>Freeze requests</Title>
     {notice ? <StateMessage tone="warning">{notice}</StateMessage> : null}
     <MemberFreezeBody
@@ -58,14 +58,14 @@ export default function FreezeRequestsScreen() {
       onCancel={(requestId) => void withdraw(requestId)}
     />
     {canRequest ? <>
-      <Text>{copy.startsOnLabel}</Text>
+      <Body strong>{copy.startsOnLabel}</Body>
       <Field placeholder="YYYY-MM-DD" value={startsOn} onChangeText={setStartsOn} autoCapitalize="none" accessibilityLabel={copy.startsOnLabel} />
-      <Text>{copy.endsOnLabel}</Text>
+      <Body strong>{copy.endsOnLabel}</Body>
       <Field placeholder="YYYY-MM-DD" value={endsOn} onChangeText={setEndsOn} autoCapitalize="none" accessibilityLabel={copy.endsOnLabel} />
-      <Text>{copy.reasonLabel}</Text>
+      <Body strong>{copy.reasonLabel}</Body>
       <Field placeholder={copy.reasonLabel} value={reason} onChangeText={setReason} maxLength={SLF_LIMITS.reasonMaxChars} accessibilityLabel={copy.reasonLabel} />
       <ActionButton onPress={() => void submit()}>{copy.sendCta}</ActionButton>
-      <Text>{copy.datesNote}</Text>
+      <Body muted>{copy.datesNote}</Body>
     </> : null}
-  </Screen>;
+  </Screen></KeyboardAvoidingView>;
 }

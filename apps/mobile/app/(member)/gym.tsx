@@ -1,10 +1,10 @@
 import { humanize, planCatalogueCopy } from '@gymloop/shared';
 import { useBusinessNouns } from '../../lib/use-business-nouns';
 import { formatMoney, toLocalDate, UI_TOKENS } from '@gymloop/shared';
-import { useRouter } from 'expo-router';
-import { ChartNoAxesColumn, CreditCard, MessageSquareMore, Package, ScanLine, Tag } from 'lucide-react-native';
+import { useLocalSearchParams, useRouter } from 'expo-router';
+import { CalendarDays, ChartNoAxesColumn, CreditCard, MessageSquareMore, Package, ScanLine, Tag } from 'lucide-react-native';
 import { StyleSheet, Text, View } from 'react-native';
-import { useState, type ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { ActionButton, Body, Eyebrow, FONT, LoadingState, Row, Screen, StateMessage, Status, Title, dayLabel, statusTone, statusWord } from '../../components/ui';
 import { useMobile } from '../../lib/mobile-context';
 import { PlanCatalogueBody } from '../../components/plan-catalogue';
@@ -51,11 +51,14 @@ function LedgerGroup({ title, empty, note, children }: { title: string; empty: s
 export default function GymScreen() {
   const nouns = useBusinessNouns();
   const router = useRouter();
+  const { section } = useLocalSearchParams<{ section?: string | string[] }>();
   const { api, palette } = useMobile();
   const { data, error, loading, reload } = useMemberSnapshot();
-  const [openSection, setOpenSection] = useState<string | null>('addons');
+  const requestedSection = typeof section === 'string' && ['membership', 'plans', 'addons', 'messages'].includes(section) ? section : section === 'consent' || section === 'notifications' ? 'messages' : null;
+  const [openSection, setOpenSection] = useState<string | null>(requestedSection);
+  useEffect(() => { setOpenSection(requestedSection); }, [requestedSection]);
   const [marking, setMarking] = useState(false);
-  const [markError, setMarkError] = useState<string | null>('addons');
+  const [markError, setMarkError] = useState<string | null>(null);
   const plans = useMemberPlans(openSection === 'plans');
   const plansCopy = planCatalogueCopy(nouns);
   if (loading) return <Screen><LoadingState /></Screen>;
@@ -82,6 +85,12 @@ export default function GymScreen() {
       <Text style={[styles.gymLine, { color: palette.secondaryText }]}>{data.gym.branchName} · {humanize(nouns.place)} code <Text style={{ color: palette.primaryText, fontFamily: FONT.semibold }}>{data.gym.code}</Text></Text>
       {address ? <Text style={[styles.address, { color: palette.secondaryText }]}>{address}</Text> : null}
     </View>
+    <View style={[styles.renewal, { borderColor: palette.decorativeSeparator }]}>
+      <Eyebrow>Your membership</Eyebrow>
+      <Body strong>{membershipMeta}</Body>
+      <ActionButton secondary onPress={() => setOpenSection('plans')}>Renew plan · View plans</ActionButton>
+      <ActionButton secondary onPress={() => router.push('/(member)/buy')}>Buy · Purchase requests</ActionButton>
+    </View>
     <View style={[styles.list, { borderColor: palette.decorativeSeparator }]}>
       <Row icon={<CreditCard {...icon} />} title="Membership & receipts" meta={membershipMeta} status={data.membership ? <Status tone={statusTone(data.membership.status)}>{membershipStatus}</Status> : undefined} expanded={openSection === 'membership'} onPress={() => toggle('membership')} accessibilityLabel={`Membership & receipts, ${membershipMeta}${membershipStatus ? `, ${membershipStatus}` : ''}`} />
       {openSection === 'membership' ? <View style={[styles.sectionBody, { borderColor: palette.decorativeSeparator }]}>
@@ -89,7 +98,8 @@ export default function GymScreen() {
       </View> : null}
       <Row icon={<Tag {...icon} />} title="Plans & prices" meta={plansCopy.rowMeta} expanded={openSection === 'plans'} onPress={() => toggle('plans')} accessibilityLabel={`Plans & prices, ${plansCopy.rowMeta}`} />
       {openSection === 'plans' ? <View style={[styles.sectionBody, { borderColor: palette.decorativeSeparator }]}><PlanCatalogueBody state={plans.state} copy={plansCopy} timeZone={data.gym.timezone} onRetry={() => { void plans.reload(); }} /></View> : null}
-      <Row icon={<Tag {...icon} />} title="Trainers & programmes" meta={`Explore training at your ${nouns.place}`} onPress={() => router.push({ pathname: '/(member)/classes', params: { section: 'training' } })} accessibilityHint="Opens Training" />
+      <Row icon={<CalendarDays {...icon} />} title="My classes" meta="Your bookings and cancellation details" onPress={() => router.push({ pathname: '/(member)/classes', params: { section: 'bookings' } })} accessibilityHint="Opens your class bookings" />
+      <Row icon={<Tag {...icon} />} title={`${humanize(nouns.trainer)}s & programmes`} meta={`Explore training at your ${nouns.place}`} onPress={() => router.push({ pathname: '/(member)/classes', params: { section: 'training' } })} accessibilityHint="Opens Training" />
       <Row icon={<Package {...icon} />} title="Freeze requests" meta={`Ask your ${nouns.place} to pause your membership`} onPress={() => router.push('/(member)/freeze-requests')} accessibilityHint="Opens Freeze requests" />
       <Row icon={<Package {...icon} />} title="Other services" onPress={() => router.push('/(member)/shop')} accessibilityHint="Opens Shop" />
       <Row icon={<ChartNoAxesColumn {...icon} />} title="Attendance history" meta={lastVisit ? `Last visit ${lastVisit}` : 'No visits yet'} onPress={() => router.push('/(member)/activity')} accessibilityLabel={`Attendance history, ${lastVisit ? `last visit ${lastVisit}` : 'no visits yet'}`} accessibilityHint="Opens Activity" />
@@ -115,6 +125,7 @@ const styles = StyleSheet.create({
   // The address is a caption at the ledger-subtitle size, 4 below the branch line.
   address: { marginTop: space[0], fontFamily: FONT.regular, fontSize: UI_TOKENS.typography.compact.size, lineHeight: UI_TOKENS.typography.compact.lineHeight },
   list: { borderTopWidth: StyleSheet.hairlineWidth },
+  renewal: { borderWidth: StyleSheet.hairlineWidth, borderRadius: UI_TOKENS.geometry.radii.section, padding: space[3], gap: space[2] },
   // Open-section content sits on the text column (after the icon column and the row gap) and closes with the same
   // full-width hairline as a collapsed row: 12 above the first eyebrow, 12 between groups, and the last line's own 12
   // below. Inside a group the lines carry no gap, so every rule has an even 12 above and below it.

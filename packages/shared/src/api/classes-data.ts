@@ -3,12 +3,13 @@ import type { Database } from '@gymloop/db';
 import { BOOKING_STATUSES, CLASS_SESSION_STATUSES, CLASS_AVAILABILITIES } from './classes';
 import { isoDaySchema } from './memberships';
 
-type Reads = 'read_member_class_schedule' | 'read_class_timetable' | 'read_class_roster';
+type Reads = 'read_member_class_schedule' | 'read_class_timetable' | 'read_class_roster' | 'read_member_class_visibility' | 'read_member_upcoming_class_bookings';
 type Functions = Database['public']['Functions'];
-export type ClassReadClient = { rpc<N extends Reads>(name: N, args: Functions[N]['Args']): PromiseLike<{ data: unknown; error: unknown }> };
+export type ClassReadClient = { rpc<N extends Reads>(name: N, args?: Functions[N]['Args']): PromiseLike<{ data: unknown; error: unknown }> };
 export type ClassReadWindow = { from: string; to: string };
 const fields = { uuid: z.uuid(), nullableUuid: z.uuid().nullable(), text: z.string(), nullableText: z.string().nullable(), day: isoDaySchema, instant: z.string().refine((value) => !Number.isNaN(Date.parse(value))), nullableInstant: z.string().refine((value) => !Number.isNaN(Date.parse(value))).nullable(), count: z.number().int().nonnegative(), boolean: z.boolean(), nullableBoolean: z.boolean().nullable(), booking: z.enum(BOOKING_STATUSES), nullableBooking: z.enum(BOOKING_STATUSES).nullable(), sessionStatus: z.enum(CLASS_SESSION_STATUSES), availability: z.enum(CLASS_AVAILABILITIES) };
 const memberRow = z.object({ session_id: fields.uuid, service_id: fields.uuid, service_name: fields.text, service_description: fields.nullableText, branch_id: fields.uuid, branch_name: fields.text, timezone: fields.text, session_date: fields.day, starts_at: fields.instant, ends_at: fields.instant, trainer_name: fields.nullableText, capacity: fields.count, booked_count: fields.count, spots_left: fields.count, session_status: fields.sessionStatus, my_booking_id: fields.nullableUuid, my_booking_status: fields.nullableBooking, availability: fields.availability, can_cancel: fields.boolean, cancel_by: fields.nullableInstant });
+const ownBookingRow = memberRow.extend({ my_booking_id: fields.uuid, my_booking_status: fields.booking });
 const memberProjection = (row: z.infer<typeof memberRow>) => ({ sessionId: row.session_id, serviceId: row.service_id, serviceName: row.service_name, serviceDescription: row.service_description, branchId: row.branch_id, branchName: row.branch_name, timezone: row.timezone, sessionDate: row.session_date, startsAt: row.starts_at, endsAt: row.ends_at, trainerName: row.trainer_name, capacity: row.capacity, bookedCount: row.booked_count, spotsLeft: row.spots_left, sessionStatus: row.session_status, myBookingId: row.my_booking_id, myBookingStatus: row.my_booking_status, availability: row.availability, canCancel: row.can_cancel, cancelBy: row.cancel_by });
 const timetableRow = z.object({ session_id: fields.uuid, service_id: fields.uuid, service_name: fields.text, service_is_active: fields.boolean, branch_id: fields.uuid, session_date: fields.day, starts_at: fields.instant, ends_at: fields.instant, timezone: fields.text, trainer_staff_id: fields.nullableUuid, trainer_name: fields.nullableText, trainer_is_active: fields.nullableBoolean, capacity: fields.count, booked_count: fields.count, attended_count: fields.count, no_show_count: fields.count, spots_left: fields.count, session_status: fields.sessionStatus, cancel_reason: fields.nullableText, rule_id: fields.nullableUuid, is_customised: fields.boolean, on_holiday: fields.boolean, trainer_overlaps: fields.boolean });
 const timetableProjection = (row: z.infer<typeof timetableRow>) => ({ sessionId: row.session_id, serviceId: row.service_id, serviceName: row.service_name, serviceIsActive: row.service_is_active, branchId: row.branch_id, sessionDate: row.session_date, startsAt: row.starts_at, endsAt: row.ends_at, timezone: row.timezone, trainerStaffId: row.trainer_staff_id, trainerName: row.trainer_name, trainerIsActive: row.trainer_is_active, capacity: row.capacity, bookedCount: row.booked_count, attendedCount: row.attended_count, noShowCount: row.no_show_count, spotsLeft: row.spots_left, sessionStatus: row.session_status, cancelReason: row.cancel_reason, ruleId: row.rule_id, isCustomised: row.is_customised, onHoliday: row.on_holiday, trainerOverlaps: row.trainer_overlaps });
@@ -17,10 +18,19 @@ const rosterProjection = (row: z.infer<typeof rosterRow>) => ({ bookingId: row.b
 export type MemberClassSession = ReturnType<typeof memberProjection>;
 export type ClassTimetableSession = ReturnType<typeof timetableProjection>;
 export type ClassRosterBooking = ReturnType<typeof rosterProjection>;
-async function read<N extends Reads, R, T>(client: ClassReadClient, name: N, args: Functions[N]['Args'], schema: z.ZodType<R>, project: (row: R) => T): Promise<T[] | null> {
-  try { const result = await client.rpc(name, args); if (result.error) return null; const parsed = z.array(schema).safeParse(result.data); return parsed.success ? parsed.data.map(project) : null; } catch { return null; }
+async function read<N extends Reads, R, T>(client: ClassReadClient, name: N, args: Functions[N]['Args'] | undefined, schema: z.ZodType<R>, project: (row: R) => T): Promise<T[] | null> {
+  try { const result = args === undefined ? await client.rpc(name) : await client.rpc(name, args); if (result.error) return null; const parsed = z.array(schema).safeParse(result.data); return parsed.success ? parsed.data.map(project) : null; } catch { return null; }
 }
 export function readMemberClasses(client: ClassReadClient, window: ClassReadWindow) { return read(client, 'read_member_class_schedule', { p_from: window.from, p_to: window.to }, memberRow, memberProjection); }
+export async function readMemberClassVisibility(client: ClassReadClient): Promise<boolean | null> {
+  try {
+    const result = await client.rpc('read_member_class_visibility');
+    if (result.error) return null;
+    const parsed = z.tuple([z.object({ enabled: fields.boolean })]).safeParse(result.data);
+    return parsed.success ? parsed.data[0].enabled : null;
+  } catch { return null; }
+}
+export function readMemberUpcomingClassBookings(client: ClassReadClient): Promise<MemberClassSession[] | null> { return read(client, 'read_member_upcoming_class_bookings', undefined, ownBookingRow, memberProjection); }
 export function readClassTimetable(client: ClassReadClient, window: ClassReadWindow & { branchId: string | null }) {
   // SQL accepts NULL to select every caller-visible branch; generated metadata omits nullability.
   const args = { p_branch_id: window.branchId, p_from: window.from, p_to: window.to } as Functions['read_class_timetable']['Args'];

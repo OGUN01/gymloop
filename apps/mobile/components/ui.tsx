@@ -61,9 +61,9 @@ export function Title({ children, fit = false }: { children: ReactNode; fit?: bo
 }
 
 /** Condensed display text: hero (week count), metric, heading (a running streak, sheet titles) or section (a smaller stat line). */
-export function Display({ children, size = 'metric', muted = false }: { children: ReactNode; size?: 'hero' | 'metric' | 'heading' | 'section'; muted?: boolean }) {
+export function Display({ children, size = 'metric', muted = false, accent = false }: { children: ReactNode; size?: 'hero' | 'metric' | 'heading' | 'section'; muted?: boolean; accent?: boolean }) {
   const { palette } = useMobile();
-  return <Text style={[styles[size], { color: muted ? palette.secondaryText : palette.primaryText }]}>{children}</Text>;
+  return <Text style={[styles[size], { color: muted ? palette.secondaryText : accent ? palette.primaryAction : palette.primaryText }]}>{children}</Text>;
 }
 
 export function Body({ children, muted = false, strong = false }: { children: ReactNode; muted?: boolean; strong?: boolean }) {

@@ -8,10 +8,11 @@ import { useBusinessNouns } from '../../lib/use-business-nouns';
 export default function ClassesScreen() {
   const nouns = useBusinessNouns();
   const { section } = useLocalSearchParams<{ section?: string | string[] }>();
-  const [segment, setSegment] = useState<'classes' | 'training'>(section === 'training' ? 'training' : 'classes');
-  useEffect(() => { setSegment(section === 'training' ? 'training' : 'classes'); }, [section]);
-  return <Screen><Eyebrow>Your timetable</Eyebrow><Title>{segment === 'classes' ? humanize(nouns.classes) : 'Training'}</Title>
+  const destination = typeof section === 'string' ? section : undefined;
+  const [segment, setSegment] = useState<'classes' | 'training'>(destination === 'training' ? 'training' : 'classes');
+  useEffect(() => { setSegment(destination === 'training' ? 'training' : 'classes'); }, [destination]);
+  return <Screen><Eyebrow>{destination === 'bookings' ? 'Your commitments' : 'Your timetable'}</Eyebrow><Title>{segment === 'classes' ? destination === 'bookings' ? 'My classes' : humanize(nouns.classes) : 'Training'}</Title>
     <SegmentedControl value={segment} onChange={setSegment} />
-    {segment === 'classes' ? <ClassesPane /> : <TrainingSection />}
+    {segment === 'classes' ? <ClassesPane bookingsOnly={destination === 'bookings'} /> : <TrainingSection />}
   </Screen>;
 }

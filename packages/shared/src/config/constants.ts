@@ -656,3 +656,5 @@ export const FONT = {
   regular: 'Archivo_400Regular', medium: 'Archivo_500Medium', semibold: 'Archivo_600SemiBold', bold: 'Archivo_700Bold',
   display: 'ArchivoDisplay', displayBold: 'ArchivoDisplayBold',
 } as const;
+/** Native disclosure limits; existing catalogue reads are not paginated by these values. */
+export const NATIVE_MEMBER_LAYOUT = { homeAnnouncementCards: 2, reservationPreview: 3, reservationLoadMore: 5 } as const;

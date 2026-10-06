@@ -1,9 +1,11 @@
 import * as Network from 'expo-network';
-import { readMemberClasses, readClassTimetable, readClassRoster, classRefusalMessage, type ClassReadClient, type ClassReadWindow } from '@gymloop/shared';
+import { readMemberClasses, readMemberClassVisibility, readMemberUpcomingClassBookings, readClassTimetable, readClassRoster, classRefusalMessage, type ClassReadClient, type ClassReadWindow } from '@gymloop/shared';
 import type { ApiClient, ApiEnvelope } from '@gymloop/api-client';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Database } from '@gymloop/db';
 export function loadMemberClasses(client: SupabaseClient<Database>, window: ClassReadWindow) { return readMemberClasses(client as unknown as ClassReadClient, window); }
+export function loadMemberClassVisibility(client: SupabaseClient<Database>) { return readMemberClassVisibility(client as unknown as ClassReadClient); }
+export function loadMemberUpcomingClassBookings(client: SupabaseClient<Database>) { return readMemberUpcomingClassBookings(client as unknown as ClassReadClient); }
 export function loadDeskTimetable(client: SupabaseClient<Database>, window: ClassReadWindow & { branchId: string | null }) { return readClassTimetable(client as unknown as ClassReadClient, window); }
 export function loadDeskRoster(client: SupabaseClient<Database>, sessionId: string) { return readClassRoster(client as unknown as ClassReadClient, sessionId); }
 export function bookClass(api: ApiClient, sessionId: string, shouldSend?: () => boolean) { return onlineClassCommand<{ bookingId: string; status: Database['public']['Enums']['booking_status']; spotsLeft: number }>(api, '/api/class-bookings', { sessionId }, shouldSend); }

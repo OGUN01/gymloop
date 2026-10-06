@@ -25,6 +25,7 @@ export const classSessionRequestSchema = z.strictObject({ serviceId: z.uuid(), b
 export const classSessionUpdateRequestSchema = z.strictObject({ ...sessionFields, trainerStaffId: z.uuid().nullable() });
 export const classSessionCancelRequestSchema = z.strictObject({ reason });
 export const classSettingsRequestSchema = z.strictObject({ cancelWindowHours: z.number().int().min(0).max(CLASS_LIMITS.cancelWindowMaxHours), allowCrossBranch: z.boolean() });
+export const memberClassVisibilityRequestSchema = z.strictObject({ enabled: z.boolean() });
 export const CLASS_REFUSAL_COPY = {
   class_full: 'This class is full. Pick another time, or check again later in case someone cancels.',
   already_booked: "You're already booked into this class.",
