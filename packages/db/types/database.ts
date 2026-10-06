@@ -3064,6 +3064,7 @@ export type Database = {
           invoice_prefix: string
           logo_url: string | null
           max_freeze_days_per_year: number
+          member_classes_enabled: boolean
           members_without_dob_attested_adult_at: string | null
           no_show_threshold_days: number
           opening_hours: Json
@@ -3100,6 +3101,7 @@ export type Database = {
           invoice_prefix?: string
           logo_url?: string | null
           max_freeze_days_per_year?: number
+          member_classes_enabled?: boolean
           members_without_dob_attested_adult_at?: string | null
           no_show_threshold_days?: number
           opening_hours?: Json
@@ -3136,6 +3138,7 @@ export type Database = {
           invoice_prefix?: string
           logo_url?: string | null
           max_freeze_days_per_year?: number
+          member_classes_enabled?: boolean
           members_without_dob_attested_adult_at?: string | null
           no_show_threshold_days?: number
           opening_hours?: Json
@@ -5800,6 +5803,12 @@ export type Database = {
           trainer_name: string
         }[]
       }
+      read_member_class_visibility: {
+        Args: never
+        Returns: {
+          enabled: boolean
+        }[]
+      }
       read_member_freeze_request: {
         Args: { p_request_id: string }
         Returns: Json
@@ -5990,6 +5999,31 @@ export type Database = {
           qualification: string
           specialities: string[]
           trainer_key: string
+        }[]
+      }
+      read_member_upcoming_class_bookings: {
+        Args: never
+        Returns: {
+          availability: string
+          booked_count: number
+          branch_id: string
+          branch_name: string
+          can_cancel: boolean
+          cancel_by: string
+          capacity: number
+          ends_at: string
+          my_booking_id: string
+          my_booking_status: Database["public"]["Enums"]["booking_status"]
+          service_description: string
+          service_id: string
+          service_name: string
+          session_date: string
+          session_id: string
+          session_status: Database["public"]["Enums"]["class_session_status"]
+          spots_left: number
+          starts_at: string
+          timezone: string
+          trainer_name: string
         }[]
       }
       read_member_whatsapp_settings: { Args: never; Returns: Json }
@@ -6434,6 +6468,13 @@ export type Database = {
           p_member_id: string
         }
         Returns: undefined
+      }
+      set_member_classes_enabled: {
+        Args: { p_enabled: boolean }
+        Returns: {
+          changed: boolean
+          enabled: boolean
+        }[]
       }
       set_member_push_preference: {
         Args: {
