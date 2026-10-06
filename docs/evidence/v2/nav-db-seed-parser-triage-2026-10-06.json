@@ -1,0 +1,96 @@
+{
+  "certificate": "independent-held-only-seed-parser-triage",
+  "date": "2026-10-06",
+  "workflow": {
+    "run_id": "37443247398",
+    "attempt": 2,
+    "head": "26c1c4ad",
+    "seed_job_id": "112335037140"
+  },
+  "inspection_boundary": {
+    "independently_read": [
+      "AGENTS.md",
+      "public frozen demo seed declarations and approved 547becc7 clarification",
+      "independent author's own held fragment",
+      "generic workflow and pgTAP splice harness",
+      "private log metadata and generic traceback lines 428-431"
+    ],
+    "production_seed_body_read": false,
+    "visible_fixture_or_assertion_diagnostics_read": false,
+    "private_log_sha256": "2E2EDF9619B7022013CA67C839A0492CBE74BC7DA401106F3C19C73A1C6E0A80"
+  },
+  "independent_findings": {
+    "error_class": "AttributeError",
+    "generic_error": "'list' object has no attribute 'get'",
+    "parser_boundary": "The decoded JSON root is a list; the generic counter parser calls result.get('rows') before producing a visible counter verdict.",
+    "generic_traceback_evidence": [
+      {
+        "line": 428,
+        "time_utc": "14:54:31.0726587",
+        "message": "Traceback (most recent call last):"
+      },
+      {
+        "line": 429,
+        "time_utc": "14:54:31.0727209",
+        "message": "File <stdin>, line 8, in <module>"
+      },
+      {
+        "line": 430,
+        "time_utc": "14:54:31.0727698",
+        "message": "AttributeError: 'list' object has no attribute 'get'"
+      },
+      {
+        "line": 431,
+        "time_utc": "14:54:31.0873157",
+        "message": "Process completed with exit code 1."
+      }
+    ],
+    "held_proof": {
+      "reached": false,
+      "counter_observed": false,
+      "counter_acceptance": false,
+      "assertion_failure_established": false,
+      "literal_plan": 26,
+      "assertion_statement_count": 26,
+      "sha256": "23557DA41EED6239D687ADA91A1292A480F085F604F9A5255266B402A07FD7CB",
+      "unchanged_from_head_26c1c4ad": true,
+      "approved_candidate_identity_clarification_satisfied": true,
+      "plan_labels_field_foreign_money_and_immutable_guarantees_preserved": true
+    },
+    "cause_of_held_non_execution": "The workflow runs the visible proof first. Its generic JSON parser exits 1, so the fail-fast loop does not reach the held proof.",
+    "fixture_or_seed_edits_justified": false,
+    "correction_advice": "Correct only the generic JSON envelope handling while retaining fail-closed unique-counter, zero-failure and exact-plan checks. Fresh visible and held proof execution remains required."
+  },
+  "root_supplied_aggregate": {
+    "provenance": "Supplied by root; no independent native assertion-body inspection by this author.",
+    "native_pgtap": {
+      "job_id": "112273528340",
+      "status": "PASSED",
+      "completed_at_utc": "2026-10-06T14:53:48Z",
+      "aggregate_log_time_utc": "2026-10-06T14:53:41Z",
+      "files": 161,
+      "tests": 16156,
+      "result": "PASS"
+    },
+    "normal_seed_step": "SUCCESS",
+    "seed_job": {
+      "status": "FAIL",
+      "completed_at_utc": "2026-10-06T14:54:34Z",
+      "failure_reason": "generic proof result parser"
+    }
+  },
+  "acceptance": {
+    "full_native_pass_supplied": true,
+    "normal_seed_success_supplied": true,
+    "independent_visible_counter_verdict": false,
+    "held_counter_acceptance": false,
+    "full_seed_acceptance": false
+  },
+  "actions": {
+    "certificate_only": true,
+    "fixture_or_seed_edits": false,
+    "cloud_or_device_commands": false,
+    "retry_performed": false,
+    "commit_performed": false
+  }
+}

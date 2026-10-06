@@ -887,6 +887,7 @@ The shared money/credit codec, template/category placeholder vocab and request s
 | Symbol | Location | Contract | Consumers |
 |---|---|---|---|
 | `findNonRolledBackTests` | `scripts/check-pgtap-rollback.mjs` | Pure lexical guard over `{path, content}` files; requires BEGIN/START TRANSACTION and final ROLLBACK, refuses top-level completion and conservative body COMMIT, consumes quoted tokens/comments without invented SQL commands, and fails closed on unterminated constructs. | `check-pgtap-rollback` CLI, independent script/holdout regression suites, `.github/workflows/db.yml` compiled batch-2 demo proof guard |
+| DB seed replay result parser | `.github/workflows/db.yml` | Accepts the pinned CLI's plain JSON row array or legacy rows envelope; rejects error envelopes, malformed/multiple rows, extra counter fields and non-integer counters; requires failures0 and ran equal to the unchanged positive literal plan, without coercion. | Independent rollback-only batch-2 visible/held proofs; synthetic `scripts/__tests__/db-seed-result-format.test.ts` |
 
 ## Closed-test identity provisioning (PROV-001…010)
 

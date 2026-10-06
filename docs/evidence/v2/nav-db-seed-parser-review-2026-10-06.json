@@ -1,0 +1,37 @@
+{
+  "reviewedUtc": "2026-10-06T15:18:12Z",
+  "decision": "GO for the inline parser source fix; execution acceptance remains pending",
+  "baselineCommit": "963b8793",
+  "redTestCommit": "4ae36b8ddf8a67eb65263c9b490c5ec422f0d33f",
+  "scope": [
+    ".github/workflows/db.yml inline seed-result parser only",
+    "scripts/__tests__/db-seed-result-format.test.ts synthetic parser inputs only"
+  ],
+  "workflowSHA256": "D5897C1F9392DE6BC1662F366D73F5B0FAA7F1331D30559A379CF5126A55465F",
+  "workflowGitBlob": "4c35f4d5b2602080330f7ddcb9d6c1f0c94a5927",
+  "syntheticTestSHA256": "0F886CF54FBF2743D13109FCCE2A6F7042DBBE2F217D74E9F39DB36FB3BF563E",
+  "checks": {
+    "positiveLiteralPlanRequired": true,
+    "plainArrayAndObjectRowsSupported": true,
+    "rootErrorAndErrorsKeysRejectedEvenWhenEmptyOrNull": true,
+    "errorTagRejected": true,
+    "oneExactFailuresRanCounterRequired": true,
+    "integerTypesRequiredWithoutCoercion": true,
+    "zeroFailuresAndExactExpectedCountRequired": true,
+    "missingMalformedAndShortfallPathsFailClosed": true,
+    "syntheticTestsExerciseActualWorkflowHeredoc": true,
+    "redTestsUnchangedSinceTheirCommit": true,
+    "sqlSeedAndProofFixturesUnchangedFromBaseline": true,
+    "workflowTriggersAndNativeClassifierUnchanged": true
+  },
+  "pendingVerification": [
+    "Root-owned local synthetic-test result",
+    "Latest app CI for the resulting source commit",
+    "Fresh authoritative native database run, normal seed and both independent replay verdicts for the workflow input change"
+  ],
+  "priorNative161Files16156AssertionsPass": "Historical evidence for the previous workflow input; not reused as acceptance of this fix",
+  "fullReleaseAcceptance": false,
+  "reviewerExecutedTestsOrCloudCommands": false,
+  "reviewerReadSeedProofOrProductionBodies": false,
+  "reviewerFileEdits": "This certificate only"
+}

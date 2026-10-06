@@ -231,11 +231,23 @@ jobs:
           if planned is None:
               raise SystemExit('Missing literal proof plan')
           expected = int(planned.group(1))
+          if expected <= 0:
+              raise SystemExit('Seed proof requires a positive literal plan')
           result = json.loads(pathlib.Path('/tmp/batch2_seed_result.json').read_text())
-          rows = result.get('rows')
-          if result.get('_tag') == 'Error' or not isinstance(rows, list) or len(rows) != 1:
+          if isinstance(result, dict):
+              if result.get('_tag') == 'Error' or 'error' in result or 'errors' in result:
+                  raise SystemExit('Seed proof returned an error envelope')
+              rows = result.get('rows')
+          elif isinstance(result, list):
+              rows = result
+          else:
+              raise SystemExit('Seed proof returned an unsupported result')
+          if not isinstance(rows, list) or len(rows) != 1 or not isinstance(rows[0], dict):
               raise SystemExit('Seed proof returned no unique counter row')
-          if rows[0].get('failures') != 0 or rows[0].get('ran') != expected:
+          counter = rows[0]
+          if set(counter) != {'failures', 'ran'} or type(counter['failures']) is not int or type(counter['ran']) is not int:
+              raise SystemExit('Seed proof returned malformed counters')
+          if counter['failures'] != 0 or counter['ran'] != expected:
               raise SystemExit('Seed proof assertion or plan failure')
           print(f'{sys.argv[1]}: {expected}/{expected} passed; rolled back')
           PY

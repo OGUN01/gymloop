@@ -1,6 +1,6 @@
 # Gymloop database validation performance plan
 
-6 October 2026. Proposal for reducing database feedback time as the app grows, while retaining the existing correctness checks. No CI workflow, test file, migration or infrastructure was changed.
+6 October 2026. Proposal for reducing database feedback time as the app grows, while retaining the existing correctness checks. This performance plan changes no CI execution, database fixture, migration or infrastructure; the separate result-parser repair preserves all existing gates.
 
 The owner accepts the small Classes migration and wants to avoid repeated long pgTAP waits. The recommended first change is to run the existing full harness closer to the Mumbai database and measure the result. Preserve the suite and its independent verdict; optimize execution before reducing coverage.
 
@@ -10,8 +10,14 @@ The owner accepts the small Classes migration and wants to avoid repeated long p
 | --- | --- | --- | --- | --- |
 | [37389309267](https://github.com/OGUN01/gymloop/actions/runs/37389309267) | 56 seconds | 30 seconds | 124 minutes 23 seconds | pgTAP failed |
 | [37376568883](https://github.com/OGUN01/gymloop/actions/runs/37376568883) | 31 seconds | 25 seconds | 110 minutes 3 seconds | pgTAP failed |
+| [37443247398](https://github.com/OGUN01/gymloop/actions/runs/37443247398) | 20 seconds | 21 seconds | 128 minutes 55 seconds | Visible73 fixture cleanup deadlock; dependent seed skipped |
+| [37443247398 attempt 2](https://github.com/OGUN01/gymloop/actions/runs/37443247398/attempts/2) | Reused green job | Reused green job | 133 minutes 24 seconds | Full161files/16,156tests PASS; ordinary seed PASS; independent replay result-parser error |
 
 The migration itself is not the long stage in these runs. Their job metadata does not establish whether the current failures involve assertions, locks, connection problems or another cause. Resolve the actual failure as well as measuring speed; a quicker red run is useful feedback but does not complete the release gate.
+
+The retained first37443247398 attempt has narrower diagnostic evidence:161files/16,015 executed assertions, with visible73 planned356 but ran215, zero executed assertion failures and a deadlock abort at its DROP TRIGGER cleanup. The remaining141 assertions and dependent seed were unaccepted in that attempt. The [independent triage](../evidence/v2/nav-db-pt73-abort-triage-2026-10-06.json) and [read-only catalog follow-up](../evidence/v2/nav-db-pt73-catalog-2026-10-06.json) preserve the statement, raw cycle and limits: the competing backend and underlying cause remain unproven. Unchanged focused356/356 verification with restoration and one unchanged full confirmation subsequently passed. This does not establish the original cycle's cause or guarantee that regional execution removes it. Durations in the table are job metadata; first-attempt pg_prove reported7,704seconds inside the7,735-second job.
+
+Attempt2 reported7,966seconds inside the8,004-second native job and passed the complete manifest. Its dependent ordinary seed rollback also passed; the separate independent34/26proof loop failed before its first counter verdict because CLI2.110 JSON rows were an array and the generic parser expected an envelope. [Independent triage](../evidence/v2/nav-db-seed-parser-triage-2026-10-06.json) confirms the held proof was never reached. Correct only that transport parser with synthetic tests first, preserving unique typed counters, zero failures, exact literal plans, seed/SQL bytes and every existing gate. Because db.yml itself is classified as a suite input, its correction needs fresh full native CI; the earlier pass cannot be relabeled as coverage of the changed workflow.
 
 [ADR-177](../decisions.md) previously measured 56 minutes for 7,241 assertions over 101 files and attributed the delay principally to network round trips between CI and the Mumbai database. Its evidence is a strong reason to test regional execution, but is not a diagnosis of every current failure. The older twenty-minute and 47-file comments in [.github/workflows/db.yml](../../.github/workflows/db.yml) are not current performance promises.
 

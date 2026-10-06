@@ -1,0 +1,70 @@
+{
+  "project": "pecxrpskmfeuyzngvewq",
+  "fixtureOriginalSHA256": "42C6ABF643519740BBF23636C1C71DAA4E729385B8EDDE45363BE089377A2408",
+  "outerTimeoutSeconds": 1200,
+  "timeoutCalibration": "Root accepted 20-minute test process bound; no SQL/DB timeout changes",
+  "performanceAcceptance": false,
+  "normalizedOriginalSHA256": "E0993FFEADCB4AC83CF4E3DC9E3310314DA3F29B3DEDC53C01B23DC0034169A6",
+  "derivedEnvelopeSHA256": "6DECE8E8F98B05AB16BE994EE5EC93F21F576EB506E7AB5A3E1A0FB97B947358",
+  "derivedInverseOriginalStatementStream": "PASS",
+  "derivedCanonicalRollback": "PASS",
+  "localGuards": "PASS",
+  "executionTransport": "Management CLI batched counter envelope",
+  "focusedDiagnosticSupportOnly": true,
+  "nativePgProveAcceptance": false,
+  "fullReleaseAcceptance": false,
+  "clockTransportQualification": "All original assertion and clock expressions remain unchanged, but one Management API SQL batch changes the client command/statement_timestamp message boundary compared with per-statement psql/pg_prove. Counter-envelope success is focused diagnostic support only. Complete native full CI161files and dependent normal seed remain mandatory.",
+  "nativeRuntimeRequirement": "Management CLI query uses existing Cloud/API only; native Docker packet stays NOT EXECUTED",
+  "runtimeSupportedWithoutDocker": true,
+  "resultDirectory": "C:\\Users\\Harsh\\AppData\\Local\\Temp\\gymloop-seed-independent-f519c20b-4de8-450e-8e59-0da4313aafa8\\bounded-replay\\pt73-management\\results-20261006T123517Z",
+  "preWorkflowGuard": {
+    "checkedUtc": "2026-10-06T12:35:22.639703+00:00",
+    "activeConflictingWorkflows": 0,
+    "allowlistedReadOnlyMonitorCount": 0
+  },
+  "freshWorkflowGuard": {
+    "checkedUtc": "2026-10-06T12:35:37.273830+00:00",
+    "activeConflictingWorkflows": 0,
+    "allowlistedReadOnlyMonitorCount": 0
+  },
+  "focused": {
+    "exitCode": 0,
+    "timedOut": false,
+    "elapsedSeconds": 103.281,
+    "counter": {
+      "failures": 0,
+      "ran": 356
+    },
+    "complete356Counters": true,
+    "abortOrContradiction": false,
+    "counterGuardError": null,
+    "captureOverflow": false,
+    "treeTermination": {
+      "attempted": false,
+      "confirmed": true
+    },
+    "outputSHA256": "4AF51AAA9D99EE090AB9D87C4388324EAB87A2BC7EE1371812333358DCA9830B",
+    "nativePgProveAcceptance": false,
+    "fullReleaseAcceptance": false,
+    "errorKinds": []
+  },
+  "schemaRestored": true,
+  "catalogComponentsRestored": true,
+  "ownTargetDataRestored": true,
+  "gymLocalDayUnchanged": true,
+  "connectionTimeoutsUnchanged": true,
+  "originalReceiptConnectionTimeouts": {
+    "statement_timeout": "10min",
+    "lock_timeout": "0"
+  },
+  "inheritedPGOPTIONSPresent": false,
+  "fixtureUnchangedAfter": true,
+  "derivedUnchangedAfter": true,
+  "isolationAccepted": true,
+  "PASS": true,
+  "postWorkflowGuard": {
+    "checkedUtc": "2026-10-06T12:37:29.897471+00:00",
+    "activeConflictingWorkflows": 0,
+    "allowlistedReadOnlyMonitorCount": 0
+  }
+}
