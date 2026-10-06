@@ -267,4 +267,16 @@ describe('DBV-005/007 verified hosted unarmed precheck refusal', () => {
   it('refuses primitive, array and empty top-level inputs', async () => {
     for (const input of [undefined, null, true, 1, 'evidence', [], {}]) await verify(input, false);
   });
+  it.each([
+    ['review', 'reviewedAt', '+010000-01-01T00:00:00.000Z', false],
+    ['smoke', 'capturedAt', '+010000-01-01T00:00:00.000Z', false],
+    ['review', 'reviewedAt', '1969-12-31T23:59:59.999Z', false],
+    ['smoke', 'capturedAt', '1969-12-31T23:59:59.999Z', false],
+    ['review', 'reviewedAt', '1970-01-01T00:00:00.000Z', true],
+    ['smoke', 'capturedAt', '1970-01-01T00:00:00.000Z', true],
+  ] satisfies [string, string, string, boolean][])('validates the existing UTC boundary for %s.%s at %s', async (record, key, timestamp, expected) => {
+    const input = fixture();
+    set(input, [record, key], timestamp);
+    await verify(input, expected);
+  });
 });

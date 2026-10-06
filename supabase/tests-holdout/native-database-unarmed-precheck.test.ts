@@ -262,3 +262,24 @@ describe('DBV-005/007 independent exact unarmed hosted refusal classification', 
     for (const input of inputs) expect(verify(input)).toEqual({ verified: false });
   });
 });
+
+describe('DBV UTC finite four-digit timestamps at the epoch boundary', () => {
+  it.each(['review.reviewedAt', 'smoke.capturedAt'].flatMap(path =>
+    ['+010000-01-01T00:00:00.000Z', '1969-12-31T23:59:59.999Z'].map(timestamp => ({ path, timestamp })),
+  ))('refuses $timestamp at $path', async ({ path, timestamp }) => {
+    const input = fixture();
+    change(input, path, timestamp);
+    freeze(input);
+    expect((await verifier())(input)).toEqual({ verified: false });
+  });
+
+  it('accepts the exact zero-millisecond Unix epoch in both timestamp fields', async () => {
+    const input = fixture();
+    input.review.reviewedAt = '1970-01-01T00:00:00.000Z';
+    input.smoke.capturedAt = '1970-01-01T00:00:00.000Z';
+    const before = JSON.stringify(input);
+    freeze(input);
+    expect((await verifier())(input)).toEqual({ verified: true });
+    expect(JSON.stringify(input)).toBe(before);
+  });
+});
