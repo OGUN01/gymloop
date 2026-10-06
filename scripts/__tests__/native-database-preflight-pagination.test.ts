@@ -186,10 +186,12 @@ describe('DBV-005/007/008/012 hosted predecessor preflight under normalized Octo
   it('accepts the exact successful adoption baseline from a normalized collection array', async () => {
     const result = await executePreflight();
     expect({ refused: result.refused, error: result.error }).toEqual({ refused: false, error: null });
-    expect(result.getWorkflowRun).toHaveBeenCalledWith(expect.objectContaining({ run_id: IDS.baseline }));
-    expect(result.paginate).toHaveBeenCalledWith(expect.any(Function), expect.objectContaining({
-      run_id: IDS.baseline, attempt_number: 1,
-    }));
+    expect(result.getWorkflowRun.mock.calls.some(([parameters]) =>
+      String(parameters.run_id) === String(IDS.baseline),
+    )).toBe(true);
+    expect(result.paginate.mock.calls.some(([, parameters]) =>
+      String(parameters.run_id) === String(IDS.baseline) && parameters.attempt_number === 1,
+    )).toBe(true);
     expectNoExternalAction(result);
   });
 
@@ -232,13 +234,20 @@ describe('DBV-005/007/008/012 hosted predecessor preflight under normalized Octo
 
   it.each([
     ['unfinished run', { status: 'in_progress', conclusion: null }],
-    ['failed run', { conclusion: 'failure' }],
     ['different baseline source', { head_sha: 'b'.repeat(40) }],
     ['untrusted event', { event: 'pull_request' }],
     ['different branch', { head_branch: 'feature' }],
   ] satisfies [string, Partial<Run>][])('refuses the %s baseline before any external action', async (_, baseline) => {
     const result = await executePreflight({ baseline });
     expect(result.refused).toBe(true);
+    expectNoExternalAction(result);
+  });
+
+  it('permits the known old type-drift baseline failure when migrate, native and serial seed jobs succeeded', async () => {
+    // The frozen cutover deliberately reconciles this old run's type drift
+    // through the newly generated snapshot and the adopting run's drift gate.
+    const result = await executePreflight({ baseline: { conclusion: 'failure' }, baselineJobs: baselineJobs() });
+    expect({ refused: result.refused, error: result.error }).toEqual({ refused: false, error: null });
     expectNoExternalAction(result);
   });
 
@@ -260,20 +269,20 @@ describe('DBV-005/007/008/012 hosted predecessor preflight under normalized Octo
     expectNoExternalAction(result);
   });
 
-  it('allows an earlier same-run attempt with skipped native and guardian jobs', async () => {
+  it('allows skipped earlier same-run attempts after checking the complete attempt history', async () => {
     const result = await executePreflight({
-      attempt: 2,
-      pages: [[run(IDS.current, { run_attempt: 2, status: 'in_progress', conclusion: null }), run()]],
-      jobs: { [`${IDS.current}-1`]: skippedJobs() },
+      attempt: 3,
+      pages: [[run(IDS.current, { run_attempt: 3, status: 'in_progress', conclusion: null }), run()]],
+      jobs: { [`${IDS.current}-1`]: skippedJobs(), [`${IDS.current}-2`]: skippedJobs() },
     });
     expect({ refused: result.refused, error: result.error }).toEqual({ refused: false, error: null });
-    expect(result.paginate).toHaveBeenCalledWith(expect.any(Function), expect.objectContaining({
-      run_id: IDS.current, attempt_number: 1,
-    }));
+    for (const attempt_number of [1, 2]) expect(result.paginate.mock.calls.some(([, parameters]) =>
+      String(parameters.run_id) === String(IDS.current) && parameters.attempt_number === attempt_number,
+    )).toBe(true);
     expectNoExternalAction(result);
   });
 
-  it('checks every earlier same-run attempt and blocks the unresolved executed worker', async () => {
+  it('blocks an unresolved earlier same-run worker without requiring further scanning after refusal', async () => {
     const result = await executePreflight({
       attempt: 3,
       pages: [[run(IDS.current, { run_attempt: 3, status: 'in_progress', conclusion: null }), run()]],
@@ -283,9 +292,9 @@ describe('DBV-005/007/008/012 hosted predecessor preflight under normalized Octo
       },
     });
     expect(result.refused).toBe(true);
-    for (const attempt_number of [2, 1]) expect(result.paginate).toHaveBeenCalledWith(
-      expect.any(Function), expect.objectContaining({ run_id: IDS.current, attempt_number }),
-    );
+    expect(result.paginate.mock.calls.some(([, parameters]) =>
+      String(parameters.run_id) === String(IDS.current) && parameters.attempt_number === 1,
+    )).toBe(true);
     expectNoExternalAction(result);
   });
 

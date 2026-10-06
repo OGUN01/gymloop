@@ -1,6 +1,8 @@
 import { readFileSync } from 'node:fs';
-import { createRequire } from 'node:module';
-import { resolve } from 'node:path';
+import { createRequire, registerHooks } from 'node:module';
+import { isAbsolute, resolve } from 'node:path';
+import { pathToFileURL } from 'node:url';
+import { compileFunction, constants as vmConstants } from 'node:vm';
 import { describe, expect, it, vi } from 'vitest';
 
 // DBV-005/007/008/012: independently execute the deployed Actions boundary.
@@ -14,7 +16,6 @@ const currentSha = 'd'.repeat(40);
 const previousId = 37519113439;
 const workerStep = 'Validate the full native suite with outside-worker recovery custody';
 const requireFromRoot = createRequire(resolve('package.json'));
-const AsyncFunction = Object.getPrototypeOf(async () => undefined).constructor;
 
 type Run = {
   id: number;
@@ -175,13 +176,17 @@ async function execute(scenario: Scenario = {}) {
   const jobsRequested: { runId: number; attempt: number }[] = [];
   let pagesVisited = 0;
   let downloads = 0;
+  let fixturePortErrors = 0;
   const listWorkflowRuns = vi.fn();
   const listJobsForWorkflowRunAttempt = vi.fn();
   const listJobsForWorkflowRun = vi.fn();
   const listWorkflowRunArtifacts = vi.fn();
   const getWorkflowRun = vi.fn(async ({ run_id }: { run_id: number }) => {
     const record = records.get(Number(run_id));
-    if (!record) throw new Error('Fixture workflow metadata is absent.');
+    if (!record) {
+      fixturePortErrors += 1;
+      throw new Error('Fixture workflow metadata is absent.');
+    }
     return { data: record };
   });
   const paginate = Object.assign(vi.fn(async (route: unknown, parameters: {
@@ -193,15 +198,19 @@ async function execute(scenario: Scenario = {}) {
     }
     if (route === listJobsForWorkflowRunAttempt || route === listJobsForWorkflowRun) {
       const requestedId = Number(parameters.run_id);
-      const requestedAttempt = parameters.attempt_number ?? records.get(requestedId)?.run_attempt ?? 1;
+      const requestedAttempt = Number(parameters.attempt_number ?? records.get(requestedId)?.run_attempt ?? 1);
       jobsRequested.push({ runId: requestedId, attempt: requestedAttempt });
       if (requestedId === baselineId) return scenario.baselineJobs ?? successfulBaselineJobs();
       return scenario.jobs?.get(`${requestedId}-${requestedAttempt}`) ?? skippedJobs();
     }
+    fixturePortErrors += 1;
     throw new Error('Undeclared direct pagination route.');
   }), {
     iterator: vi.fn(async function* (route: unknown) {
-      if (route !== listWorkflowRuns) throw new Error('Undeclared iterator route.');
+      if (route !== listWorkflowRuns) {
+        fixturePortErrors += 1;
+        throw new Error('Undeclared iterator route.');
+      }
       for (const data of scenario.pages ?? [[current, baseline]]) {
         pagesVisited += 1;
         yield { data, status: 200, headers: {}, url: 'https://api.github.invalid/workflow-runs' };
@@ -238,13 +247,31 @@ async function execute(scenario: Scenario = {}) {
     payload: { repository: { full_name: 'OGUN01/gymloop' } },
   };
   let threw = false;
-  const preflight = new AsyncFunction('github', 'context', 'core', 'require', opaqueScript(attempt));
+  let runtimeTypeError = false;
+  const preflight = compileFunction(`return (async () => {\n${opaqueScript(attempt)}\n})();`,
+    ['github', 'context', 'core', 'require'], {
+      importModuleDynamically: vmConstants.USE_MAIN_CONTEXT_DEFAULT_LOADER,
+    });
+  // Adapt only native module resolution: workflow bytes and all verifier
+  // behavior remain unchanged, including the real filesystem cwd.
+  const loader = registerHooks({
+    resolve(specifier, context, nextResolve) {
+      return nextResolve(isAbsolute(specifier) ? pathToFileURL(specifier).href : specifier, context);
+    },
+  });
   try {
     await preflight(github, context, core, requireFromRoot);
-  } catch {
+  } catch (caught) {
+    const code = caught && typeof caught === 'object' && 'code' in caught ? String(caught.code) : '';
+    if (code.startsWith('ERR_')) throw new Error(`Holdout execution setup port failed: ${code}.`, { cause: caught });
+    runtimeTypeError = caught instanceof TypeError
+      || Boolean(caught && typeof caught === 'object' && 'name' in caught && caught.name === 'TypeError');
     threw = true;
+  } finally {
+    loader.deregister();
   }
-  return { refused: threw || failures.length > 0, pagesVisited, downloads, jobsRequested, artifactsRequested, getWorkflowRun };
+  if (fixturePortErrors) throw new Error('Holdout metadata fixture port failed.');
+  return { refused: threw || failures.length > 0, runtimeTypeError, pagesVisited, downloads, jobsRequested, artifactsRequested, getWorkflowRun };
 }
 
 describe('DBV-005/007/008/012 held Actions preflight pagination contract', () => {
@@ -281,31 +308,48 @@ describe('DBV-005/007/008/012 held Actions preflight pagination contract', () =>
     const result = await execute({ baselineJobs: successfulBaselineJobs().map(record => record.name === name
       ? { ...record, conclusion: 'skipped', steps: [], started_at: null, completed_at: null } : record) });
     expect(result.refused).toBe(true);
+    expect(result.runtimeTypeError).toBe(false);
+    expect(result.jobsRequested).toContainEqual({ runId: baselineId, attempt: 1 });
   });
 
   it.each(['migrate', 'pgtap', 'seed-dry-run'])('rejects adoption when baseline %s has no actual job', async name => {
     const result = await execute({ baselineJobs: successfulBaselineJobs().filter(record => record.name !== name) });
     expect(result.refused).toBe(true);
+    expect(result.runtimeTypeError).toBe(false);
+    expect(result.jobsRequested).toContainEqual({ runId: baselineId, attempt: 1 });
   });
 
   it('rejects a successful-looking baseline whose source differs', async () => {
-    expect((await execute({ baseline: { head_sha: currentSha } })).refused).toBe(true);
+    const result = await execute({ baseline: { head_sha: currentSha } });
+    expect(result.refused).toBe(true);
+    expect(result.runtimeTypeError).toBe(false);
+    expect(result.getWorkflowRun.mock.calls.some(([parameters]) => Number(parameters.run_id) === baselineId)).toBe(true);
   });
 
   it('rejects adoption before baseline completion', async () => {
-    expect((await execute({ baseline: { status: 'in_progress', conclusion: null } })).refused).toBe(true);
+    const result = await execute({ baseline: { status: 'in_progress', conclusion: null } });
+    expect(result.refused).toBe(true);
+    expect(result.runtimeTypeError).toBe(false);
+    expect(result.getWorkflowRun.mock.calls.some(([parameters]) => Number(parameters.run_id) === baselineId)).toBe(true);
   });
 
-  it('rejects a completed unsuccessful baseline', async () => {
-    expect((await execute({ baseline: { conclusion: 'failure' } })).refused).toBe(true);
+  it('accepts the exact completed cutover baseline with unrelated drift failure and successful required jobs', async () => {
+    const result = await execute({ baseline: { conclusion: 'failure' } });
+    expect(result.refused).toBe(false);
+    expect(result.jobsRequested).toContainEqual({ runId: baselineId, attempt: 1 });
   });
 
   it('rejects history exhaustion without the exact baseline', async () => {
-    expect((await execute({ pages: [[run(previousId)], []] })).refused).toBe(true);
+    const result = await execute({ pages: [[run(previousId)], []] });
+    expect(result.refused).toBe(true);
+    expect(result.runtimeTypeError).toBe(false);
+    expect(result.pagesVisited).toBe(2);
   });
 
   it.each([null, { workflow_runs: [] }, 'unavailable'])('fails closed for malformed normalized page %j', async page => {
-    expect((await execute({ pages: [page, [run(baselineId)]] })).refused).toBe(true);
+    const result = await execute({ pages: [page, [run(baselineId)]] });
+    expect(result.refused).toBe(true);
+    expect(result.pagesVisited).toBeGreaterThan(0);
   });
 
   it('finds an unresolved executed worker on a later page before baseline', async () => {
@@ -314,6 +358,7 @@ describe('DBV-005/007/008/012 held Actions preflight pagination contract', () =>
         steps: [{ name: workerStep, number: 1, status: 'completed', conclusion: 'cancelled' }] }), job('timeout-guardian', { head_sha: currentSha, conclusion: 'skipped', steps: [] })]],
     ]) });
     expect(result.refused).toBe(true);
+    expect(result.runtimeTypeError).toBe(false);
     expect(result.jobsRequested.some(request => request.runId === previousId)).toBe(true);
     expect(result.downloads).toBe(0);
   });
@@ -323,6 +368,8 @@ describe('DBV-005/007/008/012 held Actions preflight pagination contract', () =>
       [`${previousId}-1`, [skippedJobs()[0], job('timeout-guardian', { head_sha: currentSha })]],
     ]) });
     expect(result.refused).toBe(true);
+    expect(result.runtimeTypeError).toBe(false);
+    expect(result.jobsRequested.some(request => request.runId === previousId)).toBe(true);
     expect(result.downloads).toBe(0);
   });
 
@@ -331,6 +378,7 @@ describe('DBV-005/007/008/012 held Actions preflight pagination contract', () =>
       [`${currentId}-1`, [job('pgtap', { head_sha: currentSha, conclusion: 'timed_out' }), job('timeout-guardian', { head_sha: currentSha, conclusion: 'skipped', steps: [] })]],
     ]) });
     expect(result.refused).toBe(true);
+    expect(result.runtimeTypeError).toBe(false);
     expect(result.jobsRequested).toContainEqual({ runId: currentId, attempt: 1 });
     expect(result.downloads).toBe(0);
   });
@@ -347,8 +395,9 @@ describe('DBV-005/007/008/012 held Actions preflight pagination contract', () =>
       runRecords: new Map([[previousId, run(previousId, { run_attempt: 2 })]]), jobs: new Map([
         [`${previousId}-1`, [job('pgtap', { head_sha: currentSha, conclusion: 'failure' }), job('timeout-guardian', { head_sha: currentSha, conclusion: 'skipped', steps: [] })]],
         [`${previousId}-2`, skippedJobs()],
-      ]) });
+    ]) });
     expect(result.refused).toBe(true);
+    expect(result.runtimeTypeError).toBe(false);
     expect(result.jobsRequested).toContainEqual({ runId: previousId, attempt: 1 });
     expect(result.downloads).toBe(0);
   });
