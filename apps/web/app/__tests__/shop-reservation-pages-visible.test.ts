@@ -75,7 +75,7 @@ describe('SHP-PAGE paged Shop actual HTTP and loader contract', () => {
     [], [page([], [{ ...raw, total_paise: 1 }])], [page([], [{ ...raw, state: 'paid' }])],
     [{ ...page(), next_after_id: null }], [{ ...page(), next_after_created_at: 'bad' }],
     [page([], Array.from({ length: 6 }, () => raw))], [page([raw], [])],
-  ])('malformed continuation backend cannot enter a successful envelope %j', async bad => {
+  ].map(bad => ({ bad })))('malformed continuation backend cannot enter a successful envelope %j', async ({ bad }) => {
     h.page = bad; const response = await invoke({ mode: 'more', after: cursor });
     expect(response.status).toBe(500); const result = await response.json(); expect(result.ok).toBe(false); expect(result).not.toHaveProperty('data');
     expect(response.headers.get('cache-control')).toBe('no-store');

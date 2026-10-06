@@ -57,9 +57,10 @@ vi.mock('expo-camera', () => ({ CameraView: 'CameraView', useCameraPermissions: 
 vi.mock('expo-crypto', () => ({ randomUUID: () => 'reference-event' }));
 vi.mock('expo-web-browser', () => ({ openBrowserAsync: vi.fn() }));
 vi.mock('../../../../packages/shared/assets/fonts/GoogleSans-Medium.ttf', () => ({ default: 'test-font' }));
+const api = { post: h.post };
 vi.mock('../../lib/mobile-context', () => ({ useMobile: () => ({
   identity: { kind: 'member', userId: 'user-a', tenantId: 'tenant-a', memberId: 'member-a', role: 'member' },
-  api: { post: h.post }, ready: true, nouns: businessNouns('gym'), palette: UI_TOKENS.colors.light,
+  api, ready: true, nouns: businessNouns('gym'), palette: UI_TOKENS.colors.light,
   businessType: 'gym', appearance: 'light', supabase: {}, session: { user: { email: 'member@example.test' } }, signOut: vi.fn(),
 }) }));
 vi.mock('../../lib/use-member-snapshot', () => ({ useMemberSnapshot: () => ({ data: snapshot, error: null, loading: false, reload: vi.fn() }) }));
@@ -99,10 +100,18 @@ const product = { itemId: '72000000-0000-4000-8000-000000000701', section: 'prod
 const service = { ...product, itemId: '72000000-0000-4000-8000-000000000702', section: 'services', name: 'Actual assessment service' };
 const reservations = Array.from({ length: 11 }, (_, index) => ({
   reservationId: `72000000-0000-4000-8000-${String(index + 800).padStart(12, '0')}`, itemId: product.itemId, itemName: `Existing reservation ${index + 1} sentinel`, section: 'products',
-  quantity: 1, unitPricePaise: '199900', totalPaise: '199900', currency: 'INR', state: 'reserved',
-  createdAt: '2026-10-06T04:30:00Z', expiresAt: '2099-10-07T04:30:00Z', cancelReason: null, termsChanged: false, orderId: null, imageUrl: null,
+  quantity: 1, unitPricePaise: '199900', totalPaise: '199900', currency: 'INR', state: index < 5 ? 'reserved' : 'expired',
+  createdAt: `2026-10-05T04:30:00.000${String(999 - index).padStart(3, '0')}Z`, expiresAt: index < 5 ? '2099-10-07T04:30:00Z' : '2026-10-06T03:30:00Z', cancelReason: null, termsChanged: false, orderId: null, imageUrl: null,
 }));
 let catalogue = { items: [product, service], reservations, truncated: false, serverTime: '2026-10-06T04:30:00Z' };
+function pageFixture(body: { mode: string; after?: { id: string } }) {
+  const rows = catalogue.reservations;
+  const start = body.mode === 'initial' ? 0 : rows.findIndex(row => row.reservationId === body.after?.id) + 1;
+  const page = rows.slice(start, start + (body.mode === 'initial' ? 8 : 5));
+  const last = page.at(-1);
+  const nextAfter = start + page.length < rows.length && last ? { createdAt: last.createdAt, id: last.reservationId } : null;
+  return body.mode === 'initial' ? { ...catalogue, mode: 'initial', reservations: page, nextAfter } : { mode: 'more', reservations: page, nextAfter, serverTime: catalogue.serverTime };
+}
 let screen: () => unknown;
 let nodes: Node[] = [];
 function flatten(value: unknown, ancestors: Node[] = []): void {
@@ -177,7 +186,7 @@ beforeEach(() => {
   planState = { phase: 'ready', loadedAt: null, staleReason: null, offline: false };
   catalogue = { items: [product, service], reservations, truncated: false, serverTime: '2026-10-06T04:30:00Z' };
   h.push.mockReset(); h.scrollTo.mockReset(); h.markRead.mockReset().mockResolvedValue(undefined); h.reloadPlans.mockReset().mockResolvedValue(undefined);
-  h.post.mockReset().mockImplementation(async (path: string) => path === '/api/shop/catalogue' ? { ok: true, data: catalogue } : { ok: false, error: { code: 'network_failed', message: 'Try again.' } });
+  h.post.mockReset().mockImplementation(async (path: string, body: { mode: string; after?: { id: string } }) => path === '/api/shop/catalogue/page' ? { ok: true, data: pageFixture(body) } : { ok: false, error: { code: 'network_failed', message: 'Try again.' } });
 });
 
 describe('NAVC-008/012 compact supporting catalogue contract', () => {
@@ -308,7 +317,7 @@ describe('NAVC-008/012 approved Shop section links', () => {
   });
   it('repeated section taps retain all catalogue sections and 3/+5 disclosure without reading or navigating', async () => {
     await mount('shop'); expect(shownReservations()).toHaveLength(3);
-    expect(text()).toMatch(/8\s+(?:more\s+|additional\s+)?active\s+(?:holds|reservations)|(?:more|additional|hidden)\s+active\s+(?:holds|reservations)[^0-9]*8/i);
+    expect(text()).toMatch(/2\s+(?:more\s+|additional\s+)?active\s+(?:holds|reservations)|(?:more|additional|hidden)\s+active\s+(?:holds|reservations)[^0-9]*2/i);
     const reads = h.post.mock.calls.length;
     for (const label of ['Services', 'Plans', 'Products', 'Services', 'Products']) await press(new RegExp(`^${label}$`));
     expect(h.post).toHaveBeenCalledTimes(reads); expect(h.reloadPlans).not.toHaveBeenCalled(); expect(h.push).not.toHaveBeenCalled();
@@ -316,16 +325,18 @@ describe('NAVC-008/012 approved Shop section links', () => {
     expect(shownReservations()).toHaveLength(3);
     await press(/^Load more$/i); expect(shownReservations()).toHaveLength(8);
     await press(/^Load more$/i); expect(shownReservations()).toHaveLength(11);
-    expect(h.post).toHaveBeenCalledTimes(reads); expect(action(/Cancel/i)).toBeDefined(); expect(text()).toMatch(/2099|7 Oct|Oct 7/);
+    expect(h.post.mock.calls.filter(([, body]) => body.mode === 'initial')).toHaveLength(reads);
+    expect(h.post.mock.calls.filter(([, body]) => body.mode === 'more')).toHaveLength(1);
+    expect(action(/Cancel/i)).toBeDefined(); expect(text()).toMatch(/2099|7 Oct|Oct 7/);
   });
   it('Refresh shop stays a compact accessible action with its existing refresh behavior', async () => {
     await mount('shop'); const refresh = action(/^Refresh shop$/i);
     expect(refresh.type).toBe('RowAction');
     const button = nodes.find(node => node.type === 'Pressable' && node.ancestors?.includes(refresh));
     expect(button?.props.accessibilityRole).toBe('button');
-    const reads = h.post.mock.calls.filter(([path]) => path === '/api/shop/catalogue').length;
+    const reads = h.post.mock.calls.filter(([path, body]) => path === '/api/shop/catalogue/page' && body.mode === 'initial').length;
     await press(/^Refresh shop$/i);
-    expect(h.post.mock.calls.filter(([path]) => path === '/api/shop/catalogue')).toHaveLength(reads + 1);
+    expect(h.post.mock.calls.filter(([path, body]) => path === '/api/shop/catalogue/page' && body.mode === 'initial')).toHaveLength(reads + 1);
   });
 });
 describe('NAVC-009/012 approved compact Home', () => {

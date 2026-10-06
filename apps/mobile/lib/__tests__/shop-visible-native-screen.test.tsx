@@ -25,7 +25,8 @@ function mockReactHooks(actual: Record<string, unknown>) {
 }
 vi.mock('react', async original => mockReactHooks(await original<Record<string, unknown>>()));
 // Package-local React imports share the renderer mock, including default hooks.
-vi.mock('../mobile-context', () => ({ useMobile: () => ({ identity: h.identity, api: { post: h.post }, ready: true, nouns: { place: 'gym', plural: 'gyms', member: 'member', trainer: 'trainer', class: 'class' }, palette: {}, businessType: 'gym', appearance: 'light', supabase: {}, session: h.identity.kind === 'member' ? {} : null, signOut: vi.fn() }) }));
+const api = { post: h.post };
+vi.mock('../mobile-context', () => ({ useMobile: () => ({ identity: h.identity, api, ready: true, nouns: { place: 'gym', plural: 'gyms', member: 'member', trainer: 'trainer', class: 'class' }, palette: {}, businessType: 'gym', appearance: 'light', supabase: {}, session: h.identity.kind === 'member' ? {} : null, signOut: vi.fn() }) }));
 vi.mock('../use-member-snapshot', () => ({ useMemberSnapshot: () => ({ data: { gym: { name: 'Fixture Gym', displayName: 'Fixture Gym', timezone: 'Asia/Kolkata' } }, error: null, loading: false, reload: vi.fn() }) }));
 // NAVC-008 adds plans before Shop offers. Isolate PLC's registered read seam;
 // the actual Shop catalogue, cache, identity and command paths remain exercised.
@@ -69,7 +70,7 @@ function action(label: RegExp) {
 }
 beforeEach(async () => {
   vi.resetModules(); h.cursor = 0; h.slots = []; h.effects = []; h.changed = false; h.online = true; h.identity = { kind: 'member', userId: 'user-a', tenantId: 'tenant-a', memberId: 'member-a', role: 'member' };
-  h.post.mockReset().mockImplementation(async (path: string) => h.online && path === '/api/shop/catalogue' ? { ok: true, data: catalogue } : { ok: false, error: { code: 'network_failed', message: "That didn't go through. Try again." } }); h.queue.mockReset(); h.persist.mockReset();
+  h.post.mockReset().mockImplementation(async (path: string, body: unknown) => h.online && path === '/api/shop/catalogue/page' && (body as { mode?: unknown })?.mode === 'initial' ? { ok: true, data: { ...catalogue, mode: 'initial', nextAfter: null } } : { ok: false, error: { code: 'network_failed', message: "That didn't go through. Try again." } }); h.queue.mockReset(); h.persist.mockReset();
 });
 describe('native React runtime harness control', () => {
   it('mobile-resolved named and default hooks use the test renderer state and effects', async () => {

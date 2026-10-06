@@ -65,7 +65,7 @@ describe('SHP-PAGE paged native Shop screen integration', () => {
     await render(); h.post.mockImplementation(async (path: string) => path === '/api/shop/catalogue' ? { ok: true, data: response } : accepted ? { ok: true, data: {} } : { ok: false, status: 409, error: { code: 'reservation_expired', message: 'Expired' } });
     await press(/Cancel/i);
     if (!h.post.mock.calls.some(([path]) => String(path).includes('/cancel'))) {
-      const confirm = nodes.findLast(node => typeof node.props.onPress === 'function' && ['children', 'title', 'label', 'accessibilityLabel'].some(key => /Cancel/i.test(words(node.props[key]).trim())));
+      const confirm = [...nodes].reverse().find(node => typeof node.props.onPress === 'function' && ['children', 'title', 'label', 'accessibilityLabel'].some(key => /Cancel/i.test(words(node.props[key]).trim())));
       expect(confirm, 'Existing cancellation confirmation is reachable').toBeDefined(); await (confirm!.props.onPress as () => unknown)(); await render();
     }
     expect(h.post.mock.calls.some(([path]) => String(path).includes('/cancel'))).toBe(true); expect(h.reload).toHaveBeenCalledTimes(1);

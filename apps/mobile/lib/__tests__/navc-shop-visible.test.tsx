@@ -25,7 +25,8 @@ function mockReactHooks(actual: Record<string, unknown>) {
 }
 vi.mock('react', async original => mockReactHooks(await original<Record<string, unknown>>()));
 // Package-local React imports share the renderer mock, including default hooks.
-vi.mock('../mobile-context', () => ({ useMobile: () => ({ identity: h.identity, api: { post: h.post }, ready: true, nouns: { place: 'gym', plural: 'gyms', member: 'member', members: 'members', trainer: 'trainer', class: 'class', classes: 'classes' }, palette: {}, businessType: 'gym', appearance: 'light', supabase: {}, session: h.identity.kind === 'member' ? {} : null, signOut: vi.fn() }) }));
+const api = { post: h.post };
+vi.mock('../mobile-context', () => ({ useMobile: () => ({ identity: h.identity, api, ready: true, nouns: { place: 'gym', plural: 'gyms', member: 'member', members: 'members', trainer: 'trainer', class: 'class', classes: 'classes' }, palette: {}, businessType: 'gym', appearance: 'light', supabase: {}, session: h.identity.kind === 'member' ? {} : null, signOut: vi.fn() }) }));
 vi.mock('../use-member-snapshot', () => ({ useMemberSnapshot: () => ({ data: { gym: { name: 'Fixture Gym', displayName: 'Fixture Gym', timezone: 'Asia/Kolkata' } }, error: null, loading: false, reload: vi.fn() }) }));
 vi.mock('expo-network', () => ({ useNetworkState: () => ({ isConnected: h.online, isInternetReachable: h.online }), getNetworkStateAsync: async () => ({ isConnected: h.online, isInternetReachable: h.online }), addNetworkStateListener: () => ({ remove: vi.fn() }) }));
 vi.mock('expo-router', () => ({ useRouter: () => ({ push: h.push, replace: vi.fn() }), useLocalSearchParams: () => ({}), Link: 'Link', Redirect: 'Redirect' }));
@@ -47,10 +48,18 @@ const products = [
 ];
 const reservations = Array.from({ length: 11 }, (_, index) => ({
   reservationId: `72000000-0000-4000-8000-${String(index + 800).padStart(12, '0')}`, itemId: item.itemId, itemName: `History reservation ${index + 1} sentinel`, section: 'products',
-  quantity: 1, unitPricePaise: '199900', totalPaise: '199900', currency: 'INR', state: 'reserved',
-  createdAt: '2026-10-06T04:30:00Z', expiresAt: '2099-10-07T04:30:00Z', cancelReason: null, termsChanged: false, orderId: null, imageUrl: null,
+  quantity: 1, unitPricePaise: '199900', totalPaise: '199900', currency: 'INR', state: index < 5 ? 'reserved' : 'expired',
+  createdAt: `2026-10-05T04:30:00.000${String(999 - index).padStart(3, '0')}Z`, expiresAt: index < 5 ? '2099-10-07T04:30:00Z' : '2026-10-06T03:30:00Z', cancelReason: null, termsChanged: false, orderId: null, imageUrl: null,
 }));
 let catalogue = { items: products, reservations, truncated: false, serverTime: '2026-10-06T04:30:00Z' };
+function pageFixture(body: { mode: string; after?: { id: string } }) {
+  const rows = catalogue.reservations;
+  const start = body.mode === 'initial' ? 0 : rows.findIndex(row => row.reservationId === body.after?.id) + 1;
+  const page = rows.slice(start, start + (body.mode === 'initial' ? 8 : 5));
+  const last = page.at(-1);
+  const nextAfter = start + page.length < rows.length && last ? { createdAt: last.createdAt, id: last.reservationId } : null;
+  return body.mode === 'initial' ? { ...catalogue, mode: 'initial', reservations: page, nextAfter } : { mode: 'more', reservations: page, nextAfter, serverTime: catalogue.serverTime };
+}
 let screen: () => unknown;
 let nodes: Node[] = [];
 function flatten(value: unknown): void {
@@ -82,7 +91,7 @@ function shownReservations() { return reservations.filter(reservation => text().
 beforeEach(async () => {
   vi.resetModules(); h.cursor = 0; h.slots = []; h.effects = []; h.changed = false; h.online = true; h.identity = { kind: 'member', userId: 'user-a', tenantId: 'tenant-a', memberId: 'member-a', role: 'member' };
   h.push.mockReset(); h.persist.mockReset(); h.queue.mockReset(); catalogue = { items: products, reservations, truncated: false, serverTime: '2026-10-06T04:30:00Z' };
-  h.post.mockReset().mockImplementation(async (path: string) => path === '/api/shop/catalogue' ? { ok: true, data: catalogue } : { ok: false, error: { code: 'network_failed', message: 'Try again.' } });
+  h.post.mockReset().mockImplementation(async (path: string, body: { mode: string; after?: { id: string } }) => path === '/api/shop/catalogue/page' ? { ok: true, data: pageFixture(body) } : { ok: false, error: { code: 'network_failed', message: 'Try again.' } });
   screen = (await import('../../app/(member)/shop')).default;
 });
 describe('NAVC-008 catalogue-first native Shop', () => {
@@ -108,13 +117,14 @@ describe('NAVC-008 catalogue-first native Shop', () => {
     expect(h.push.mock.calls.some(([path]) => path === '/(member)/buy' || typeof path === 'object' && path.pathname === '/(member)/buy')).toBe(true);
   });
   it('renders three reservations, then five more per explicit tap without another catalogue fetch', async () => {
-    await render(); expect(shownReservations()).toHaveLength(3); const reads = h.post.mock.calls.filter(([path]) => path === '/api/shop/catalogue').length;
+    await render(); expect(shownReservations()).toHaveLength(3); const reads = h.post.mock.calls.filter(([path, body]) => path === '/api/shop/catalogue/page' && body.mode === 'initial').length;
     await press(/^Load more$/i); expect(shownReservations()).toHaveLength(8); await press(/^Load more$/i); expect(shownReservations()).toHaveLength(11);
-    expect(h.post.mock.calls.filter(([path]) => path === '/api/shop/catalogue')).toHaveLength(reads);
+    expect(h.post.mock.calls.filter(([path, body]) => path === '/api/shop/catalogue/page' && body.mode === 'initial')).toHaveLength(reads);
+    expect(h.post.mock.calls.filter(([path, body]) => path === '/api/shop/catalogue/page' && body.mode === 'more')).toHaveLength(1);
     expect(nodes.find(node => typeof node.props.onPress === 'function' && /^Load more$/i.test(words(node.props.children ?? node.props.title)))).toBeUndefined();
   });
-  it('discloses the eight hidden active holds and reaches their deadlines and cancellation controls', async () => {
-    await render(); expect(shownReservations()).toHaveLength(3); expect(text()).toMatch(/8\s+(?:more\s+|additional\s+)?active\s+(?:holds|reservations)|(?:more|additional|hidden)\s+active\s+(?:holds|reservations)[^0-9]*8/i);
+  it('discloses the two hidden active holds and reaches their deadlines and cancellation controls', async () => {
+    await render(); expect(shownReservations()).toHaveLength(3); expect(text()).toMatch(/2\s+(?:more\s+|additional\s+)?active\s+(?:holds|reservations)|(?:more|additional|hidden)\s+active\s+(?:holds|reservations)[^0-9]*2/i);
     await press(/^Load more$/i); expect(text()).toContain(reservations[3]!.itemName); expect(text()).toContain(reservations[4]!.itemName);
     expect(text()).toMatch(/2099|7 Oct|Oct 7/); expect(action(/Cancel/i)).toBeDefined();
   });
