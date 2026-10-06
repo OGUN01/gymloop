@@ -218,7 +218,7 @@ set local role authenticated;
 select pg_temp.claim(21);
 select is(pg_temp.capture('service',$$select public.create_service('Mixed activity',null,60,20,0) as id$$),'OK','NAVC-001: existing catalogue command reused');
 select is(pg_temp.capture('rule',$$select * from public.create_class_rules(pg_temp.id('service','id'),pg_temp.u(12),array[extract(dow from (statement_timestamp() at time zone 'Etc/GMT+12')::date+4)::smallint],time '10:00',60,20,null,(statement_timestamp() at time zone 'Etc/GMT+12')::date+4,null)$$),'OK','NAVC-001: existing mixed-activity rule command reused');
-select is(pg_temp.capture('session',$$select public.create_class_session(pg_temp.id('service','id'),pg_temp.u(12),(statement_timestamp()+interval '3 days' at time zone 'Etc/GMT+12')::date,time '18:00',60,20,null) as id$$),'OK','NAVC-001: existing session command reused');
+select is(pg_temp.capture('session',$$select public.create_class_session(pg_temp.id('service','id'),pg_temp.u(12),((statement_timestamp()+interval '3 days') at time zone 'Etc/GMT+12')::date,time '18:00',60,20,null) as id$$),'OK','NAVC-001: existing session command reused');
 select pg_temp.claim(101);
 select is(pg_temp.capture('booking',$$select * from public.book_class_session(pg_temp.id('session','id'))$$),'OK','NAVC-005: Off does not change new-booking authorization');
 set local role postgres;
@@ -313,8 +313,8 @@ select ok(not exists(select 1 from jsonb_array_elements(pg_temp.val('absolute'))
 -- and inclusion without changing the clock or installing a test-only reader.
 set local role postgres;
 select is(pg_temp.run($probe$do $b$ begin
- update public.class_sessions set starts_at=statement_timestamp()+interval '28 days',ends_at=statement_timestamp()+interval '28 days 1 hour',session_date=(statement_timestamp()+interval '28 days' at time zone 'Etc/GMT+12')::date where id=pg_temp.u(304);
- update public.class_sessions set starts_at=statement_timestamp()-interval '1 hour',ends_at=statement_timestamp(),session_date=(statement_timestamp()-interval '1 hour' at time zone 'Etc/GMT+12')::date where id=pg_temp.u(303);
+ update public.class_sessions set starts_at=statement_timestamp()+interval '28 days',ends_at=statement_timestamp()+interval '28 days 1 hour',session_date=((statement_timestamp()+interval '28 days') at time zone 'Etc/GMT+12')::date where id=pg_temp.u(304);
+ update public.class_sessions set starts_at=statement_timestamp()-interval '1 hour',ends_at=statement_timestamp(),session_date=((statement_timestamp()-interval '1 hour') at time zone 'Etc/GMT+12')::date where id=pg_temp.u(303);
  set local role authenticated;
  perform pg_temp.capture('boundary','select * from public.read_member_upcoming_class_bookings()');
  end $b$;$probe$),'OK','NAVC-014: capture exact upper and end boundaries in one statement');
@@ -322,8 +322,8 @@ select ok(not exists(select 1 from jsonb_array_elements(pg_temp.val('boundary'))
 select ok(not exists(select 1 from jsonb_array_elements(pg_temp.val('boundary'))r where r->>'session_id'=pg_temp.u(303)::text),'NAVC-014: end exactly at captured clock excluded');
 set local role postgres;
 select is(pg_temp.run($probe$do $b$ begin
- update public.class_sessions set starts_at=statement_timestamp()+interval '28 days'-interval '1 microsecond',ends_at=statement_timestamp()+interval '28 days 1 hour',session_date=(statement_timestamp()+interval '28 days'-interval '1 microsecond' at time zone 'Etc/GMT+12')::date where id=pg_temp.u(304);
- update public.class_sessions set starts_at=statement_timestamp()-interval '1 hour',ends_at=statement_timestamp()+interval '1 microsecond',session_date=(statement_timestamp()-interval '1 hour' at time zone 'Etc/GMT+12')::date where id=pg_temp.u(303);
+ update public.class_sessions set starts_at=statement_timestamp()+interval '28 days'-interval '1 microsecond',ends_at=statement_timestamp()+interval '28 days 1 hour',session_date=((statement_timestamp()+interval '28 days'-interval '1 microsecond') at time zone 'Etc/GMT+12')::date where id=pg_temp.u(304);
+ update public.class_sessions set starts_at=statement_timestamp()-interval '1 hour',ends_at=statement_timestamp()+interval '1 microsecond',session_date=((statement_timestamp()-interval '1 hour') at time zone 'Etc/GMT+12')::date where id=pg_temp.u(303);
  set local role authenticated;
  perform pg_temp.capture('inside','select * from public.read_member_upcoming_class_bookings()');
  end $b$;$probe$),'OK','NAVC-014: capture just-inside horizon and end boundaries');
