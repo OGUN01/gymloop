@@ -40,7 +40,8 @@ vi.mock('react-native', () => ({
   Dimensions: { get: () => ({ width: 390, height: 844 }) }, useWindowDimensions: () => ({ width: 390, height: 844, scale: 1, fontScale: 1 }),
   useColorScheme: () => 'light', AppState: { currentState: 'active', addEventListener: () => ({ remove: vi.fn() }) },
   AccessibilityInfo: { announceForAccessibility: vi.fn(), isReduceMotionEnabled: async () => false, addEventListener: () => ({ remove: vi.fn() }) },
-  Animated: { View: 'AnimatedView', ScrollView: 'AnimatedScrollView', event: () => vi.fn(), Value: class { interpolate() { return 0; } setValue() {} }, timing: () => ({ start: vi.fn(), stop: vi.fn() }), spring: () => ({ start: vi.fn(), stop: vi.fn() }), loop: () => ({ start: vi.fn(), stop: vi.fn() }), parallel: () => ({ start: vi.fn(), stop: vi.fn() }) },
+  // Both public scroll components mount the same imperative ScrollView host.
+  Animated: { View: 'AnimatedView', ScrollView: 'ScrollView', event: () => vi.fn(), Value: class { interpolate() { return 0; } setValue() {} }, timing: () => ({ start: vi.fn(), stop: vi.fn() }), spring: () => ({ start: vi.fn(), stop: vi.fn() }), loop: () => ({ start: vi.fn(), stop: vi.fn() }), parallel: () => ({ start: vi.fn(), stop: vi.fn() }) },
   Easing: { linear: (value: unknown) => value, out: (value: unknown) => value, inOut: (value: unknown) => value, ease: (value: unknown) => value },
 }));
 vi.mock('react-native-safe-area-context', () => ({ SafeAreaView: 'SafeAreaView', useSafeAreaInsets: () => ({ top: 0, right: 0, bottom: 0, left: 0 }) }));
