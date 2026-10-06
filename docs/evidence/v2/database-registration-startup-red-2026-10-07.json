@@ -1,0 +1,35 @@
+{
+  "contractCommit": "06bf40d9",
+  "contract": "openspec/changes/database-validation-regional-runner/registration-startup-custody.md",
+  "scope": "DBV-008 private one-job registration-startup custody",
+  "visible": {
+    "testCommit": "8c2680ad",
+    "path": "scripts/__tests__/native-registration-custodian.test.ps1",
+    "sha256": "56f74de614b44c535f7866b2380973a6dc23a5a0eda5abd04f8ea7cdf34f9db1",
+    "groups": 6,
+    "passed": 0,
+    "failed": 6,
+    "executedAssertions": 0,
+    "exitCode": 1,
+    "redReason": "Required implementation module is absent before construction",
+    "privateLogSha256": "9d8b571cf5ab99ed67e8b31dfccba53bed607c5fdb1e72a35460ff6a0bb00614"
+  },
+  "holdout": {
+    "testCommit": "b7683945",
+    "path": "supabase/tests-holdout/native-registration-custodian.test.ps1",
+    "sha256": "10352224bfcfba476bcd94be1e24b35714f7f21ba082325d067f9b2b681013a8",
+    "checks": 23,
+    "passed": 0,
+    "failed": 23,
+    "exitCode": 1,
+    "parseErrors": 0,
+    "privateLogSha256": "191545e5b8b332a5eb5e119c6b6b353b0e95cbf39267298e1d3ea6d991a9f83a"
+  },
+  "testBodiesReadByRootOrImplementer": false,
+  "testsChangedAfterImplementation": false,
+  "nativePhysicalIntegrationProven": false,
+  "productionRunnerConfigured": false,
+  "cloudWorkloadStarted": false,
+  "playUploaded": false,
+  "next": "Build protected module and fixed production entry; execute frozen tests black-box; fresh source review; only then admit the actual bound worker"
+}
