@@ -37,7 +37,7 @@ WHEN Buy, Freeze requests, full announcements or Training is opened, the system 
 - **THEN** native Training is reachable without a sixth tab and other roles retain their existing permission boundary
 
 ### Requirement: NAVC-008 catalogue-first Shop
-WHEN Shop opens, the system SHALL display Products grouped by saved category, Plans and Services before purchase-request access and reservation history. Missing category SHALL be Other products and missing/invalid image SHALL use the existing honest placeholder. It SHALL show three reservations initially and reveal five more per explicit Load more tap from the existing response, disclose hidden active reservations, and retain hold deadlines and cancellation actions. It SHALL not claim database pagination.
+WHEN Shop opens, the system SHALL show saved-category Products, Plans and Services before purchase access and reservations. Missing categories SHALL use Other products; missing/invalid images SHALL use the existing honest placeholder. It SHALL show three reservations, reveal five more per explicit Load more tap from the existing response, disclose hidden active reservations and retain hold deadlines/cancellation actions. It SHALL not claim database pagination.
 
 #### Scenario: Uncategorised product and six reservations
 - **WHEN** the response has an uncategorised product with no image and six reservations
