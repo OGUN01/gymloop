@@ -42,6 +42,7 @@ This declaration is fixed before fan-out. Authors read these contracts/specs, no
 - `Display` adds optional `accent: boolean` (default false), using the existing palette primaryAction.
 - `NATIVE_MEMBER_LAYOUT` in shared constants: `homeAnnouncementCards: 2`, `reservationPreview: 3`, `reservationLoadMore: 5`. Register this and every added exported hook/helper/schema/screen.
 - Home's business-header target must take only remaining row width (`flex: 1`, `minWidth: 0`), while the existing You avatar target keeps its token-sized touch area (`flexShrink: 0`). Long business/branch text may ellipsize visually but retains the full accessible label, ordinary text scaling and canonical routes. This fixes NAVC-012 device overflow at OnePlus font_scale1.35 without shrinking or recoloring the avatar.
+- Member layout's Off redirect must use the currently focused child route's global query parameters; individual Classes/Gym screens retain local parameters. The layout reads `useGlobalSearchParams` for exact scalar `section=bookings|training`, preserving contextual commitments while redirecting primary Classes when hidden. Stale or absent layout-local values must not close a legitimate contextual route, and arrays remain invalid. This is NAVC-003/007 routing repair, with no change to the saved visibility or booking contract.
 
 ## Risks / Trade-offs
 
