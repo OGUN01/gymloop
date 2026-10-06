@@ -1,0 +1,38 @@
+{
+  "observedAt": "2026-10-06T22:27:21.826605+00:00",
+  "implementationCommit": "684d10bd",
+  "frozenContractCommit": "90568b9e",
+  "testOnlyCommits": [
+    "a5648faa",
+    "3ce8a4f0",
+    "3a0943e0"
+  ],
+  "testAuthorRepairBasis": "Independent original authors repaired fixtures against the unchanged frozen contract. Original red commits remain retained. Implementer changed no tests and inspected no held bodies.",
+  "finalTransportTests": {
+    "visible": {
+      "path": "scripts/__tests__/native-database-preflight-pagination.test.ts",
+      "cases": 35,
+      "originalSourceRedFailures": 18,
+      "originalSourcePasses": 17,
+      "workingFileSha256": "69c0e2b75601e1732b29f914fde49ac8cd1bd6154a81782c11ccc457783efc10"
+    },
+    "held": {
+      "path": "supabase/tests-holdout/native-database-preflight-pagination.test.ts",
+      "cases": 22,
+      "originalSourceRedFailures": 11,
+      "originalSourcePasses": 11,
+      "workingFileSha256": "e77456a36d100eea9bbdf44a75e916ddfb2eec1ab31abde91077d1dffdb7ac0e"
+    }
+  },
+  "focusedPassed": 57,
+  "fullJavaScriptTooling": {
+    "numTotalTestSuites": 569,
+    "numTotalTests": 6115,
+    "numPassedTests": 6115,
+    "numFailedTests": 0,
+    "success": true
+  },
+  "privateFullReportSha256": "baeffb50032d652caa685a0edd9933ddb0ccef70c28f3cf9e6eb3191fdcd7402",
+  "staticCritic": "Source GO; separate final visible and held reviews GO. Actual CI native performance/restoration pending.",
+  "scope": "Workflow transport only; app/schema/SQL inputs unchanged. Windows protected-directory fix separately pending."
+}

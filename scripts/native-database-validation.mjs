@@ -46,9 +46,11 @@ async function privateDirectory(path, workdir) {
   await mkdir(directory, { recursive: true, mode: NATIVE_DB_VALIDATION.privateDirectoryMode });
   if ((await lstat(directory)).isSymbolicLink() || await realpath(directory) !== directory) throw refuse('RECEIPT_UNAVAILABLE');
   if (process.platform === 'win32') {
-    const script = 'param([string]$p) $a=Get-Acl -LiteralPath $p; $s=[System.Security.Principal.WindowsIdentity]::GetCurrent().User.Value; $ok=@($a.Access | Where-Object { $_.AccessControlType -eq "Allow" -and $_.IdentityReference.Translate([System.Security.Principal.SecurityIdentifier]).Value -notin @($s,"S-1-5-18","S-1-5-32-544") }).Count -eq 0; if (-not $ok) { exit 1 }; Write-Output "protected"';
-    const check = await capture('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', script, directory], { cwd: workdir });
-    if (check.exitCode !== 0 || check.stdout.trim() !== 'protected') throw refuse('RECEIPT_UNAVAILABLE');
+    const script = `$ErrorActionPreference='Stop'; $ProgressPreference='SilentlyContinue'; Import-Module (Join-Path $PSHOME 'Modules/Microsoft.PowerShell.Security/Microsoft.PowerShell.Security.psd1'); $p=[Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('${Buffer.from(directory, 'utf8').toString('base64')}')); $a=Get-Acl -LiteralPath $p; $s=[System.Security.Principal.WindowsIdentity]::GetCurrent().User.Value; $ok=@($a.Access | Where-Object { $_.AccessControlType -eq "Allow" -and $_.IdentityReference.Translate([System.Security.Principal.SecurityIdentifier]).Value -notin @($s,"S-1-5-18","S-1-5-32-544") }).Count -eq 0; if (-not $ok) { exit 1 }; Write-Output "protected"`;
+    const check = await capture('powershell.exe', ['-NoProfile', '-NonInteractive', '-EncodedCommand', Buffer.from(script, 'utf16le').toString('base64')],
+      { cwd: workdir, timeoutMs: NATIVE_DB_VALIDATION.processStopGraceMs });
+    if (check.completed !== true || check.exitCode !== 0 || check.signal !== null || check.stderr.trim() !== '' ||
+        check.stdout.trim() !== 'protected') throw refuse('RECEIPT_UNAVAILABLE');
   } else {
     await chmod(directory, NATIVE_DB_VALIDATION.privateDirectoryMode);
     const observed = await stat(directory);

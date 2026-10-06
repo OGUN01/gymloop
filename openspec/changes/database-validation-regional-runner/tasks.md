@@ -8,7 +8,7 @@
 
 - [x] 2.1 Implement only the approved manifest/verification/orchestration boundary and guarded CLI adapter, reusing registered rollback/result parsing behavior; verify unchanged independent tests, exact native command/pins, complete per-file plans/hashes, source-safe retention and nonzero failed receipt exits.
 - [ ] 2.2 Add original timeout capture, pre-alteration outside-runner receipt, exact restore/verify and independent hosted guardian; verify success, native failure, partial-alter/network-loss, absent original setting, restoration error and interrupted-worker cases with frozen tests.
-- [ ] 2.3 Add hosted-default selection and one-job trusted-main OS-aware routing/teardown, preserving db serialization, drift/seed dependencies and ADR-177 classification; verify PR/untrusted refusal, unavailable-runner fallback, unique run identity, lifetime enforcement and narrow cleanup tests without a permanent service/autoscaler.
+- [x] 2.3 Add hosted-default selection and one-job trusted-main OS-aware routing/teardown, preserving db serialization, drift/seed dependencies and ADR-177 classification; verify PR/untrusted refusal, unavailable-runner fallback, unique run identity, lifetime enforcement and narrow cleanup tests without a permanent service/autoscaler.
 - [x] 2.4 Register new exports/constants and obtain fresh-context critic GO; verify relevant lint/type/immutability/escape-hatch/rollback gates and failure evidence without touching authored test files.
 
 ## 3. Land and prove native execution

@@ -1,0 +1,47 @@
+{
+  "observedAt": "2026-10-06T22:31:48.499771+00:00",
+  "frozenContractCommit": "65f51c10",
+  "testsFirstCommit": "b279a0274ad8db1e4fcb0b5d246bf79aefb6f1f0",
+  "visible": {
+    "cases": 16,
+    "beforeImplementation": {
+      "passed": 7,
+      "failed": 9
+    },
+    "sha256": "2cfcc53b5a09e2e18ec1f2bc131ed05b3a2395b9aef0431c6418376700254d8f"
+  },
+  "held": {
+    "cases": 15,
+    "beforeImplementation": {
+      "passed": 7,
+      "failed": 8
+    },
+    "sha256": "0d8c783e4b98bd63e93f20f77cedb53c326cf4e524660aa5dea2dd2977c65b9d"
+  },
+  "focusedAfterImplementation": {
+    "numTotalTests": 31,
+    "numPassedTests": 31,
+    "numFailedTests": 0,
+    "success": true
+  },
+  "nativePlatform": "Windows 11 / Windows PowerShell 5.1",
+  "coverageSummary": "Real owned private ACL directories, literal quote/space/command-like paths, foreign allowed principal, unavailable ACL and independently reached malformed completion/exit/signal/error-output fixtures. Original command-text fixture executed an owned scratch sentinel; verified narrow fixture cleanup.",
+  "independence": "Separate source-blind visible and held authors and separate contract critics. Source-only adapter critic GO. Implementer changed no tests and inspected no held bodies.",
+  "sourceScope": "Existing privateDirectory invocation only; no export, config/environment, database/schema/SQL or app change.",
+  "gates": {
+    "eslint": true,
+    "registry": true,
+    "escapeHatches": true,
+    "actionlint": true,
+    "whitespace": true
+  },
+  "privateFocusedReportSha256": "1b5eb6ade865602c70c6ebb9bbccc26b61b2bc681c7f938c17e0c5ef0e9294cc",
+  "fullIntegration": {
+    "numTotalTestSuites": 574,
+    "numTotalTests": 6146,
+    "numPassedTests": 6146,
+    "numFailedTests": 0,
+    "success": true
+  },
+  "privateFullIntegrationReportSha256": "05ff17cf76dec4753ef3b4a62362f44d5fe279fd9d63eedfa2e1d441a0d870f1"
+}
