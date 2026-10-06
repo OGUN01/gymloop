@@ -9,8 +9,8 @@ type Node = { type: unknown; props: Props };
 type Cell = { value?: unknown; deps?: unknown[] | undefined; cleanup?: (() => void) | undefined };
 const seam = vi.hoisted(() => ({
   active: null as null | { cells: Cell[]; cursor: number; effects: (() => void)[] },
-  mobile: {} as Props, online: true, listeners: new Set<(state: Props) => void>(),
-  refresh: vi.fn(), audience: vi.fn(), webSchedule: vi.fn(), network: vi.fn(), loadMember: vi.fn(), loadDesk: vi.fn(), loadRoster: vi.fn(),
+  mobile: {} as Props, online: true, listeners: new Set<(state: Props) => void>(), appStateListeners: new Set<(state: string) => void>(),
+  refresh: vi.fn(), audience: vi.fn(), webSchedule: vi.fn(), network: vi.fn(), loadMember: vi.fn(), loadBookings: vi.fn(), loadDesk: vi.fn(), loadRoster: vi.fn(),
   book: vi.fn(), cancel: vi.fn(), deskBook: vi.fn(), deskCancel: vi.fn(), mark: vi.fn(), search: vi.fn(),
 }));
 vi.mock('react', async importOriginal => {
@@ -58,7 +58,7 @@ vi.mock('../../apps/mobile/lib/mobile-context', () => ({ useMobile: () => seam.m
 vi.mock('../../apps/mobile/lib/use-business-nouns', () => ({ useBusinessNouns: () => seam.mobile.nouns }));
 vi.mock('../../apps/mobile/lib/classes', async importOriginal => {
   const actual = await importOriginal<Record<string, (...args: unknown[]) => Promise<unknown>>>();
-  return { ...actual, loadMemberClasses: seam.loadMember, loadDeskTimetable: seam.loadDesk, loadDeskRoster: seam.loadRoster,
+  return { ...actual, loadMemberClasses: seam.loadMember, loadMemberUpcomingClassBookings: seam.loadBookings, loadDeskTimetable: seam.loadDesk, loadDeskRoster: seam.loadRoster,
     cancelClassBooking: (...args: unknown[]) => { seam.cancel(...args); return actual.cancelClassBooking!(...args); },
   };
 });
@@ -66,11 +66,17 @@ vi.mock('../../apps/mobile/lib/mobile-data', () => ({ loadDeskMembers: seam.sear
 vi.mock('expo-network', () => ({ getNetworkStateAsync: () => seam.network(),
   addNetworkStateListener: (fn: (state: Props) => void) => { seam.listeners.add(fn); return { remove: () => seam.listeners.delete(fn) }; },
 }));
-vi.mock('expo-router', () => ({ useRouter: () => ({ push: vi.fn(), replace: vi.fn() }), router: { push: vi.fn() } }));
+vi.mock('expo-router', async () => {
+  const { useEffect } = await import('react');
+  return { useRouter: () => ({ push: vi.fn(), replace: vi.fn() }), router: { push: vi.fn() },
+    useFocusEffect: (callback: () => void | (() => void)) => useEffect(callback, [callback]),
+  };
+});
 vi.mock('react-native', () => ({ View: 'View', Text: 'Text', Pressable: 'Pressable', TextInput: 'TextInput',
   ScrollView: 'ScrollView', ActivityIndicator: 'ActivityIndicator', Modal: 'Modal',
   StyleSheet: { create: (styles: unknown) => styles, hairlineWidth: 1 }, Platform: { OS: 'android' },
   Linking: { openURL: vi.fn() }, useWindowDimensions: () => ({ width: 390, height: 844 }),
+  AppState: { currentState: 'active', addEventListener: (_event: string, callback: (state: string) => void) => { seam.appStateListeners.add(callback); return { remove: () => seam.appStateListeners.delete(callback) }; } },
 }));
 vi.mock('lucide-react-native', () => new Proxy({}, { get: (_, key) => typeof key === 'string' ? key : undefined }));
 vi.mock('../../apps/mobile/components/ui', () => {
@@ -151,12 +157,12 @@ function deferred<T>() { let resolve!: (value: T) => void; const promise = new P
 const browser = new EventTarget();
 beforeEach(() => {
   vi.useFakeTimers(); vi.setSystemTime(new Date('2026-10-03T07:00:00Z')); vi.resetAllMocks();
-  seam.online = true; seam.listeners.clear();
+  seam.online = true; seam.listeners.clear(); seam.appStateListeners.clear();
   seam.network.mockImplementation(async () => ({ isConnected: seam.online, isInternetReachable: seam.online }));
   const query = { select: vi.fn().mockReturnThis(), eq: vi.fn().mockReturnThis(), maybeSingle: vi.fn(async () => ({ data: { timezone: 'Asia/Kolkata', branch_id: id('12') }, error: null })) };
   const post = vi.fn(async (path: string) => ({ ok: true, data: { bookingId: id('20'), status: path.endsWith('/cancel') ? 'cancelled_by_member' : 'booked', spotsLeft: 3 } }));
   seam.mobile = { identity: identityA, ready: true, supabase: { from: vi.fn(() => query) }, api: { post }, palette: UI_TOKENS.colors.light, nouns, businessType: 'gym', webOrigin: 'https://gymloop.test' };
-  seam.loadMember.mockResolvedValue([session()]); seam.webSchedule.mockResolvedValue([session()]);
+  seam.loadMember.mockResolvedValue([session()]); seam.loadBookings.mockResolvedValue([]); seam.webSchedule.mockResolvedValue([session()]);
   seam.search.mockResolvedValue([]);
   vi.stubGlobal('window', browser); vi.stubGlobal('navigator', { onLine: true });
   vi.stubGlobal('fetch', vi.fn(async (path: string) => ({ ok: true, json: async () => ({ ok: true, data: { bookingId: id('20'), status: path.endsWith('/cancel') ? 'cancelled_by_member' : 'booked', spotsLeft: 3 } }) })));
@@ -165,12 +171,15 @@ afterEach(() => { for (const cleanup of hostCleanups) cleanup(); vi.useRealTimer
 
 function setup(platform: 'web' | 'native', initial = session()) {
   const refresh = vi.fn<() => Promise<MemberClassSession[] | null>>().mockResolvedValue([initial]);
-  if (platform === 'native') seam.loadMember.mockResolvedValue([initial]);
+  if (platform === 'native') { seam.loadMember.mockResolvedValue([initial]); seam.loadBookings.mockResolvedValue(initial.myBookingId === null ? [] : [initial]); }
   const props = { sessions: [initial], today: '2026-10-03', nouns, scopeKey: 'held-A', refreshSessions: refresh };
   const view = platform === 'web' ? mount(MemberClassesView, props) : mount(ClassesPane);
   const replaceRead = (result: MemberClassSession[] | null | Promise<MemberClassSession[] | null>) => {
     if (platform === 'web') refresh.mockImplementation(() => Promise.resolve(result));
-    else seam.loadMember.mockImplementation(() => Promise.resolve(result));
+    else {
+      seam.loadMember.mockImplementation(() => Promise.resolve(result));
+      seam.loadBookings.mockImplementation(() => Promise.resolve(result).then(rows => rows?.filter(row => row.myBookingId !== null) ?? null));
+    }
   };
   const enabled = (pattern: RegExp) => view.controls(pattern).filter(node => !node.props.disabled && !(node.props.accessibilityState as Props | undefined)?.disabled);
   const post = (seam.mobile.api as { post: ReturnType<typeof vi.fn> }).post;

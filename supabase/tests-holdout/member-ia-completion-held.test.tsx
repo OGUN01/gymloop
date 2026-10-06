@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import type { PlanCatalogueState } from '../../apps/mobile/lib/plan-catalogue-state';
 
 type ElementNode = { type: unknown; props: Record<string, unknown> };
 const state = vi.hoisted(() => ({ portal: {} as Record<string, unknown>, calls: 0 }));
@@ -202,23 +203,26 @@ describe('held historical Orders and completed returns', () => {
   });
 });
 
-const native = vi.hoisted(() => ({ enabled: false, cursor: 0, effectCursor: 0, effects: [] as unknown[][], values: [] as unknown[], section: undefined as unknown, pushes: [] as unknown[], opened: [] as string[], planEnabled: [] as boolean[] }));
-vi.mock('react-native', () => ({ View: 'View', Text: 'Text', Pressable: 'Pressable', ScrollView: 'ScrollView', StyleSheet: { create: (value: unknown) => value }, Platform: { OS: 'android' }, Linking: { openURL: vi.fn() }, Alert: { alert: vi.fn() }, AccessibilityInfo: { announceForAccessibility: vi.fn() }, useWindowDimensions: () => ({ width: 390, height: 844 }), AppState: { addEventListener: () => ({ remove: vi.fn() }) } }));
-vi.mock('expo-router', () => ({ router: { push: (value: unknown) => native.pushes.push(value), replace: vi.fn() }, useRouter: () => ({ push: (value: unknown) => native.pushes.push(value) }), useLocalSearchParams: () => ({ section: native.section }), useFocusEffect: vi.fn(), Tabs: Object.assign('Tabs', { Screen: 'TabScreen' }), Link: 'Link', Redirect: 'Redirect' }));
+const native = vi.hoisted(() => ({ enabled: false, memberActor: false, cursor: 0, effectCursor: 0, effects: [] as unknown[][], values: [] as unknown[], section: undefined as unknown, pushes: [] as unknown[], opened: [] as string[], planEnabled: [] as boolean[], appStateListeners: new Set<(state: string) => void>() }));
+vi.mock('react-native', () => ({ View: 'View', Text: 'Text', Image: 'Image', Pressable: 'Pressable', ScrollView: 'ScrollView', StyleSheet: { create: (value: unknown) => value }, Platform: { OS: 'android' }, Linking: { openURL: vi.fn() }, Alert: { alert: vi.fn() }, AccessibilityInfo: { announceForAccessibility: vi.fn() }, useWindowDimensions: () => ({ width: 390, height: 844 }), AppState: { currentState: 'active', addEventListener: (_event: string, callback: (state: string) => void) => { native.appStateListeners.add(callback); return { remove: () => native.appStateListeners.delete(callback) }; } } }));
+vi.mock('expo-router', async () => {
+  const { useEffect } = await import('react');
+  return { router: { push: (value: unknown) => native.pushes.push(value), replace: vi.fn() }, useRouter: () => ({ push: (value: unknown) => native.pushes.push(value) }), useLocalSearchParams: () => ({ section: native.section }), useFocusEffect: (callback: () => void | (() => void)) => useEffect(callback, [callback]), Tabs: Object.assign('Tabs', { Screen: 'TabScreen' }), Link: 'Link', Redirect: 'Redirect' };
+});
 vi.mock('expo-web-browser', () => ({ openBrowserAsync: async (url: string) => { native.opened.push(url); } }));
 vi.mock('../../apps/mobile/components/ui', () => {
   const component = (props: Record<string, unknown>) => ({ type: 'kit', props });
-  return { ActionButton: component, Body: component, Display: component, Eyebrow: component, Initials: component, LoadingState: component, Row: component, Rule: component, Screen: component, StateMessage: component, Status: component, Title: component, WeekRhythm: component, SignOutRow: component, AppearanceSheet: component, LedgerSection: component, Field: component, List: component, SegmentedControl: (props: Record<string, unknown>) => ({ type: 'segments', props }), FONT: { body: 'body', display: 'display', regular: 'regular', medium: 'medium', bold: 'bold' }, appearanceLabel: (value: string) => value, dayLabel: (value: string) => value, statusTone: () => 'neutral', statusWord: (value: string) => value };
+  return { ActionButton: component, Body: component, Display: component, Eyebrow: component, Initials: component, LoadingState: component, Row: component, Rule: component, Screen: component, StateMessage: component, Status: component, Title: component, WeekRhythm: component, SignOutRow: component, AppearanceSheet: component, LedgerSection: component, Field: component, List: component, EmptyState: component, ErrorRetry: component, SearchField: component, RowAction: component, SheetHeader: component, Sheet: (props: Record<string, unknown>) => props.visible ? component(props) : null, SegmentedControl: (props: Record<string, unknown>) => ({ type: 'segments', props }), FONT: { body: 'body', display: 'display', regular: 'regular', medium: 'medium', bold: 'bold' }, appearanceLabel: (value: string) => value, dayLabel: (value: string) => value, statusTone: () => 'neutral', statusWord: (value: string) => value };
 });
 vi.mock('../../apps/mobile/lib/use-member-snapshot', () => ({ useMemberSnapshot: () => ({ data: {
   member: { fullName: 'Asha Rao', memberCode: 'M-009', email: null, phone: '9876543210', goal: 3, restDays: [] }, gym: { name: 'Lotus Academy', displayName: 'Lotus Academy', code: 'LOTUS', timezone: 'Asia/Kolkata', city: 'Pune', state: 'Maharashtra', branchName: 'North branch', branchAddress: '9 Lake Road' }, membership: { status: 'active', startsOn: '2026-01-01', endsOn: '2027-01-01', planName: 'Annual study' }, visits: [], weekVisits: 0, weekStart: '2026-09-28', streak: { current: 0, unit: 'week', missed: [] }, receipts: [{ id: heldIds.refund, amountPaise: '9007199254740993', currency: 'INR', paidAt: null, receiptNumber: 'NATIVE-RECEIPT', status: 'captured' }], messages: [], consents: [], addOns: [{ id: heldIds.order, name: 'Historical native purchase', status: 'completed', totalPaise: '9007199254740993', currency: 'INR', sessionsUsed: 7, sessionsTotal: 7 }],
 }, error: null, loading: false, reload: async () => undefined }) }));
-vi.mock('../../apps/mobile/lib/use-member-plans', () => ({ useMemberPlans: (enabled: boolean) => { native.planEnabled.push(enabled); return { data: [], plans: [], loading: false, error: null, reload: vi.fn() }; } }));
+vi.mock('../../apps/mobile/lib/use-member-plans', () => ({ useMemberPlans: (enabled: boolean) => { native.planEnabled.push(enabled); return { state: { phase: 'idle', view: null, loadedAt: null, staleReason: null, offline: false } satisfies PlanCatalogueState, reload: vi.fn() }; } }));
 vi.mock('../../apps/mobile/lib/use-business-nouns', () => ({ useBusinessNouns: () => portal().nouns }));
-vi.mock('../../apps/mobile/lib/mobile-context', () => ({ useMobile: () => ({ identity: { kind: 'staff', userId: heldIds.user, tenantId: heldIds.tenant, staffId: heldIds.member, role: 'front_desk' }, webOrigin: 'https://held-console.example', palette: new Proxy({}, { get: () => '#123456' }), api: { post: vi.fn() }, supabase: {}, appearance: 'light', setAppearance: vi.fn(), signOut: vi.fn(), session: { access_token: 'NEVER-IN-URL', user: { id: heldIds.user, email: 'desk@example.invalid' } }, ready: true, nouns: portal().nouns }) }));
+vi.mock('../../apps/mobile/lib/mobile-context', () => ({ useMobile: () => ({ identity: native.memberActor ? { kind: 'member', userId: heldIds.user, tenantId: heldIds.tenant, memberId: heldIds.member } : { kind: 'staff', userId: heldIds.user, tenantId: heldIds.tenant, staffId: heldIds.member, role: 'front_desk' }, webOrigin: 'https://held-console.example', palette: new Proxy({}, { get: () => '#123456' }), api: { post: vi.fn(async () => ({ ok: false, error: { code: 'unavailable', message: 'The shop could not be loaded.' } })) }, supabase: {}, appearance: 'light', setAppearance: vi.fn(), signOut: vi.fn(), session: { access_token: 'NEVER-IN-URL', user: { id: heldIds.user, email: 'desk@example.invalid' } }, ready: true, nouns: portal().nouns }) }));
 vi.mock('../../apps/mobile/components/legal-links', () => ({ LegalLinks: () => ({ type: 'legal', props: {} }) }));
 vi.mock('../../apps/mobile/components/plan-catalogue', () => ({ PlanCatalogueBody: (props: Record<string, unknown>) => ({ type: 'plans', props }) }));
-vi.mock('../../apps/mobile/components/classes-pane', () => ({ ClassesPane: () => ({ type: 'classes-pane', props: {} }) }));
+vi.mock('../../apps/mobile/components/classes-pane', () => ({ ClassesPane: (props: Record<string, unknown>) => ({ type: 'classes-pane', props }) }));
 vi.mock('../../apps/mobile/components/training-section', () => ({ TrainingSection: () => ({ type: 'training-section', props: {} }) }));
 vi.mock('../../apps/mobile/components/announcements-section', () => ({ AnnouncementsSection: () => null }));
 vi.mock('../../apps/mobile/lib/use-announcements', () => ({ useAnnouncements: () => ({ cards: [], loading: false, error: null, reload: vi.fn() }) }));
@@ -226,11 +230,11 @@ vi.mock('../../apps/mobile/lib/mobile-data', () => ({ rhythmFor: () => [], loadD
 vi.mock('../../apps/mobile/lib/offline-check-in', () => ({ createReplayCoordinator: () => ({ run: vi.fn(), requestReplay: vi.fn(), dispose: vi.fn() }), drainOfflineCheckIns: vi.fn(), loadOfflineCheckIns: async () => [], saveOfflineCheckIn: vi.fn(), shouldReplayOnSignal: () => false }));
 vi.mock('../../apps/mobile/node_modules/expo-camera', () => ({ CameraView: 'CameraView', useCameraPermissions: () => [{ granted: false }, vi.fn()] }));
 vi.mock('../../apps/mobile/node_modules/expo-haptics', () => ({ notificationAsync: vi.fn(), impactAsync: vi.fn(), NotificationFeedbackType: { Success: 'success' }, ImpactFeedbackStyle: { Light: 'light' } }));
-vi.mock('expo-network', () => ({ getNetworkStateAsync: async () => ({ isConnected: true, isInternetReachable: true }), addNetworkStateListener: () => ({ remove: vi.fn() }) }));
+vi.mock('expo-network', () => ({ getNetworkStateAsync: async () => ({ isConnected: true, isInternetReachable: true }), useNetworkState: () => ({ isConnected: true, isInternetReachable: true }), addNetworkStateListener: () => ({ remove: vi.fn() }) }));
 vi.mock('expo-crypto', () => ({ randomUUID: () => heldIds.session }));
 vi.mock('lucide-react-native', () => new Proxy({}, { has: () => true, get: (_target, name) => name === 'then' ? undefined : (props: Record<string, unknown>) => ({ type: 'icon', props }) }));
 
-beforeEach(() => { native.enabled = false; native.cursor = 0; native.effectCursor = 0; native.effects = []; native.values = []; native.section = undefined; native.pushes = []; native.opened = []; native.planEnabled = []; });
+beforeEach(() => { native.enabled = false; native.memberActor = false; native.cursor = 0; native.effectCursor = 0; native.effects = []; native.values = []; native.section = undefined; native.pushes = []; native.opened = []; native.planEnabled = []; native.appStateListeners.clear(); });
 async function nativeRender(component: () => unknown) { native.enabled = true; native.cursor = 0; native.effectCursor = 0; return nodes(component()); }
 function press(node: ElementNode | undefined) { expect(node).toBeDefined(); const handler = node?.props.onPress; expect(typeof handler).toBe('function'); if (typeof handler === 'function') handler(); }
 
@@ -242,19 +246,58 @@ describe('held native information architecture', () => {
     expect(native.pushes).toContain('/(member)/gym');
   });
 
-  it('native Gym retains decimal money history and adds programmes, services and legal', async () => {
+  it('native Gym starts collapsed, retains decimal money history and adds approved member actions', async () => {
     const target = await import('../../apps/mobile/app/(member)/gym');
-    const rendered = await nativeRender(target.default);
+    let rendered = await nativeRender(target.default);
     expect(rendered.some(node => node.type === 'legal')).toBe(true);
+    const collapsedCopy = rendered.map(node => [node.props.children, node.props.title, node.props.meta, node.props.value].map(textOf).join(' ')).join(' ');
+    expect(collapsedCopy).not.toContain('Historical native purchase');
+    expect(collapsedCopy).not.toContain('9,00,71,99,25,47,409.93');
+    press(rendered.find(node => node.props.title === 'My classes'));
+    expect(native.pushes).toContainEqual({ pathname: '/(member)/classes', params: { section: 'bookings' } });
     press(rendered.find(node => /Trainers|programmes/i.test(String(node.props.title))));
     expect(native.pushes).toContainEqual({ pathname: '/(member)/classes', params: { section: 'training' } });
     press(rendered.find(node => /Other services/i.test(String(node.props.title))));
     expect(native.pushes).toContain('/(member)/shop');
     expect(native.planEnabled).toContain(false);
+    native.section = 'addons';
+    await nativeRender(target.default);
+    rendered = await nativeRender(target.default);
     const copy = rendered.map(node => `${textOf(node.props.children)} ${String(node.props.title ?? '')} ${String(node.props.meta ?? '')} ${String(node.props.value ?? '')}`).join(' ');
     expect(copy).toContain('Historical native purchase');
     expect(copy).toContain('9,00,71,99,25,47,409.93');
     expect(copy).toMatch(/historical|completed returns|purchases/i);
+  });
+
+  it('native Gym keeps renewal and Freeze requests beside membership', async () => {
+    const target = await import('../../apps/mobile/app/(member)/gym');
+    native.section = 'membership';
+    let rendered = await nativeRender(target.default);
+    press(rendered.find(node => typeof node.props.onPress === 'function' && /renew|plans/i.test(String(node.props.title ?? node.props.children))));
+    rendered = await nativeRender(target.default);
+    expect(native.planEnabled).toContain(true);
+    expect(rendered.some(node => node.type === 'plans')).toBe(true);
+    native.section = 'membership';
+    await nativeRender(target.default);
+    rendered = await nativeRender(target.default);
+    press(rendered.find(node => typeof node.props.onPress === 'function' && /freeze requests/i.test(String(node.props.title ?? node.props.children))));
+    expect(native.pushes).toContain('/(member)/freeze-requests');
+  });
+
+  it('Classes opens the independent own-bookings view for exact bookings section', async () => {
+    const target = await import('../../apps/mobile/app/(member)/classes');
+    native.section = 'bookings';
+    const rendered = await nativeRender(target.default);
+    expect(rendered.some(node => node.type === 'classes-pane' && node.props.bookingsOnly === true)).toBe(true);
+    expect(rendered.some(node => node.type === 'training-section')).toBe(false);
+  });
+
+  it('Shop keeps Buy reachable while its catalogue is unresolved', async () => {
+    const target = await import('../../apps/mobile/app/(member)/shop');
+    native.memberActor = true;
+    const rendered = await nativeRender(target.default);
+    press(rendered.find(node => typeof node.props.onPress === 'function' && [node.props.title, node.props.label, node.props.children].some(value => /^Buy$/i.test(textOf(value).trim()))));
+    expect(native.pushes).toContain('/(member)/buy');
   });
 
   it.each([undefined, ['training'], 'TRAINING', 'trainers', heldIds.member])('Classes defaults safely for public section %j', async section => {

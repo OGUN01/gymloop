@@ -9,8 +9,8 @@ type Node = { type: unknown; props: Props };
 type Cell = { value?: unknown; deps?: unknown[] | undefined; cleanup?: (() => void) | undefined };
 const seam = vi.hoisted(() => ({
   active: null as null | { cells: Cell[]; cursor: number; effects: (() => void)[] },
-  mobile: {} as Props, online: true, listeners: new Set<(state: Props) => void>(),
-  refresh: vi.fn(), audience: vi.fn(), webSchedule: vi.fn(), network: vi.fn(), loadMember: vi.fn(), loadDesk: vi.fn(), loadRoster: vi.fn(),
+  mobile: {} as Props, online: true, listeners: new Set<(state: Props) => void>(), appStateListeners: new Set<(state: string) => void>(),
+  refresh: vi.fn(), audience: vi.fn(), webSchedule: vi.fn(), network: vi.fn(), loadMember: vi.fn(), loadBookings: vi.fn(), loadDesk: vi.fn(), loadRoster: vi.fn(),
   book: vi.fn(), cancel: vi.fn(), deskBook: vi.fn(), deskCancel: vi.fn(), mark: vi.fn(), search: vi.fn(),
 }));
 vi.mock('react', async importOriginal => {
@@ -57,7 +57,7 @@ vi.mock('../../apps/web/app/preview-context', () => ({ usePreviewReadOnly: () =>
 vi.mock('../../apps/mobile/lib/mobile-context', () => ({ useMobile: () => seam.mobile }));
 vi.mock('../../apps/mobile/lib/use-business-nouns', () => ({ useBusinessNouns: () => seam.mobile.nouns }));
 vi.mock('../../apps/mobile/lib/classes', () => ({
-  loadMemberClasses: seam.loadMember, loadDeskTimetable: seam.loadDesk, loadDeskRoster: seam.loadRoster,
+  loadMemberClasses: seam.loadMember, loadMemberUpcomingClassBookings: seam.loadBookings, loadDeskTimetable: seam.loadDesk, loadDeskRoster: seam.loadRoster,
   bookClass: seam.book, cancelClassBooking: seam.cancel, deskBookClass: seam.deskBook,
   deskCancelClassBooking: seam.deskCancel, markClassAttendance: seam.mark,
 }));
@@ -65,11 +65,17 @@ vi.mock('../../apps/mobile/lib/mobile-data', () => ({ loadDeskMembers: seam.sear
 vi.mock('expo-network', () => ({ getNetworkStateAsync: () => seam.network(),
   addNetworkStateListener: (fn: (state: Props) => void) => { seam.listeners.add(fn); return { remove: () => seam.listeners.delete(fn) }; },
 }));
-vi.mock('expo-router', () => ({ useRouter: () => ({ push: vi.fn(), replace: vi.fn() }), router: { push: vi.fn() } }));
+vi.mock('expo-router', async () => {
+  const { useEffect } = await import('react');
+  return { useRouter: () => ({ push: vi.fn(), replace: vi.fn() }), router: { push: vi.fn() },
+    useFocusEffect: (callback: () => void | (() => void)) => useEffect(callback, [callback]),
+  };
+});
 vi.mock('react-native', () => ({ View: 'View', Text: 'Text', Pressable: 'Pressable', TextInput: 'TextInput',
   ScrollView: 'ScrollView', ActivityIndicator: 'ActivityIndicator', Modal: 'Modal',
   StyleSheet: { create: (styles: unknown) => styles, hairlineWidth: 1 }, Platform: { OS: 'android' },
   Linking: { openURL: vi.fn() }, useWindowDimensions: () => ({ width: 390, height: 844 }),
+  AppState: { currentState: 'active', addEventListener: (_event: string, callback: (state: string) => void) => { seam.appStateListeners.add(callback); return { remove: () => seam.appStateListeners.delete(callback) }; } },
 }));
 vi.mock('lucide-react-native', () => new Proxy({}, { get: (_, key) => typeof key === 'string' ? key : undefined }));
 vi.mock('../../apps/mobile/components/ui', () => {
@@ -160,13 +166,13 @@ function cancellable(overrides: Partial<MemberClassSession> = {}) {
 const browser = new EventTarget();
 beforeEach(() => {
   vi.useFakeTimers(); vi.setSystemTime(new Date('2026-10-03T07:00:00Z')); vi.clearAllMocks();
-  seam.online = true; seam.listeners.clear();
+  seam.online = true; seam.listeners.clear(); seam.appStateListeners.clear();
   seam.network.mockImplementation(async () => ({ isConnected: seam.online, isInternetReachable: seam.online }));
   const query = { select: vi.fn().mockReturnThis(), eq: vi.fn().mockReturnThis(), maybeSingle: vi.fn(async () => ({ data: { timezone: 'Asia/Kolkata', branch_id: id('12') }, error: null })) };
   seam.mobile = { identity: identityA, ready: true, supabase: { from: vi.fn(() => query) }, api: { post: vi.fn() },
     palette: UI_TOKENS.colors.light, nouns, businessType: 'gym', webOrigin: 'https://gymloop.test' };
   seam.audience.mockResolvedValue({ identity: identityA, supabase: seam.mobile.supabase }); seam.webSchedule.mockResolvedValue([session()]);
-  seam.loadMember.mockResolvedValue([session()]); seam.loadDesk.mockResolvedValue([timetable()]); seam.loadRoster.mockResolvedValue([roster()]);
+  seam.loadMember.mockResolvedValue([session()]); seam.loadBookings.mockResolvedValue([]); seam.loadDesk.mockResolvedValue([timetable()]); seam.loadRoster.mockResolvedValue([roster()]);
   seam.search.mockResolvedValue([]);
   seam.book.mockResolvedValue({ ok: true, data: { bookingId: id('20'), status: 'booked', spotsLeft: 3 } });
   seam.cancel.mockResolvedValue({ ok: true, data: { bookingId: id('20'), status: 'cancelled_by_member' } });
@@ -236,12 +242,13 @@ describe('CLS independent held actual native rendered boundaries', () => {
   it('uses caller member schedule and counts only; no roster or staff dataset', async () => {
     const view = mount(ClassesPane); await view.settle();
     expect(seam.loadMember).toHaveBeenCalledWith(seam.mobile.supabase, expect.objectContaining({ from: '2026-10-03' }));
+    expect(seam.loadBookings).toHaveBeenCalledWith(seam.mobile.supabase);
     for (const fact of ['Held yoga', 'Teacher Mira', '4 spots left']) expect(view.text()).toContain(fact);
     expect(seam.loadDesk).not.toHaveBeenCalled(); expect(seam.loadRoster).not.toHaveBeenCalled(); expect(view.text()).not.toContain('Held member Hazel'); view.unmount();
   });
   it.each([{ kind: 'unlinked' }, { kind: 'platform', userId: id('1'), role: 'platform_support' }, { kind: 'impersonation', userId: id('1'), tenantId: id('2'), impersonationSessionId: id('8') }])('does not fetch or mutate member classes for %j', async identity => {
     seam.mobile.identity = identity; const view = mount(ClassesPane); await view.settle();
-    expect(seam.loadMember).not.toHaveBeenCalled(); expect(seam.book).not.toHaveBeenCalled(); expect(seam.cancel).not.toHaveBeenCalled(); view.unmount();
+    expect(seam.loadMember).not.toHaveBeenCalled(); expect(seam.loadBookings).not.toHaveBeenCalled(); expect(seam.book).not.toHaveBeenCalled(); expect(seam.cancel).not.toHaveBeenCalled(); view.unmount();
   });
   it('distinguishes no timetable from failed member read with functional retry', async () => {
     seam.loadMember.mockResolvedValue([]); const empty = mount(ClassesPane); await empty.settle(); expect(empty.text()).toContain('Ask the front desk'); empty.unmount();
@@ -297,7 +304,7 @@ describe('CLS independent held actual native rendered boundaries', () => {
     old.resolve([session()]); await Promise.resolve(); await Promise.resolve(); expect(seam.loadMember).toHaveBeenCalledTimes(calls); expect(seam.book).not.toHaveBeenCalled(); expect(seam.cancel).not.toHaveBeenCalled();
   });
   it('existing member cancellation states the local deadline and sends only its booking id', async () => {
-    seam.loadMember.mockResolvedValue([session({ availability: 'booked', myBookingId: id('20'), myBookingStatus: 'booked', canCancel: true, cancelBy: '2026-10-03T10:30:00Z' })]);
+    seam.loadMember.mockResolvedValue([session({ availability: 'booked', myBookingId: id('20'), myBookingStatus: 'booked', canCancel: true, cancelBy: '2026-10-03T10:30:00Z' })]); seam.loadBookings.mockResolvedValue([session({ availability: 'booked', myBookingId: id('20'), myBookingStatus: 'booked', canCancel: true, cancelBy: '2026-10-03T10:30:00Z' })]);
     const view = mount(ClassesPane); await view.settle(); await view.press(/^Cancel(?: booking)?$/i);
     expect(view.text()).toMatch(/4[:.]00|16:00/); await view.press(/^Confirm(?: cancellation)?$/i);
     expect(seam.cancel).toHaveBeenCalledWith(seam.mobile.api, id('20'), expect.any(Function)); expect(seam.loadMember.mock.calls.length).toBeGreaterThan(1);
@@ -309,13 +316,13 @@ describe('CLS independent held actual native rendered boundaries', () => {
     ['booking_not_found', "That booking isn't available."],
     ['unknown_database_failure', 'Something went wrong and nothing was changed. Try again.'],
   ])('existing member cancellation refusal %s is pinned and never claims success', async (code, copy) => {
-    seam.loadMember.mockResolvedValue([session({ availability: 'booked', myBookingId: id('20'), myBookingStatus: 'booked', canCancel: true, cancelBy: '2026-10-03T10:30:00Z' })]);
+    seam.loadMember.mockResolvedValue([session({ availability: 'booked', myBookingId: id('20'), myBookingStatus: 'booked', canCancel: true, cancelBy: '2026-10-03T10:30:00Z' })]); seam.loadBookings.mockResolvedValue([session({ availability: 'booked', myBookingId: id('20'), myBookingStatus: 'booked', canCancel: true, cancelBy: '2026-10-03T10:30:00Z' })]);
     seam.cancel.mockResolvedValue({ ok: false, error: { code, message: 'PRIVATE DATABASE DIAGNOSTIC' } });
     const view = mount(ClassesPane); await view.settle(); await view.press(/^Cancel(?: booking)?$/i); await view.press(/^Confirm(?: cancellation)?$/i);
     expect(view.text()).toContain(copy); expect(view.text()).not.toContain('PRIVATE DATABASE DIAGNOSTIC'); view.unmount();
   });
   it('an old member confirmation callback stays dead after A to B to A even when ids recur', async () => {
-    seam.loadMember.mockResolvedValue([session({ availability: 'booked', myBookingId: id('20'), myBookingStatus: 'booked', canCancel: true, cancelBy: '2026-10-03T10:30:00Z' })]);
+    seam.loadMember.mockResolvedValue([session({ availability: 'booked', myBookingId: id('20'), myBookingStatus: 'booked', canCancel: true, cancelBy: '2026-10-03T10:30:00Z' })]); seam.loadBookings.mockResolvedValue([session({ availability: 'booked', myBookingId: id('20'), myBookingStatus: 'booked', canCancel: true, cancelBy: '2026-10-03T10:30:00Z' })]);
     const view = mount(ClassesPane); await view.settle(); await view.press(/^Cancel(?: booking)?$/i);
     const old = view.controls(/^Confirm(?: cancellation)?$/i)[0]; expect(old).toBeDefined();
     seam.mobile = { ...seam.mobile, identity: identityB }; view.rerender(); await view.settle();
@@ -324,7 +331,7 @@ describe('CLS independent held actual native rendered boundaries', () => {
     expect(seam.cancel).not.toHaveBeenCalled(); view.unmount();
   });
   it('an unmounted confirmation callback never sends its cancellation', async () => {
-    seam.loadMember.mockResolvedValue([session({ availability: 'booked', myBookingId: id('20'), myBookingStatus: 'booked', canCancel: true, cancelBy: '2026-10-03T10:30:00Z' })]);
+    seam.loadMember.mockResolvedValue([session({ availability: 'booked', myBookingId: id('20'), myBookingStatus: 'booked', canCancel: true, cancelBy: '2026-10-03T10:30:00Z' })]); seam.loadBookings.mockResolvedValue([session({ availability: 'booked', myBookingId: id('20'), myBookingStatus: 'booked', canCancel: true, cancelBy: '2026-10-03T10:30:00Z' })]);
     const view = mount(ClassesPane); await view.settle(); await view.press(/^Cancel(?: booking)?$/i);
     const old = view.controls(/^Confirm(?: cancellation)?$/i)[0]; expect(old).toBeDefined(); view.unmount();
     const callback = old?.props.onPress ?? old?.props.onClick; if (typeof callback === 'function') callback();
@@ -339,7 +346,7 @@ describe('CLS independent held actual native rendered boundaries', () => {
     expect(seam.search).toHaveBeenCalledWith(seam.mobile.supabase, 'Hazel'); expect(view.text()).toContain('Searched Hazel'); view.unmount();
   });
   it('pending native member cancellation sends once and never presents an optimistic final result', async () => {
-    seam.loadMember.mockResolvedValue([session({ availability: 'booked', myBookingId: id('20'), myBookingStatus: 'booked', canCancel: true, cancelBy: '2026-10-03T10:30:00Z' })]);
+    seam.loadMember.mockResolvedValue([session({ availability: 'booked', myBookingId: id('20'), myBookingStatus: 'booked', canCancel: true, cancelBy: '2026-10-03T10:30:00Z' })]); seam.loadBookings.mockResolvedValue([session({ availability: 'booked', myBookingId: id('20'), myBookingStatus: 'booked', canCancel: true, cancelBy: '2026-10-03T10:30:00Z' })]);
     const response = deferred<unknown>(); seam.cancel.mockReturnValue(response.promise);
     const view = mount(ClassesPane); await view.settle(); await view.press(/^Cancel(?: booking)?$/i); await view.press(/^Confirm(?: cancellation)?$/i);
     expect(seam.cancel).toHaveBeenCalledTimes(1); expect(view.controls(/^Confirm(?: cancellation)?$/i).filter(node => !node.props.disabled)).toHaveLength(0);
@@ -358,28 +365,28 @@ describe('CLS independent held actual native rendered boundaries', () => {
   });
   it('native changed still-open cancellation deadline requires a renewed explicit confirmation of current facts', async () => {
     vi.setSystemTime(new Date('2026-10-03T09:00:00Z'));
-    seam.loadMember.mockResolvedValue([cancellable()]);
+    seam.loadMember.mockResolvedValue([cancellable()]); seam.loadBookings.mockResolvedValue([cancellable()]);
     const view = mount(ClassesPane); await view.settle(); await view.press(/^Cancel(?: booking)?$/i);
     expect(view.text()).toMatch(/4[:.]00|16:00/);
-    seam.loadMember.mockResolvedValue([cancellable({ cancelBy: '2026-10-03T09:30:00Z' })]);
+    seam.loadMember.mockResolvedValue([cancellable({ cancelBy: '2026-10-03T09:30:00Z' })]); seam.loadBookings.mockResolvedValue([cancellable({ cancelBy: '2026-10-03T09:30:00Z' })]);
     await view.press(/^Confirm(?: cancellation)?$/i);
     expect(seam.cancel).not.toHaveBeenCalled(); expect(view.text()).toMatch(/3[:.]00|15:00/);
     await view.press(/^Confirm(?: cancellation)?$/i);
     expect(seam.cancel).toHaveBeenCalledTimes(1); expect(seam.cancel).toHaveBeenCalledWith(seam.mobile.api, id('20'), expect.any(Function)); view.unmount();
   });
   it('native changed session place and time require confirmation of refreshed facts before cancelling the same own booking', async () => {
-    seam.loadMember.mockResolvedValue([cancellable()]);
+    seam.loadMember.mockResolvedValue([cancellable()]); seam.loadBookings.mockResolvedValue([cancellable()]);
     const view = mount(ClassesPane); await view.settle(); await view.press(/^Cancel(?: booking)?$/i);
-    seam.loadMember.mockResolvedValue([cancellable({ branchName: 'North annex', timezone: 'Asia/Kathmandu', startsAt: '2026-10-03T13:30:00Z', endsAt: '2026-10-03T14:30:00Z', cancelBy: '2026-10-03T11:30:00Z' })]);
+    seam.loadMember.mockResolvedValue([cancellable({ branchName: 'North annex', timezone: 'Asia/Kathmandu', startsAt: '2026-10-03T13:30:00Z', endsAt: '2026-10-03T14:30:00Z', cancelBy: '2026-10-03T11:30:00Z' })]); seam.loadBookings.mockResolvedValue([cancellable({ branchName: 'North annex', timezone: 'Asia/Kathmandu', startsAt: '2026-10-03T13:30:00Z', endsAt: '2026-10-03T14:30:00Z', cancelBy: '2026-10-03T11:30:00Z' })]);
     await view.press(/^Confirm(?: cancellation)?$/i);
     expect(seam.cancel).not.toHaveBeenCalled(); expect(view.text()).toContain('North annex'); expect(view.text()).toMatch(/5[:.]15|17:15/);
     await view.press(/^Confirm(?: cancellation)?$/i);
     expect(seam.cancel).toHaveBeenCalledTimes(1); expect(seam.cancel).toHaveBeenCalledWith(seam.mobile.api, id('20'), expect.any(Function)); view.unmount();
   });
   it('native refreshed other booking id is fail-closed even if cancellation remains allowed', async () => {
-    seam.loadMember.mockResolvedValue([cancellable()]);
+    seam.loadMember.mockResolvedValue([cancellable()]); seam.loadBookings.mockResolvedValue([cancellable()]);
     const view = mount(ClassesPane); await view.settle(); await view.press(/^Cancel(?: booking)?$/i);
-    seam.loadMember.mockResolvedValue([cancellable({ myBookingId: id('98') })]);
+    seam.loadMember.mockResolvedValue([cancellable({ myBookingId: id('98') })]); seam.loadBookings.mockResolvedValue([cancellable({ myBookingId: id('98') })]);
     await view.press(/^Confirm(?: cancellation)?$/i);
     expect(seam.cancel).not.toHaveBeenCalled();
     if (view.controls(/^Confirm(?: cancellation)?$/i).some(node => !node.props.disabled)) await view.press(/^Confirm(?: cancellation)?$/i);
