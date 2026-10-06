@@ -19,11 +19,15 @@ WHEN visibility is Off, the system SHALL show Home, Shop, You, Activity, retain 
 - **THEN** the app returns to Home without cancelling a booking and the member can open My classes and its permitted cancellation action from the business hub
 
 ### Requirement: NAVC-006 unresolved and cached visibility
-WHILE the first authorized visibility read is unresolved, the system SHALL present stable loading and retry without interpreting absence or failure as Off. WHEN a valid confirmed value exists for the exact user, tenant and member, the system SHALL retain it during temporary offline/read failure, refresh on resume and relevant focus, and clear it on sign-out or identity replacement. Late reads SHALL not affect a replacement identity.
+WHILE the first authorized visibility read is unresolved, the system SHALL present stable loading and retry without interpreting absence or failure as Off, with the existing sign-out action available to a verified member. It SHALL retain an exact-identity confirmed value during temporary read failure, refresh on resume/focus, and clear it on sign-out/replacement. Late reads SHALL not affect a replacement identity.
 
 #### Scenario: Connection fails after a confirmed On read
 - **WHEN** an On value was confirmed for the current identity and the next read fails
 - **THEN** Classes remains visible with recoverable state and another tenant cannot reuse that value
+
+#### Scenario: Initial visibility unavailable and account switching
+- **WHEN** a verified member's first visibility read is pending or failed
+- **THEN** the member can use the existing sign-out action without entering a primary tab or receiving an invented Off value
 
 ### Requirement: NAVC-007 secondary routes and desk navigation
 WHEN Buy, Freeze requests, full announcements or Training is opened, the system SHALL keep those destinations outside the primary tab buttons and preserve existing role guards. The desk SHALL have at most five primary destinations and expose native Training through More only for authorized trainers. Shop SHALL provide Buy access and the business hub SHALL provide plan-renewal and Freeze requests access beside membership.
