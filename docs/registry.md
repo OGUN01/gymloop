@@ -927,7 +927,7 @@ Visual system: `docs/design/phase9/direction.md`. Tokens stay in `UI_TOKENS` (no
 | `ChoiceList` | `apps/mobile/components/ui.tsx` | Single choice as ruled rows with a leading radio and optional meta line | Appearance, desk check-in reason |
 | `appearanceLabel` | `apps/mobile/components/ui.tsx` | Appearance mode as "System" / "Light" / "Dark" | member You, desk More |
 | `AppearanceSheet` | `apps/mobile/components/ui.tsx` | Shared Appearance sheet for member and desk | member You, desk More |
-| `RowAction` | `apps/mobile/components/ui.tsx` | In-row 44dp outline action, with a clay `accent` variant | desk Check-in, Follow-ups |
+| `RowAction` | `apps/mobile/components/ui.tsx` | Existing in-row outline action with accent variant; optional quiet keeps a touch-height accessible action with wrapping primary-color text and no border; ordinary consumers retain their outline | desk Check-in, Follow-ups; compact Shop navigation and service actions |
 | `Rule` | `apps/mobile/components/ui.tsx` | Hairline divider in the separator colour | member screens |
 | `Row` | `apps/mobile/components/ui.tsx` | Ledger row with one anatomy: leading icon slot, text column, trailing status (inline status joins the meta line with " · "), 16dp chevron or a reserved slot so values align | member and desk screens |
 | `Status` | `apps/mobile/components/ui.tsx` | Dot-and-word status (UX9-003) | member and desk screens |

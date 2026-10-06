@@ -294,11 +294,11 @@ export function ActionButton({ children, secondary = false, quiet = false, disab
  * An in-row outline action at the 44 control height (its slop makes the touch area 52): `accent` is the row's go
  * action — clay outline and clay label, like Check in and Call — otherwise a quiet secondary-text label and neutral outline.
  */
-export function RowAction({ children, accent = false, icon, disabled, ...props }: PressableProps & { children: ReactNode; accent?: boolean; icon?: ReactNode }) {
+export function RowAction({ children, accent = false, quiet = false, icon, disabled, ...props }: PressableProps & { children: ReactNode; accent?: boolean; quiet?: boolean; icon?: ReactNode }) {
   const { palette } = useMobile();
   return <Pressable accessibilityRole="button" hitSlop={space[0]} disabled={disabled} accessibilityState={{ disabled: disabled ?? false }} {...props} style={({ pressed }) => [
-    styles.rowAction, { borderColor: accent ? palette.primaryAction : palette.requiredControlOutline }, pressed && styles.pressed, disabled && styles.disabled,
-  ]}>{icon}<Text numberOfLines={1} style={[styles.rowActionText, { color: accent ? palette.primaryAction : palette.secondaryText, fontFamily: accent ? FONT.semibold : FONT.medium }]}>{children}</Text></Pressable>;
+    styles.rowAction, quiet && styles.quietRowAction, { borderColor: accent ? palette.primaryAction : palette.requiredControlOutline }, pressed && styles.pressed, disabled && styles.disabled,
+  ]}>{icon}<Text numberOfLines={quiet ? undefined : 1} style={[styles.rowActionText, { color: accent || quiet ? palette.primaryAction : palette.secondaryText, fontFamily: accent ? FONT.semibold : FONT.medium }]}>{children}</Text></Pressable>;
 }
 
 /** Search box with a leading magnifier 16 from the border and 12 from the text; the placeholder must say what the search really matches. */
@@ -407,6 +407,7 @@ const styles = StyleSheet.create({
   actionText: { flexShrink: 1, textAlign: 'center', fontSize: type.mobileBody.size, lineHeight: type.mobileBody.lineHeight },
   actionTextPrimary: { fontSize: type.mobileSection.size, lineHeight: type.mobileSection.lineHeight },
   rowAction: { minHeight: UI_TOKENS.geometry.targets.interactive, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: space[1], borderWidth: 1, borderRadius: UI_TOKENS.geometry.radii.control, borderCurve: 'continuous', paddingHorizontal: space[3] },
+  quietRowAction: { minHeight: UI_TOKENS.geometry.targets.touch, borderWidth: 0 },
   rowActionText: { fontSize: type.compact.size, lineHeight: type.compact.lineHeight },
   field: { minHeight: UI_TOKENS.geometry.targets.touch, borderWidth: 1, borderRadius: UI_TOKENS.geometry.radii.control, borderCurve: 'continuous', paddingHorizontal: space[3], fontFamily: FONT.regular, fontSize: type.mobileBody.size },
   stateBox: { borderWidth: StyleSheet.hairlineWidth, borderLeftWidth: space[0], borderRadius: UI_TOKENS.geometry.radii.control, paddingHorizontal: space[3], paddingVertical: space[2] },

@@ -139,7 +139,12 @@ export default function ShopScreen() {
     } finally { if (current()) { command.current = null; setBusy(false); } }
   };
 
-  const renderItem = (item: ShopItem) => <View key={item.itemId} style={[styles.itemCard, { borderColor: palette.decorativeSeparator }]}>
+  const renderItem = (item: ShopItem) => item.section === 'services' ? <View key={item.itemId} style={[styles.itemCard, styles.supportingRow, { borderColor: palette.decorativeSeparator }]}>
+    <View style={styles.serviceHeading}><ShopPhoto url={item.imageUrl} /><View style={styles.supportingCopy}><Body strong>{item.name}</Body></View></View>
+    <Display size="section" accent>{formatMoney(item.pricePaise, item.currency)}</Display>
+    <Status tone={item.availability === 'available' ? 'ok' : 'neutral'}>{item.availability === 'available' ? 'Available' : 'Out of stock'}</Status>
+    <RowAction quiet accessibilityLabel={`View service ${item.name}`} disabled={busy || scope === null} onPress={() => openItem(item)}>View service</RowAction>
+  </View> : <View key={item.itemId} style={[styles.itemCard, { borderColor: palette.decorativeSeparator }]}>
     <Row icon={<ShopPhoto url={item.imageUrl} large={item.section === 'products'} />} title={item.name} meta={item.description || undefined} status={<Status tone={item.availability === 'available' ? 'ok' : 'neutral'}>{item.availability === 'available' ? 'Available' : 'Out of stock'}</Status>} onPress={() => openItem(item)} accessibilityLabel={`${item.name}, ${formatMoney(item.pricePaise, item.currency)}, ${item.availability === 'available' ? 'Available' : 'Out of stock'}`} />
     <View style={styles.priceAction}><Display size="section" accent>{formatMoney(item.pricePaise, item.currency)}</Display><ActionButton secondary accessibilityLabel={`Reserve ${item.name}`} disabled={disabled || shopMaxQuantity(item) === 0} onPress={() => openItem(item)}>{item.section === 'products' ? 'Reserve' : 'View service'}</ActionButton></View>
   </View>;
@@ -153,13 +158,13 @@ export default function ShopScreen() {
     <View style={styles.shopHeader}>
       <View style={styles.heading}>
         <Eyebrow>{snapshot.data?.gym.displayName ?? `Your ${nouns.place}`}</Eyebrow>
-        <View style={styles.headingRow}><View accessible accessibilityRole="header" accessibilityLabel="Shop" style={styles.headingTitle}><Display size="heading">Shop</Display></View><RowAction accessibilityLabel="Refresh shop" disabled={loading || busy} onPress={() => { setMessage(null); void reload(); }}>Refresh shop</RowAction></View>
-        <Body muted>Reserve something for your next visit. Pay and collect at the front desk.</Body>
+        <View style={styles.headingRow}><View accessible accessibilityRole="header" accessibilityLabel="Shop" style={styles.headingTitle}><Display size="heading">Shop</Display></View><RowAction quiet accessibilityLabel="Refresh shop" disabled={loading || busy} onPress={() => { setMessage(null); void reload(); }}>Refresh shop</RowAction></View>
+        <Body muted>Reserve now. Pay at the front desk.</Body>
       </View>
       <View style={styles.sectionLinks}>
-        <RowAction onPress={() => { const y = sectionPositions.current.products; if (y !== undefined) scrollRef.current?.scrollTo({ y, animated: true }); }}>Products</RowAction>
-        <RowAction onPress={() => { const y = sectionPositions.current.plans; if (y !== undefined) scrollRef.current?.scrollTo({ y, animated: true }); }}>Plans</RowAction>
-        <RowAction onPress={() => { const y = sectionPositions.current.services; if (y !== undefined) scrollRef.current?.scrollTo({ y, animated: true }); }}>Services</RowAction>
+        <RowAction quiet onPress={() => { const y = sectionPositions.current.products; if (y !== undefined) scrollRef.current?.scrollTo({ y, animated: true }); }}>Products</RowAction>
+        <RowAction quiet onPress={() => { const y = sectionPositions.current.plans; if (y !== undefined) scrollRef.current?.scrollTo({ y, animated: true }); }}>Plans</RowAction>
+        <RowAction quiet onPress={() => { const y = sectionPositions.current.services; if (y !== undefined) scrollRef.current?.scrollTo({ y, animated: true }); }}>Services</RowAction>
       </View>
     </View>
     {visible && (!online || visible.stale) ? <StateMessage tone="warning">{online ? `Showing the shop saved ${heldUntilLabel(visible.savedAt, timeZone)}. Refresh before reserving or cancelling.` : shopOfflineNotice(heldUntilLabel(visible.savedAt, timeZone))}</StateMessage> : null}
@@ -169,9 +174,9 @@ export default function ShopScreen() {
     <View style={styles.catalogueSection} onLayout={({ nativeEvent }) => { sectionPositions.current.plans = nativeEvent.layout.y; }}><Eyebrow>Plans</Eyebrow>
       {plans.state.phase === 'loading' && !plans.state.view ? <LoadingState /> : null}
       {planNotice ? <StateMessage tone={planNotice.tone}>{planNotice.text}</StateMessage> : null}
-      {plans.state.view?.plans.map(plan => <View key={plan.id} style={[styles.itemCard, { borderColor: palette.decorativeSeparator }]}><Body strong>{plan.name}</Body><Display size="section" accent>{formatMoney(plan.pricePaise, plan.currency)}</Display><Body muted>{planDurationLabel(plan.durationDays)}</Body>{plan.held ? <Status tone="accent">{plansCopy.badge}</Status> : null}{planGstLabel(plan.gstRateBp) ? <Body muted>{planGstLabel(plan.gstRateBp)}</Body> : null}{plan.description ? <Body>{plan.description}</Body> : null}</View>)}
+      {plans.state.view?.plans.map(plan => <View key={plan.id} style={[styles.itemCard, { borderColor: palette.decorativeSeparator }]}><View style={styles.supportingRow}><View style={styles.supportingCopy}><Body strong>{plan.name}</Body></View><Display size="section" accent>{formatMoney(plan.pricePaise, plan.currency)}</Display></View><View style={styles.supportingRow}><Body muted>{planDurationLabel(plan.durationDays)}</Body>{plan.held ? <Status tone="accent">{plansCopy.badge}</Status> : null}{planGstLabel(plan.gstRateBp) ? <Body muted>{planGstLabel(plan.gstRateBp)}</Body> : null}</View>{plan.description ? <Body>{plan.description}</Body> : null}</View>)}
       {plans.state.view && !plans.state.view.plans.length ? <Body muted>No plans listed yet.</Body> : null}
-      <ActionButton secondary onPress={() => router.push({ pathname: '/(member)/gym', params: { section: 'plans' } })}>View plans</ActionButton>
+      <RowAction quiet onPress={() => router.push({ pathname: '/(member)/gym', params: { section: 'plans' } })}>View plans</RowAction>
       {planNotice ? <ActionButton secondary onPress={() => void plans.reload()}>Refresh plans</ActionButton> : null}
     </View>
     <View style={styles.catalogueSection} onLayout={({ nativeEvent }) => { sectionPositions.current.services = nativeEvent.layout.y; }}><Eyebrow>Services</Eyebrow>{groups.services.map(renderItem)}{visible && !groups.services.length ? <Body muted>No services listed yet.</Body> : null}</View>
@@ -226,4 +231,7 @@ const styles = StyleSheet.create({
   catalogueSection: { gap: UI_TOKENS.geometry.spacing[2] },
   productGroup: { gap: UI_TOKENS.geometry.spacing[2] },
   priceAction: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: UI_TOKENS.geometry.spacing[2] },
+  supportingRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: UI_TOKENS.geometry.spacing[2] },
+  supportingCopy: { flex: 1, minWidth: 0 },
+  serviceHeading: { width: '100%', flexDirection: 'row', alignItems: 'center', gap: UI_TOKENS.geometry.spacing[2] },
 });
