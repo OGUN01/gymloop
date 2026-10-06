@@ -437,7 +437,7 @@ async function ensureClientSmoke(runtime, sourceSha, workdir, directory) {
   if (!inside(parent, smokeRoot)) throw refuse('REPORTING_UNVERIFIED');
   await mkdir(smokeRoot, { recursive: false });
   const stub = join(smokeRoot, 'psql');
-  const stubText = '#!/bin/sh\nfile=""\nwhile [ "$#" -gt 0 ]; do\n  if [ "$1" = "-f" ]; then shift; file="$1"; fi\n  shift\ndone\nif [ -z "$file" ]; then exit 1; fi\ncat "$file"\ncase "$file" in\n  */client-error.sql|*/connection-loss.sql) echo "ERROR: synthetic client failure" >&2; exit 1;;\nesac\n';
+  const stubText = '#!/bin/sh\nfile=""\nwhile [ "$#" -gt 0 ]; do\n  if [ "$1" = "-f" ] || [ "$1" = "--file" ]; then shift; file="$1"; fi\n  shift\ndone\nif [ -z "$file" ]; then exit 1; fi\ncat "$file"\ncase "$file" in\n  */client-error.sql|*/connection-loss.sql) echo "ERROR: synthetic client failure" >&2; exit 1;;\nesac\n';
   await writeFile(stub, stubText, { mode: NATIVE_DB_VALIDATION.smokeExecutableMode, flag: 'wx' });
   if (process.platform !== 'win32') await chmod(stub, NATIVE_DB_VALIDATION.smokeExecutableMode);
   const success = '1..2\nok 1 - synthetic one\nok 2 - synthetic two\n';
