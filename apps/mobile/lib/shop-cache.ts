@@ -19,12 +19,12 @@ export function createMemoryShopCache(): ShopCacheStore {
   return { get: async key => values.get(key) ?? null, set: async (key, value) => { values.set(key, value); }, remove: async key => { values.delete(key); } };
 }
 export const nativeShopCache = createMemoryShopCache();
-export async function writeShopCache(store: ShopCacheStore, scope: string, response: ShopCatalogueResponse): Promise<void> {
+export async function writeShopCache(store: ShopCacheStore, scope: string, response: ShopCatalogueResponse, current: () => boolean = () => true): Promise<void> {
   const isCurrent = shopCacheCurrent(store);
   const parsed = shopCatalogueResponseSchema.safeParse(response);
   if (!parsed.success) return;
   const writing = (writes.get(store) ?? Promise.resolve()).catch(() => undefined).then(async () => {
-    if (!isCurrent()) return;
+    if (!isCurrent() || !current()) return;
     const keys = scopes.get(store) ?? new Set<string>();
     scopes.set(store, keys);
     keys.add(scope);

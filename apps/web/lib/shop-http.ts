@@ -1,8 +1,8 @@
 import { Constants, type Database } from '@gymloop/db';
-import { shopReserveResultSchema, shopFulfilResultSchema, shopReserveRequestSchema, shopCatalogueRequestSchema, shopMemberCancelRequestSchema, shopDeskCancelRequestSchema, shopFulfilRequestSchema, shopProductDisplayRequestSchema, shopCategoryCreateRequestSchema, shopCategoryPatchRequestSchema, shopCategoryOrderRequestSchema } from '@gymloop/shared';
+import { shopReserveResultSchema, shopFulfilResultSchema, shopReserveRequestSchema, shopCatalogueRequestSchema, shopMemberCancelRequestSchema, shopDeskCancelRequestSchema, shopFulfilRequestSchema, shopProductDisplayRequestSchema, shopCategoryCreateRequestSchema, shopCategoryPatchRequestSchema, shopCategoryOrderRequestSchema, shopPageRequestSchema } from '@gymloop/shared';
 import { UUID_PATTERN } from './keyset';
 import { apiFail, apiOk, noStore, memberSession, staffSession } from './api';
-import { loadMemberShop, shopFailure } from './shop';
+import { loadMemberShop, loadMemberShopPage, shopFailure } from './shop';
 import { saleFailure } from './addon-sale-failure';
 
 type Operation = 'reserve' | 'memberCancel' | 'deskCancel' | 'fulfil' | 'display' | 'categoryCreate' | 'categoryPatch' | 'categoryOrder' | 'catalogue';
@@ -30,6 +30,20 @@ function commandFailure(operation: Operation, error: { code: string; details: st
   return shopFailure(error.code, error.details, error.message);
 }
 type Rpc = keyof Database['public']['Functions'];
+/** Verified member authority precedes even malformed paging JSON. */
+export async function shopPageRoute(request: Request): Promise<Response> {
+  const caller = await memberSession(request);
+  if ('failure' in caller) return noStore(caller.failure);
+  let input;
+  try { input = shopPageRequestSchema.safeParse(await request.json()); }
+  catch { return shopFailure('22023', null, ''); }
+  if (!input.success) return shopFailure('22023', null, '');
+  try { return noStore(apiOk(await loadMemberShopPage(caller.session.supabase, input.data))); }
+  catch (error) {
+    const code = error && typeof error === 'object' && 'code' in error && typeof error.code === 'string' ? error.code : 'XX000';
+    return shopFailure(code, null, '');
+  }
+}
 /** Frozen HTTP commands delegate atomic decisions to the caller's database. */
 export async function shopRoute(request: Request, operation: Operation, context?: { params: Promise<Record<string, string>> }): Promise<Response> {
   const caller = await shopCommand(request, operation);

@@ -1,14 +1,15 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Image, StyleSheet, View, type ScrollView } from 'react-native';
 import { Package } from 'lucide-react-native';
 import { useRouter } from 'expo-router';
 import * as Network from 'expo-network';
-import { DEFAULT_TIMEZONE, MS_PER_HOUR, NATIVE_MEMBER_LAYOUT, SHOP_LIMITS, SHOP_TERMS_CHANGED_NOTE, UI_TOKENS, formatMoney, groupShopItems, planCatalogueCopy, planDurationLabel, planGstLabel, shopCatalogueResponseSchema, shopGstLabel, shopMaxQuantity, shopOfflineNotice, shopReservationStateWord, shopReserveNotice, shopReserveRequestSchema, type ShopCatalogueResponse, type ShopItem, type ShopReservation } from '@gymloop/shared';
+import { DEFAULT_TIMEZONE, MS_PER_HOUR, SHOP_LIMITS, SHOP_TERMS_CHANGED_NOTE, UI_TOKENS, formatMoney, groupShopItems, planCatalogueCopy, planDurationLabel, planGstLabel, shopGstLabel, shopMaxQuantity, shopOfflineNotice, shopReservationStateWord, shopReserveNotice, shopReserveRequestSchema, type ShopItem, type ShopReservation } from '@gymloop/shared';
 import { ActionButton, Body, Display, EmptyState, Eyebrow, LoadingState, Row, RowAction, Screen, Sheet, SheetHeader, StateMessage, Status } from '../../components/ui';
 import { useMobile } from '../../lib/mobile-context';
 import { useMemberSnapshot } from '../../lib/use-member-snapshot';
 import { heldUntilLabel, reserveOutcomeMessage, shopCacheScope } from '../../lib/shop';
-import { clearShopCache, nativeShopCache, readShopCache, shopCacheCurrent, writeShopCache } from '../../lib/shop-cache';
+import { nativeShopCache, shopCacheCurrent } from '../../lib/shop-cache';
+import { useMemberShopPages } from '../../lib/use-member-shop-pages';
 import { useMemberPlans } from '../../lib/use-member-plans';
 import { planCatalogueNotice } from '../../lib/plan-catalogue-state';
 
@@ -25,7 +26,6 @@ function ShopPhoto({ url, large = false }: { url: string | null; large?: boolean
 export default function ShopScreen() {
   const { identity, api, nouns, palette } = useMobile();
   const router = useRouter();
-  const post = api.post;
   const snapshot = useMemberSnapshot();
   const timeZone = snapshot.data?.gym.timezone ?? DEFAULT_TIMEZONE;
   const scope = shopCacheScope(identity);
@@ -34,86 +34,51 @@ export default function ShopScreen() {
   const planNotice = planCatalogueNotice(plans.state, plansCopy, timeZone);
   const network = Network.useNetworkState();
   const online = network.isConnected === true && network.isInternetReachable !== false;
-  const [view, setView] = useState<{ scope: string; response: ShopCatalogueResponse; savedAt: string; stale: boolean } | null>(null);
-  const [loading, setLoading] = useState(true);
+  const { view, loading, loadingMore, error, visibleCount, hasMore, reload, loadMore } = useMemberShopPages();
   const [message, setMessage] = useState<string | null>(null);
-  const [selection, setSelection] = useState<{ scope: string; item: ShopItem; quantity: number; confirm: boolean; heldUntil: string } | null>(null);
-  const [cancellation, setCancellation] = useState<{ scope: string; reservation: ShopReservation } | null>(null);
+  const [selection, setSelection] = useState<{ owner: object; scope: string; item: ShopItem; quantity: number; confirm: boolean; heldUntil: string } | null>(null);
+  const [cancellation, setCancellation] = useState<{ owner: object; scope: string; reservation: ShopReservation } | null>(null);
   const [busy, setBusy] = useState(false);
-  const [reservationPage, setReservationPage] = useState({ scope, count: NATIVE_MEMBER_LAYOUT.reservationPreview as number });
   const currentScope = useRef(scope);
-  const cacheScope = useRef(scope);
-  const readRevision = useRef<object>({});
   const command = useRef<object | null>(null);
   const scrollRef = useRef<ScrollView | null>(null);
   const sectionPositions = useRef<{ products?: number; plans?: number; services?: number }>({});
-  if (currentScope.current !== scope) { currentScope.current = scope; readRevision.current = {}; command.current = null; }
   const visible = view?.scope === scope ? view : null;
-  const selected = selection?.scope === scope ? selection : null;
-  const cancel = cancellation?.scope === scope ? cancellation : null;
-  const disabled = !online || !!visible?.stale || busy || scope === null;
-
-  const reload = useCallback(async () => {
-    if (currentScope.current !== scope) return;
-    if (scope === null) { setLoading(false); return; }
-    const revision = {};
-    readRevision.current = revision;
-    const cacheCurrent = shopCacheCurrent(nativeShopCache);
-    const current = () => currentScope.current === scope && readRevision.current === revision && cacheCurrent();
-    setLoading(true);
-    try {
-      const state = await Network.getNetworkStateAsync();
-      if (!current()) return;
-      if (state.isConnected !== true || state.isInternetReachable === false) throw new Error('offline');
-      const result = await post<unknown>('/api/shop/catalogue', {});
-      if (!current()) return;
-      const parsed = result.ok ? shopCatalogueResponseSchema.safeParse(result.data) : null;
-      if (!parsed?.success) throw new Error('unavailable');
-      await writeShopCache(nativeShopCache, scope, parsed.data);
-      if (!current()) return;
-      const saved = await readShopCache(nativeShopCache, scope);
-      if (!current()) return;
-      setView({ scope, response: parsed.data, savedAt: saved?.savedAt ?? new Date().toISOString(), stale: false });
-    } catch {
-      if (!current()) return;
-      const saved = await readShopCache(nativeShopCache, scope);
-      if (!current()) return;
-      setView(saved ? { scope, ...saved, stale: true } : null);
-      if (!saved) setMessage('The shop could not be loaded. Check your connection and try again.');
-    } finally { if (current()) setLoading(false); }
-  }, [post, scope]);
+  const available = visible !== null;
+  const interaction = useRef({ scope, api, available });
+  const currentView = useRef(visible);
+  currentView.current = visible;
+  if (interaction.current.scope !== scope || interaction.current.api !== api || interaction.current.available !== available) {
+    interaction.current = { scope, api, available }; currentScope.current = scope; command.current = null;
+  }
+  const owner = interaction.current;
+  const selected = available && selection?.owner === owner && selection.scope === scope ? selection : null;
+  const cancel = available && cancellation?.owner === owner && cancellation.scope === scope ? cancellation : null;
+  const disabled = !available || !online || !!visible?.stale || busy || scope === null;
 
   useEffect(() => {
-    const prepare = async () => {
-      if (cacheScope.current !== scope) {
-        cacheScope.current = scope;
-        await clearShopCache();
-        setView(null); setSelection(null); setCancellation(null); setMessage(null); setBusy(false);
-      }
-      if (currentScope.current === scope) await reload();
-    };
-    void prepare();
-    return () => { readRevision.current = {}; };
-  }, [scope, online, reload]);
+    setSelection(null); setCancellation(null); setMessage(null); setBusy(false);
+    return () => { command.current = null; };
+  }, [scope, api, available]);
 
   const close = () => { if (command.current === null) { setSelection(null); setCancellation(null); } };
   const openItem = (item: ShopItem) => {
-    if (scope === null || currentScope.current !== scope || command.current !== null) return;
+    if (scope === null || interaction.current !== owner || !owner.available || currentScope.current !== scope || command.current !== null) return;
     setMessage(null);
     const heldUntil = new Date(Date.now() + SHOP_LIMITS.reservationTtlHours * MS_PER_HOUR).toISOString();
-    setSelection({ scope, item, quantity: 1, confirm: false, heldUntil });
+    setSelection({ owner, scope, item, quantity: 1, confirm: false, heldUntil });
   };
   const mutate = async () => {
-    if (scope === null || currentScope.current !== scope || command.current !== null || (!selected && !cancel)) return;
+    if (scope === null || interaction.current !== owner || !owner.available || !currentView.current || currentView.current.stale || currentScope.current !== scope || command.current !== null || (!selected && !cancel)) return;
     const request = {};
     command.current = request;
     setBusy(true);
     const cacheCurrent = shopCacheCurrent(nativeShopCache);
-    const current = () => currentScope.current === scope && command.current === request && cacheCurrent();
+    const current = () => interaction.current === owner && owner.available && currentScope.current === scope && command.current === request && cacheCurrent();
     try {
       const state = await Network.getNetworkStateAsync();
       if (!current()) return;
-      if (state.isConnected !== true || state.isInternetReachable === false || visible?.stale) {
+      if (state.isConnected !== true || state.isInternetReachable === false || !currentView.current || currentView.current.stale) {
         setMessage('Reserving and cancelling need a connection. Check your connection and try again.');
         return;
       }
@@ -136,7 +101,7 @@ export default function ShopScreen() {
       await reload();
     } catch {
       if (current()) { setMessage(reserveOutcomeMessage('network_failed')); await reload(); }
-    } finally { if (current()) { command.current = null; setBusy(false); } }
+    } finally { if (currentScope.current === scope && command.current === request) { command.current = null; setBusy(false); } }
   };
 
   const renderItem = (item: ShopItem) => item.section === 'services' ? <View key={item.itemId} style={[styles.itemCard, styles.supportingRow, { borderColor: palette.decorativeSeparator }]}>
@@ -151,9 +116,8 @@ export default function ShopScreen() {
   const groups = groupShopItems(visible?.response.items ?? []);
   const reservations = visible?.response.reservations ?? [];
   const orderedReservations = [...reservations.filter(row => row.state === 'reserved'), ...reservations.filter(row => row.state !== 'reserved')];
-  const reservationCount = reservationPage.scope === scope ? reservationPage.count : NATIVE_MEMBER_LAYOUT.reservationPreview;
-  const shownReservations = orderedReservations.slice(0, reservationCount);
-  const hiddenActive = orderedReservations.slice(reservationCount).filter(row => row.state === 'reserved').length;
+  const shownReservations = orderedReservations.slice(0, visibleCount);
+  const hiddenActive = orderedReservations.slice(visibleCount).filter(row => row.state === 'reserved').length;
   return <Screen scrollRef={scrollRef}>
     <View style={styles.shopHeader}>
       <View style={styles.heading}>
@@ -169,6 +133,7 @@ export default function ShopScreen() {
     </View>
     {visible && (!online || visible.stale) ? <StateMessage tone="warning">{online ? `Showing the shop saved ${heldUntilLabel(visible.savedAt, timeZone)}. Refresh before reserving or cancelling.` : shopOfflineNotice(heldUntilLabel(visible.savedAt, timeZone))}</StateMessage> : null}
     {message ? <StateMessage>{message}</StateMessage> : null}
+    {error ? <StateMessage tone="warning">{error}</StateMessage> : null}
     {loading && !visible ? <LoadingState /> : null}
     <View style={styles.catalogueSection} onLayout={({ nativeEvent }) => { sectionPositions.current.products = nativeEvent.layout.y; }}><Eyebrow>Products</Eyebrow>{groups.products.map((group, index) => <View style={styles.productGroup} key={`${group.categoryId ?? 'uncategorised'}:${index}`}><Body strong>{group.categoryName ?? 'Other products'}</Body>{group.items.map(renderItem)}</View>)}{visible && !groups.products.length ? <Body muted>No products listed yet.</Body> : null}</View>
     <View style={styles.catalogueSection} onLayout={({ nativeEvent }) => { sectionPositions.current.plans = nativeEvent.layout.y; }}><Eyebrow>Plans</Eyebrow>
@@ -188,8 +153,8 @@ export default function ShopScreen() {
       <Body muted>{reservation.state === 'reserved' ? 'Held until' : 'Hold ended'} {heldUntilLabel(reservation.expiresAt, timeZone)}</Body>
       {reservation.termsChanged ? <StateMessage tone="warning">{SHOP_TERMS_CHANGED_NOTE}</StateMessage> : null}
       {reservation.cancelReason ? <Body>Reason from your {nouns.place}: {reservation.cancelReason}</Body> : null}
-      {reservation.state === 'reserved' ? <ActionButton secondary disabled={disabled} onPress={() => { if (currentScope.current !== scope || command.current) return; if (disabled) { setMessage('Cancelling needs a connection. Check your connection and try again.'); return; } if (scope) { setMessage(null); setCancellation({ scope, reservation }); } }}>Cancel reservation</ActionButton> : null}
-    </View>)}{shownReservations.length < orderedReservations.length ? <ActionButton secondary onPress={() => setReservationPage({ scope, count: reservationCount + NATIVE_MEMBER_LAYOUT.reservationLoadMore })}>Load more</ActionButton> : null}</View> : null}
+      {reservation.state === 'reserved' ? <ActionButton secondary disabled={disabled} onPress={() => { if (interaction.current !== owner || !owner.available || currentScope.current !== scope || command.current) return; if (disabled) { setMessage('Cancelling needs a connection. Check your connection and try again.'); return; } if (scope) { setMessage(null); setCancellation({ owner, scope, reservation }); } }}>Cancel reservation</ActionButton> : null}
+    </View>)}{hasMore ? <ActionButton secondary disabled={loadingMore || loading} onPress={() => { void loadMore(); }}>{loadingMore ? 'Loading…' : 'Load more'}</ActionButton> : null}</View> : null}
     <Sheet visible={selected !== null} onClose={close}>
       {selected ? <>
         <SheetHeader title={selected.confirm ? 'Confirm reservation' : selected.item.name} control="Cancel" onControl={close} controlDisabled={busy} />
@@ -206,7 +171,7 @@ export default function ShopScreen() {
         <Body strong>Total: {formatMoney((BigInt(selected.item.pricePaise) * BigInt(selected.quantity)).toString(), selected.item.currency)}</Body>
         {selected.confirm ? <Body>{shopReserveNotice({ place: nouns.place, heldUntil: heldUntilLabel(selected.heldUntil, timeZone) })}</Body> : null}
         {message ? <StateMessage>{message}</StateMessage> : null}
-        <ActionButton disabled={disabled || shopMaxQuantity(selected.item) === 0} onPress={() => { if (currentScope.current !== scope || command.current) return; if (disabled) { setMessage('Reserving needs a connection. Check your connection and try again.'); return; } if (selected.confirm) void mutate(); else setSelection({ ...selected, confirm: true }); }}>{busy ? 'Reserving…' : selected.confirm ? 'Confirm reservation' : 'Reserve'}</ActionButton>
+        <ActionButton disabled={disabled || shopMaxQuantity(selected.item) === 0} onPress={() => { if (interaction.current !== owner || !owner.available || currentScope.current !== scope || command.current) return; if (disabled) { setMessage('Reserving needs a connection. Check your connection and try again.'); return; } if (selected.confirm) void mutate(); else setSelection({ ...selected, confirm: true }); }}>{busy ? 'Reserving…' : selected.confirm ? 'Confirm reservation' : 'Reserve'}</ActionButton>
       </> : null}
     </Sheet>
     <Sheet visible={cancel !== null} onClose={close}>{cancel ? <>

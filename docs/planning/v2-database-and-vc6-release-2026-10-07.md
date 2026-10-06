@@ -28,13 +28,21 @@ Production AAB requires applicationId `in.fitcruxx.app`, label FitCruxx, OAuth s
 
 Existing pilot exceptions (ADR-159/168), manual-only payments, unresolved HTTPS App Links proof and native Firebase/push setup are not silently turned into passed gates by this upload. Do not expand the release to unrelated feature implementation. Keep actual Console draft/review/published status distinct.
 
+## Current execution checkpoint (7 October, 00:55 IST)
+
+Shop paging is implemented with an additive bounded read-only RPC, strict initial/more endpoint and native three/five coordinator. Independent SQL proofs pass 59/59 visible, 114/114 held and 31/31 metadata with rollback. Shared/web full suites pass 1,103/4,525 checks; native passes 1,055 before the final awaited freshness guard, whose focused hook/sheet suite passes36/36. Held JS passes92/92, body unread by implementation. A blind critic now gives GO after tests-first corrections for retained sheets and current-view freshness after network preflight. [Local evidence](../evidence/v2/shop-reservation-pagination-local-2026-10-07.json) distinguishes this from still-pending CI/device/release acceptance.
+
+The preferred validation trial is now the free existing Windows client environment, not paid provisioning. Official client-only smoke proves native Windows short-path readonly mounts/cwd/host networking/config consumption: successful fixtures have per-file timers; eight deliberately broken fixtures exit red, all bytes unchanged. The DBV contract is frozen at3aa8518b plus0321784c operational interfaces. Visible288 synthetic cases are red because the two implementation modules do not exist; independent holdout author is active. No runner has been registered, no machine setting changed, no timeout altered and no complete performance trial run. Paid fallback still requires concrete account/access/spending if needed.
+
+Next: push the coherent green Shop unit to let CI apply its migration and run the required full hosted baseline; generate types only after migration success. Build the independently tested validation harness while that suite runs, then conduct the regional run serially after baseline completion. No competing Cloud suite or second migration is authorized during the full run. Play remains untouched; candidate6 must be rechecked before upload.
+
 ## Progress and resume boundary
 
 - [x] Read saved follow-ups and prior closed handoff.
 - [x] Parallel read-only Shop, runner and release discovery.
 - [x] Confirm authenticated correct Play app, published vc5 and candidate vc6.
-- [ ] Freeze and commit Shop pagination contract.
-- [ ] Commit independent tests red; implement without altering tests.
+- [x] Freeze and commit Shop pagination contract.
+- [x] Commit independent tests red; implement without altering tests.
 - [ ] Green focused/local gates, CI-applied migration, generated types and complete CI.
 - [ ] Prepared safe regional harness, hosting/access decision, independent failure-equivalence checks and measured complete run.
 - [ ] Fresh isolated-device pagination/navigation smoke and screenshots.

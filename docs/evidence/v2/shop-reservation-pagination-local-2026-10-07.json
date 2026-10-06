@@ -1,0 +1,48 @@
+{
+  "change": "shop-reservation-pagination",
+  "scope": "Local and independent focused acceptance; full CI and physical-device acceptance are pending",
+  "requirements": ["SHP-PAGE-001", "SHP-PAGE-002", "SHP-PAGE-003", "SHP-PAGE-004", "SHP-PAGE-005", "SHP-PAGE-006", "SHP-PAGE-007", "SHP-PAGE-008", "SHP-PAGE-009"],
+  "testFirst": {
+    "initial": "1df077e3",
+    "visibleTransportFixtures": "97bbe253",
+    "independentHeldFixtures": "3aa34d89",
+    "sheetRefusal": "5758339e",
+    "awaitedFreshness": "709a9e80",
+    "implementationReadHeldBodies": false
+  },
+  "sql": {
+    "visible": {"planned": 59, "ran": 59, "failed": 0},
+    "held": {"planned": 114, "ran": 114, "failed": 0},
+    "metadata": {"planned": 31, "ran": 31, "failed": 0},
+    "projectRef": "pecxrpskmfeuyzngvewq",
+    "rollbackOnly": true,
+    "migrationAppliedLocally": false,
+    "wholeSuiteRollbackGuard": {"files": 163, "passed": true}
+  },
+  "javascript": {
+    "focusedSharedAndHttp": {"passed": 61, "failed": 0},
+    "focusedHookAndFinalSheets": {"passed": 36, "failed": 0},
+    "independentHeld": {"passed": 92, "failed": 0},
+    "fullShared": {"files": 31, "passed": 1103, "failed": 0},
+    "fullWeb": {"files": 181, "passed": 4525, "failed": 0},
+    "fullMobile": {"files": 64, "passed": 1057, "failed": 0}
+  },
+  "gates": {
+    "typechecks": true,
+    "scopedLint": true,
+    "registry": true,
+    "escapeHatches": true,
+    "dependencyCruiser": true,
+    "knipWithExistingLocalEnvironment": true,
+    "duplicateCode": true,
+    "testsInSeparateCommits": true
+  },
+  "blindCritic": {
+    "verdict": "GO",
+    "scope": "Final static source against frozen requirements, Stripe cursor-pagination reference and accepted Chalkline arrangement",
+    "testsRead": false,
+    "findingsCorrected": ["Retained sheets after authority refusal", "Freshness lost during awaited command preflight"],
+    "deviceOrFullCiClaimed": false
+  },
+  "release": {"fullCiAccepted": false, "freshDeviceAccepted": false, "playUploaded": false}
+}

@@ -658,3 +658,11 @@ export const FONT = {
 } as const;
 /** Native disclosure limits; existing catalogue reads are not paginated by these values. */
 export const NATIVE_MEMBER_LAYOUT = { homeAnnouncementCards: 2, reservationPreview: 3, reservationLoadMore: 5 } as const;
+
+/** Opt-in Shop history transport shares the approved disclosure and hold bounds. */
+export const SHOP_PAGE_LIMITS = {
+  initialHistory: NATIVE_MEMBER_LAYOUT.reservationPreview,
+  historyPage: NATIVE_MEMBER_LAYOUT.reservationLoadMore,
+  active: SHOP_LIMITS.maxOpenReservationsPerMember,
+  initialReservations: SHOP_LIMITS.maxOpenReservationsPerMember + NATIVE_MEMBER_LAYOUT.reservationPreview,
+} as const;

@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { Constants } from '@gymloop/db';
-import { SHOP_LIMITS, SHOP_SORT_ORDER_MAX, BASIS_POINTS_PER_PERCENT, BASIS_POINT_DECIMAL_PLACES } from '../config/constants';
+import { SHOP_LIMITS, SHOP_PAGE_LIMITS, SHOP_SORT_ORDER_MAX, BASIS_POINTS_PER_PERCENT, BASIS_POINT_DECIMAL_PLACES } from '../config/constants';
 import { addonSaleRequestSchema } from './addons';
 
 export const SHOP_SECTIONS = ['products', 'services'] as const;
@@ -28,6 +28,37 @@ export const shopReservationSchema = z.strictObject({ reservationId: z.uuid(), i
 export type ShopReservation = z.infer<typeof shopReservationSchema>;
 export const shopCatalogueResponseSchema = z.strictObject({ items: z.array(shopItemSchema).max(SHOP_LIMITS.catalogueMax), reservations: z.array(shopReservationSchema), truncated: z.boolean(), serverTime: instant });
 export type ShopCatalogueResponse = z.infer<typeof shopCatalogueResponseSchema>;
+
+/** Cursor timestamps retain database precision, including microseconds. */
+export const shopReservationCursorSchema = z.strictObject({ createdAt: instant, id: z.uuid() });
+export type ShopReservationCursor = z.infer<typeof shopReservationCursorSchema>;
+export const shopPageRequestSchema = z.discriminatedUnion('mode', [
+  z.strictObject({ mode: z.literal('initial') }),
+  z.strictObject({ mode: z.literal('more'), after: shopReservationCursorSchema }),
+]);
+export type ShopPageRequest = z.infer<typeof shopPageRequestSchema>;
+export const shopPageResponseSchema = z.discriminatedUnion('mode', [
+  z.strictObject({ mode: z.literal('initial'), items: z.array(shopItemSchema).max(SHOP_LIMITS.catalogueMax), reservations: z.array(shopReservationSchema).max(SHOP_PAGE_LIMITS.initialReservations), nextAfter: shopReservationCursorSchema.nullable(), truncated: z.boolean(), serverTime: instant }),
+  z.strictObject({ mode: z.literal('more'), reservations: z.array(shopReservationSchema).max(SHOP_PAGE_LIMITS.historyPage), nextAfter: shopReservationCursorSchema.nullable(), serverTime: instant }),
+]);
+export type ShopPageResponse = z.infer<typeof shopPageResponseSchema>;
+/** Strict database JSON boundary; shares the released reservation facts. */
+export const shopReservationRecordSchema = z.strictObject({
+  reservation_id: shopReservationSchema.shape.reservationId, item_id: shopReservationSchema.shape.itemId,
+  item_name: shopReservationSchema.shape.itemName, section: shopReservationSchema.shape.section,
+  quantity: shopReservationSchema.shape.quantity, unit_price_paise: shopReservationSchema.shape.unitPricePaise,
+  total_paise: shopReservationSchema.shape.totalPaise, currency: shopReservationSchema.shape.currency,
+  state: shopReservationSchema.shape.state, created_at: shopReservationSchema.shape.createdAt,
+  expires_at: shopReservationSchema.shape.expiresAt, cancel_reason: shopReservationSchema.shape.cancelReason,
+  terms_changed: shopReservationSchema.shape.termsChanged, order_id: shopReservationSchema.shape.orderId,
+  image_asset_id: z.uuid().nullable(),
+});
+export const shopPageRpcRowSchema = z.strictObject({
+  active_reservations: z.array(shopReservationRecordSchema).max(SHOP_PAGE_LIMITS.active),
+  history: z.array(shopReservationRecordSchema).max(SHOP_PAGE_LIMITS.historyPage),
+  next_after_created_at: instant.nullable(), next_after_id: z.uuid().nullable(), as_of: instant,
+}).refine(row => (row.next_after_created_at === null) === (row.next_after_id === null))
+  .refine(row => row.next_after_id === null || row.history.length > 0);
 export function groupShopItems(items: ShopItem[]) {
   const products: { categoryId: string | null; categoryName: string | null; items: ShopItem[] }[] = [];
   const services: ShopItem[] = [];
