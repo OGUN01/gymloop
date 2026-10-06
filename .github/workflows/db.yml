@@ -558,16 +558,27 @@ jobs:
     timeout-minutes: ${{ fromJSON(needs.native-selector.outputs.timeout_minutes) }}
     steps:
       - name: Record adapter setup start before checkout
-        shell: ${{ runner.os == 'Windows' && 'powershell' || 'bash' }}
+        if: runner.os == 'Windows'
+        shell: powershell
         run: |
-          ${{ runner.os == 'Windows' && '"DBV_SETUP_STARTED_AT=$([DateTime]::UtcNow.ToString("yyyy-MM-dd''T''HH:mm:ss.fff''Z''"))" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append' || 'echo "DBV_SETUP_STARTED_AT=$(date -u +%Y-%m-%dT%H:%M:%S.%3NZ)" >> "$GITHUB_ENV"' }}
+          $setupStarted = [DateTime]::UtcNow.ToString("yyyy-MM-dd'T'HH:mm:ss.fff'Z'")
+          "DBV_SETUP_STARTED_AT=$setupStarted" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+      - name: Record hosted adapter setup start before checkout
+        if: runner.os != 'Windows'
+        shell: bash
+        run: echo "DBV_SETUP_STARTED_AT=$(date -u +%Y-%m-%dT%H:%M:%S.%3NZ)" >> "$GITHUB_ENV"
       - uses: actions/checkout@v7
         with: { fetch-depth: 0 }
       - uses: pnpm/action-setup@v6
       - uses: actions/setup-node@v7
         with: { node-version: '24', cache: pnpm }
       - name: Install the frozen adapter dependencies
-        shell: ${{ runner.os == 'Windows' && 'powershell' || 'bash' }}
+        if: runner.os == 'Windows'
+        shell: powershell
+        run: pnpm install --frozen-lockfile
+      - name: Install the frozen hosted adapter dependencies
+        if: runner.os != 'Windows'
+        shell: bash
         run: pnpm install --frozen-lockfile
       - name: Use the verified Git Bash executable for the pinned CLI installer
         if: runner.os == 'Windows'
