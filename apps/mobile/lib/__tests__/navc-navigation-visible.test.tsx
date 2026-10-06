@@ -18,7 +18,7 @@ vi.mock('../use-business-nouns', () => ({ useBusinessNouns: () => businessNouns(
 vi.mock('../use-member-class-visibility', () => ({ useMemberClassVisibility: () => h.visibility }));
 vi.mock('../use-push-response', () => ({ useMemberPushResponse: () => undefined }));
 vi.mock('react-native-safe-area-context', () => ({ useSafeAreaInsets: () => ({ top: 0, bottom: 0, left: 0, right: 0 }) }));
-vi.mock('react-native', () => ({ View: 'view', Text: 'text', ActivityIndicator: 'loading', Pressable: 'button', StyleSheet: { create: (value: unknown) => value }, Platform: { OS: 'android', select: (value: { android?: unknown; default?: unknown }) => value.android ?? value.default } }));
+vi.mock('react-native', () => ({ View: 'view', Text: 'text', ActivityIndicator: 'loading', Pressable: 'button', useWindowDimensions: () => ({ width: 360, height: 800, scale: 1, fontScale: 1 }), StyleSheet: { create: (value: unknown) => value }, Platform: { OS: 'android', select: (value: { android?: unknown; default?: unknown }) => value.android ?? value.default } }));
 vi.mock('../../components/ui', () => new Proxy({ FONT: { medium: 'font' } }, { get: (target, name) => name === 'then' ? undefined : name === 'FONT' ? target.FONT : (props: Record<string, unknown>) => createElement(String(name), props, props.children as ReactNode), has: () => true }));
 vi.mock('lucide-react-native', () => new Proxy({}, { get: (_target, name) => name === 'then' ? undefined : () => null, has: () => true }));
 vi.mock('expo-router', () => ({
