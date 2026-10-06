@@ -4,7 +4,7 @@ Sell and fulfil products, diet plans and personal-training packages without
 losing stock, session capacity, money precision, tenant isolation or the terms
 the member accepted.
 
-## ADDED Requirements
+## Requirements
 
 ### Requirement: Published offers disclose complete versioned terms
 WHEN an owner or manager creates or edits an add-on THE SYSTEM SHALL apply the

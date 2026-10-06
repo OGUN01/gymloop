@@ -12,7 +12,7 @@ ADR-111/114, with independent review GO). Where this spec and the contract
 differ, the contract wins; this file carries the requirement shape for the
 archive.
 
-## ADDED Requirements
+## Requirements
 
 ### Requirement: Only a real owner or manager may import
 WHEN any import endpoint is called THE SYSTEM SHALL verify the token and
@@ -51,6 +51,10 @@ encrypted or macro-enabled package contents, SHALL use the pinned named
 text, SHALL use cached formula values without evaluation, and SHALL treat
 absent or error cached results as empty (CSV-D04).
 
+#### Scenario: CSV preview uses the fixed decoding format
+- **WHEN** a `.csv` is inspected or previewed
+- **THEN** the system SHALL decode only strict UTF-8 with one optional leading BOM and parse comma, quote and embedded-newline behavior exactly as the contract specifies
+
 ### Requirement: XLSX dates convert from the raw serial, never the reader's Date
 WHEN the reader returns a sheet and source metadata identifies a date cell THE
 SYSTEM SHALL validate and convert its retained raw value independently of the
@@ -62,11 +66,19 @@ prevents the reader returning a sheet THE SYSTEM SHALL report file
 `invalid_xlsx` (CSV-D04a). THE SYSTEM SHALL NOT derive the calendar value from
 the package's JavaScript `Date`.
 
+#### Scenario: Date cells use their retained raw value
+- **WHEN** the reader returns a sheet and source metadata identifies a date cell
+- **THEN** the system SHALL validate and convert its retained raw value independently of the reader's `Date` value, with the source `date1904` boolean
+
 ### Requirement: Mapping binds to the exact file
 WHEN a mapping is submitted THE SYSTEM SHALL require distinct in-range indexes
 for `full_name` and `phone`, SHALL allow only the six named optional member
 fields, and SHALL bind it to the raw file digest, branch, country choice and
 parser contract (CSV-D05).
+
+#### Scenario: Submitted mappings use distinct required indexes
+- **WHEN** a mapping is submitted
+- **THEN** the system SHALL require distinct in-range indexes for `full_name` and `phone`
 
 ### Requirement: Normalization is exact and the effective day is frozen once
 WHEN a row is previewed or confirmed THE SYSTEM SHALL apply the exact
@@ -77,6 +89,10 @@ defaulting blank `joined_on` or classifying future dates, SHALL add
 future-date errors to every parseable date even on a row with other field
 errors before duplicate filtering, and WHEN it exact-replays SHALL reuse that
 winning day (CSV-D06a).
+
+#### Scenario: A new request freezes its effective day
+- **WHEN** prepare wins a new request key
+- **THEN** the system SHALL freeze the gym-local effective day before defaulting blank `joined_on` or classifying future dates
 
 ### Requirement: Duplicates are classified in order and never overwrite
 WHEN otherwise-valid rows share a candidate key or match a same-gym member THE
@@ -100,6 +116,10 @@ the exact database-canonical normalized candidate payload, and commit SHALL
 reject any changed, missing or extra row or field before member writes while
 permitting only final duplicate disposition to change (CSV-D09a).
 
+#### Scenario: Equivalent previews replay the winning run
+- **WHEN** equivalent preview requests reuse one UUID key sequentially or concurrently
+- **THEN** the system SHALL return the winning stored run without another row or reclassification
+
 ### Requirement: Races and failures never half-import
 WHEN a preview candidate becomes a same-gym duplicate before insert THE SYSTEM
 SHALL skip and report it; WHEN equivalent confirmations race THE SYSTEM SHALL
@@ -109,12 +129,20 @@ begins THEN THE SYSTEM SHALL roll back every member created by that run, SHALL
 record it failed with zero imported rows and an actionable code-only report,
 and SHALL expose no internal exception (CSV-D11).
 
+#### Scenario: Concurrent confirmations share one completed outcome
+- **WHEN** equivalent confirmations race
+- **THEN** the system SHALL create members once and return one stored completed outcome to both callers
+
 ### Requirement: Terminal runs replay; new keys reclassify
 WHEN a completed or failed run is submitted again THE SYSTEM SHALL
 authenticate the uploader and exact file hash and then exact-replay its
 terminal outcome before checking parser version or reparsing; WHEN the same
 file is intentionally previewed under a new key THE SYSTEM SHALL classify
 previously imported phones as same-gym duplicates (CSV-D12).
+
+#### Scenario: A terminal run replays before reparsing
+- **WHEN** a completed or failed run is submitted again
+- **THEN** the system SHALL authenticate the uploader and exact file hash and then exact-replay its terminal outcome before checking parser version or reparsing
 
 ### Requirement: The report reconciles and imports only profile facts
 WHEN a run completes THE SYSTEM SHALL give each non-blank row exactly one
@@ -124,11 +152,19 @@ SYSTEM SHALL create only the whitelisted member profile facts and defaults and
 SHALL create no membership, payment, consent, attendance, user link or
 government-ID fact (CSV-D14).
 
+#### Scenario: Completed reports reconcile each non-blank row
+- **WHEN** a run completes
+- **THEN** the system SHALL give each non-blank row exactly one disposition and enforce the stated counter equation from the persisted report rather than client estimates
+
 ### Requirement: The error report is code-only CSV
 WHEN an authorized owner or manager downloads a report THE SYSTEM SHALL
 produce the fixed, code-only UTF-8 CSV with BOM and CRLF, quote every text
 cell under RFC 4180, and SHALL include no uploaded value, cross-tenant fact,
 formula-capable cell or member data in any cell or filename (CSV-D15).
+
+#### Scenario: An authorized report download uses the fixed CSV format
+- **WHEN** an authorized owner or manager downloads a report
+- **THEN** the system SHALL produce the fixed, code-only UTF-8 CSV with BOM and CRLF and quote every text cell under RFC 4180
 
 ### Requirement: v1 runs are created and moved only by the command path
 WHEN a v1 run is inserted THE SYSTEM SHALL derive uploader staff/user
@@ -136,3 +172,6 @@ identities, require every typed v1 fact and non-null pending counter/report,
 and force initial `pending`; WHEN it changes state THE SYSTEM SHALL allow only
 the atomic command path, keep immutable facts frozen, and prevent direct or
 v1-to-legacy manufactured completion (CSV-D16).
+#### Scenario: A new v1 run starts with derived identities and pending facts
+- **WHEN** a v1 run is inserted
+- **THEN** the system SHALL derive uploader staff/user identities, require every typed v1 fact and non-null pending counter/report, and force initial `pending`

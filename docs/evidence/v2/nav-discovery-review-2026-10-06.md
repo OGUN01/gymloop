@@ -1,5 +1,11 @@
 # Native navigation and Classes discovery review — 2026-10-06
 
+## Full implementation gate acceptance, 23:04 IST
+
+Exact main **23f5566900b6999e25bcac5e9f39f4e97b95871f** has green app **37486763796**, held **37486763655**, immutability **37486763533**, and full DB **37486763607 attempt1**, completed **17:33:39UTC**. The actual native log reports **161 files / 16,156 tests, All tests successful, Result: PASS**; job112349253302 completed17:32:52UTC. Migration, rollback guard and generated-schema drift pass. Dependent seed112409193948 passes the ordinary rollback step and both independent proofs: **visible34/34** at17:33:29UTC and **held26/26** at17:33:36UTC, each rolled back. The [gate certificate](nav-release-gates-2026-10-06.json) binds the exact head, jobs, counts and actual verdicts. No competing Cloud/device work, assertion waiver, fixture changes or held-body read occurred during this final run.
+
+All30accepted screenshot hashes were freshly reverified; apps/packages still equal the independently verified final90fdd8b6 UI artifact. Actual device/pixel/security acceptance and owner/member/font restoration remain as recorded below. Earlier red runs and their diagnostic limits are retained as history; they are superseded for release acceptance by this complete fresh run, not by a skipped or focused substitute. Final documentation/spec archive work preserves the entire accepted application/database/harness execution trees.
+
 ## Transport correction reviewed, 20:48 IST
 
 Independent synthetic checker tests **4ae36b8d** were committed red80pass/21fail; unchanged101/101 now pass after the inline normalizer. Scoped lint/registry, escape970, rollback161 and diff checks pass. [Independent source review](nav-db-seed-parser-review-2026-10-06.json) gives GO for the generic correction, not release acceptance. Both CLI transports now retain strict unique integer0/exact-positive-plan checks, with errors and malformed counters refused without coercion. No seed, SQL fixture, migration or application source changes; existing triggers/classifier remain unchanged. The ordinary push must receive fresh full native and independent seed verification. Tasks4.2/4.4 remain open.

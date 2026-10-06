@@ -4,7 +4,7 @@ Take an enquiry to a converted member without losing tenant isolation, phone
 privacy, stage discipline or exact counts, and never create a duplicate member
 for a phone that already belongs to one.
 
-## ADDED Requirements
+## Requirements
 
 ### Requirement: Enquiry capture carries durable evidence
 WHEN front office records an enquiry THE SYSTEM SHALL require a branch, name,

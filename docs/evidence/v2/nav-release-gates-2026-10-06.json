@@ -1,0 +1,92 @@
+{
+  "change": "v2-native-navigation",
+  "scope": "Exact implementation-head release gates; final documentation commit preserves these execution inputs",
+  "verifiedHead": "23f5566900b6999e25bcac5e9f39f4e97b95871f",
+  "implementationGatesAccepted": true,
+  "database": {
+    "runId": 37486763607,
+    "attempt": 1,
+    "url": "https://github.com/OGUN01/gymloop/actions/runs/37486763607",
+    "conclusion": "success",
+    "completedUtc": "2026-10-06T17:33:39Z",
+    "migrationJob": { "id": 112348682622, "conclusion": "success" },
+    "rollbackGuardJob": { "id": 112348682175, "conclusion": "success" },
+    "schemaDriftJob": { "id": 112349253132, "conclusion": "success" },
+    "nativeJob": {
+      "id": 112349253302,
+      "conclusion": "success",
+      "startedUtc": "2026-10-06T15:22:20Z",
+      "completedUtc": "2026-10-06T17:32:52Z",
+      "files": 161,
+      "tests": 16156,
+      "reportedWallclockSeconds": 7788,
+      "actualAggregateVerdicts": ["All tests successful.", "Files=161, Tests=16156", "Result: PASS"]
+    },
+    "seedJob": {
+      "id": 112409193948,
+      "conclusion": "success",
+      "completedUtc": "2026-10-06T17:33:38Z",
+      "ordinaryRollbackStep": "success",
+      "independentReplayStep": "success",
+      "visibleProof": { "plan": 34, "ran": 34, "failures": 0, "rolledBack": true, "verdictUtc": "2026-10-06T17:33:29.9271037Z" },
+      "holdoutProof": { "plan": 26, "ran": 26, "failures": 0, "rolledBack": true, "verdictUtc": "2026-10-06T17:33:36.2996577Z" }
+    }
+  },
+  "application": { "runId": 37486763796, "conclusion": "success", "completedUtc": "2026-10-06T15:35:31Z" },
+  "holdoutWorkflow": { "runId": 37486763655, "conclusion": "success", "completedUtc": "2026-10-06T15:21:32Z" },
+  "testImmutability": { "runId": 37486763533, "conclusion": "success", "completedUtc": "2026-10-06T15:21:40Z" },
+  "parserRepair": {
+    "testsFirstCommit": "4ae36b8ddf8a67eb65263c9b490c5ec422f0d33f",
+    "sourceCommit": "23f5566900b6999e25bcac5e9f39f4e97b95871f",
+    "unchangedSyntheticCases": 101,
+    "sourceReview": "nav-db-seed-parser-review-2026-10-06.json",
+    "transportOnly": true,
+    "fixturesAssertionsAndNativeClassifierUnchanged": true
+  },
+  "deviceEvidence": {
+    "manifest": "nav-device-release-2026-10-06.json",
+    "captureCount": 30,
+    "captureHashesReverified": true,
+    "finalUiSource": "90fdd8b6d0bfa174e3d5cf6e65667166b99efae4",
+    "currentAppsPackagesEqualFinalUiSource": true,
+    "actualPixelReview": "GO: no remaining P1/P2",
+    "package": "in.fitcruxx.v2check",
+    "playPilotStableIdentityUnchanged": true,
+    "ownerOffMemberDarkDefaultFontRestored": true,
+    "classesDeviceFixture": "Enabled empty timetable; populated/mixed classes are independently tested host and SQL cases",
+    "playUpload": false
+  },
+  "historicalFailuresPreserved": [
+    "37443247398 attempt1: visible73 cleanup deadlock; zero executed assertion failures, incomplete plan, dependent seed skipped",
+    "37443247398 attempt2: native full PASS and ordinary seed PASS; generic independent-result parser failed before counter verdict, held proof not reached",
+    "37447767551: unchanged web You Appearance accessibility locator failure; diagnosis limits retained in nav-app-ci-eb65-triage-2026-10-06.json"
+  ],
+  "specificationValidation": {
+    "cliVersion": "1.14.1",
+    "selectedChangeStrict": "pass",
+    "selectedCanonicalSpecsStrict": { "member-class-discovery": "pass", "native-member-discovery": "pass" },
+    "initialAllCanonicalSpecsNormal": { "passed": 30, "failed": 4, "total": 34 },
+    "initialAllCanonicalSpecsStrict": { "passed": 13, "failed": 21, "total": 34 },
+    "initialBaselineFailuresUnchangedAtVerifiedHead": ["addon-sales", "identity", "leads", "member-import"],
+    "baselineFailureKind": "Missing canonical Requirements section or requirements outside that section; strict additionally rejects existing legacy description warnings",
+    "finalAllCanonicalSpecsNormal": { "passed": 34, "failed": 0, "total": 34, "exitCode": 0, "receiptSHA256": "73F684BEE41D4F9A22722C75B137CA9004295918C727A2C37B989D73F55474FA" },
+    "legacyDocumentationRepair": { "originalRequirementsPreserved": 47, "originalScenariosPreserved": 69, "minimalExistingRuleRestatementsAdded": 17, "purposesProseAndRequirementOrderPreserved": true, "independentContentVerdict": "GO", "legacyLengthWarningsRemain": true },
+    "noGlobalStrictPassClaim": true,
+    "noUnrelatedSpecSemanticRewrite": true
+  },
+  "archive": {
+    "path": "openspec/changes/archive/2026-10-06-v2-native-navigation",
+    "performed": true,
+    "originalArtifactCount": 11,
+    "allMovedArtifactHashesMatched": true,
+    "openspecYamlPreserved": true,
+    "activeChangeAbsent": true,
+    "canonicalRequirements": 15,
+    "canonicalScenarios": 20,
+    "tasksComplete": 15,
+    "tasksOpen": 0
+  },
+  "noGateWaiver": true,
+  "noImplementerHoldoutBodyRead": true,
+  "noCompetingCloudOrDeviceWorkDuringFinalDatabaseRun": true
+}

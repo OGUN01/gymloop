@@ -1,0 +1,78 @@
+{
+  "reviewedUtc": "2026-10-06T17:55:37Z",
+  "reviewer": "Independent public-only packet and archive critic",
+  "verdict": "GO: scoped specification preservation, documentation repair and completed archive",
+  "acceptedImplementationHead": "23f5566900b6999e25bcac5e9f39f4e97b95871f",
+  "scope": "Public specifications, archive artifacts, saved aggregate validation receipts and completion-document coherence",
+  "archive": {
+    "path": "openspec/changes/archive/2026-10-06-v2-native-navigation",
+    "present": true,
+    "activeChangeAbsent": true,
+    "artifactCount": 11,
+    "tenNonTaskArtifactsByteIdenticalToAcceptedHead": true,
+    "openspecYamlPreserved": true,
+    "tasksComplete": 15,
+    "tasksOpen": 0,
+    "taskIdentifiersUnique": true,
+    "tasksSHA256": "C600BA18B333B7DB950493424858D6EBFE306C4BAA5CEBB09A4D64447800E5F1"
+  },
+  "canonicalSpecs": {
+    "member-class-discovery": {
+      "sha256": "97E7E908D1A23DC0EBF474281D4157B3624DCF71C9A76D99BAB6DA01BC4D95D0",
+      "archivedDeltaSHA256": "48C76204A5D6F8D441A6A746B0B822B182DC53E92A2FC268B12A3702C50161B3",
+      "requirements": 6,
+      "scenarios": 9
+    },
+    "native-member-discovery": {
+      "sha256": "2E13E5FDBFBAF2FBE941455E2023F3112D230DE9FEA20571788779B3BC3011A2",
+      "archivedDeltaSHA256": "A95FA70958C1807986E2C3F741F6710B64037992FEB03F5BB54C947E2E52C48B",
+      "requirements": 9,
+      "scenarios": 11
+    },
+    "bothByteIdenticalToProtectedCandidates": true,
+    "exactArchivedDeltaToCanonicalComposition": true,
+    "purposesDescriptionsScenariosAndOrderPreserved": true,
+    "all15StableRequirementIdsPresentOnce": true,
+    "noOperationHeadersOrTBD": true
+  },
+  "legacyDocumentationMaintenance": {
+    "files": ["addon-sales", "identity", "leads", "member-import"],
+    "originalRequirementsPreserved": 47,
+    "originalScenariosPreserved": 69,
+    "minimalScenariosAdded": 17,
+    "eachAdditionRestatesItsExistingRequirement": true,
+    "noNewBehaviorActorExceptionStatusNumberOrAcceptanceClaim": true,
+    "purposesOriginalProseAndRequirementOrderPreserved": true,
+    "removingAdditionsRecoversPreAdditionFilesByteForByte": true,
+    "originalScenarioReceiptSHA256": "43DBB07A06B9F031746455232A151CC1C853AD87F6C76588933488B14426CA44",
+    "all17OriginalSourceHashesVerifiedWithExplicitUTF8": true,
+    "auditorDefaultDecodingFalsePositiveWithdrawn": true,
+    "encodingVerificationReceiptSHA256": "C8DB8F1F1B5F2D30364E9614799C2459B0F228DDD8D93189E46F66398D2C71CD"
+  },
+  "validation": {
+    "normalAllMain": { "total": 34, "passed": 34, "failed": 0, "errorIssues": 0 },
+    "normalAllMainReceiptSHA256": "73F684BEE41D4F9A22722C75B137CA9004295918C727A2C37B989D73F55474FA",
+    "selectedCanonicalSpecsStrict": "PASS, root-recorded",
+    "selectedChangeStrict": "PASS, root-recorded before move",
+    "initialNormal30Of34AndStrict13Of34FailuresPreserved": true,
+    "legacyWarningsRemain": true,
+    "globalStrictSuccessClaimed": false
+  },
+  "completionDocuments": {
+    "currentRoutingAndHandoffReferenceActualArchive": true,
+    "requirementMapAndReleaseCertificateCoherent": true,
+    "historicalFailuresAndDeviceFixtureLimitationsPreserved": true,
+    "releaseCertificate": "nav-release-gates-2026-10-06.json",
+    "releaseCertificateSHA256": "6689697F264E61149C9322C3CEAF15DF362E2C4CB94F05FC5929EC8F28960EF7"
+  },
+  "provenanceAndLimits": {
+    "archiveAndContent": "Current filesystem and accepted-head Git bytes; protected candidates and explicit UTF-8 receipts",
+    "implementationCI": "Root-verified exact-head aggregate metadata; reviewer checked public certificate coherence without remote actions",
+    "validation": "Saved normal-all JSON independently parsed; reviewer did not rerun validation commands",
+    "noTestOrProductionBodyRead": true,
+    "noCloudBrowserDeviceOrCIRunByReviewer": true,
+    "focusedDiagnosticDoesNotReplaceNativeAcceptance": true,
+    "closingDocumentationPushAndRelevantCIPending": true,
+    "overallGoalCompletionClaimed": false
+  }
+}
