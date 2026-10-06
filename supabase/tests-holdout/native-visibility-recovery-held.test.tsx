@@ -40,7 +40,7 @@ vi.mock('../../apps/mobile/components/ui', () => {
     ErrorRetry: (props: Record<string, unknown>) => ({ type: 'kit', props: { ...props, children: [props.message, { type: 'button', props: { children: 'Try again', onPress: props.onRetry } }] } }),
   };
 });
-vi.mock('expo-router', () => ({ Redirect: 'Redirect', usePathname: () => '/', useLocalSearchParams: () => ({}), useSegments: () => ['(member)', 'index'], router: { replace: vi.fn() }, useRouter: () => ({ replace: vi.fn() }), Tabs: Object.assign('Tabs', { Screen: 'TabScreen' }) }));
+vi.mock('expo-router', () => ({ Redirect: 'Redirect', usePathname: () => '/', useLocalSearchParams: () => ({}), useGlobalSearchParams: () => ({}), useSegments: () => ['(member)', 'index'], router: { replace: vi.fn() }, useRouter: () => ({ replace: vi.fn() }), Tabs: Object.assign('Tabs', { Screen: 'TabScreen' }) }));
 vi.mock('react-native', () => ({ View: 'View', Text: 'Text', Pressable: 'Pressable', StyleSheet: { create: (value: unknown) => value, hairlineWidth: 1 }, useWindowDimensions: () => ({ width: 390, height: 844 }) }));
 vi.mock('lucide-react-native', () => new Proxy({}, { has: () => true, get: (_target, name) => name === 'then' ? undefined : (props: Record<string, unknown>) => ({ type: 'icon', props }) }));
 vi.mock('../../apps/mobile/node_modules/react-native-safe-area-context', () => ({ useSafeAreaInsets: () => ({ top: 0, right: 0, bottom: 0, left: 0 }), SafeAreaView: 'SafeAreaView' }));
