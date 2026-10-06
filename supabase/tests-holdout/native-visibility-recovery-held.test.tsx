@@ -36,7 +36,7 @@ vi.mock('../../apps/mobile/lib/use-member-class-visibility', () => ({ useMemberC
 vi.mock('../../apps/mobile/components/role-tabs', () => ({ RoleTabs: (props: Record<string, unknown>) => ({ type: 'RoleTabs', props }) }));
 vi.mock('../../apps/mobile/components/ui', () => {
   const component = (props: Record<string, unknown>) => ({ type: 'kit', props });
-  return { Screen: component, LoadingState: component, StateMessage: component, ActionButton: component, Body: component, Title: component, Row: component, SignOutRow: component,
+  return { Screen: component, LoadingState: component, StateMessage: component, ActionButton: component, Body: component, Title: component, Row: component, RowAction: component, SignOutRow: component,
     ErrorRetry: (props: Record<string, unknown>) => ({ type: 'kit', props: { ...props, children: [props.message, { type: 'button', props: { children: 'Try again', onPress: props.onRetry } }] } }),
   };
 });
