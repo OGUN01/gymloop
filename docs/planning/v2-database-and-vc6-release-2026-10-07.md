@@ -28,15 +28,17 @@ Production AAB requires applicationId `in.fitcruxx.app`, label FitCruxx, OAuth s
 
 Existing pilot exceptions (ADR-159/168), manual-only payments, unresolved HTTPS App Links proof and native Firebase/push setup are not silently turned into passed gates by this upload. Do not expand the release to unrelated feature implementation. Keep actual Console draft/review/published status distinct.
 
-## Current execution checkpoint (7 October, 02:10 IST)
+## Current execution checkpoint (7 October, 02:16 IST)
 
 Shop is pushed at6802d201, migration applied by CI37519113387. Native163 files/16,329 assertions remains LIVE, no overlapping Cloud query/sweep/seed. Earlier drift failure is truthful; generated Cloud types and narrow generated-Args nullable bridge now reconcile it in the next source commit. Exact Shop app/held/immutability CI runs are green.
+
+Native tooling f3453f74 was pushed; GitHub refused its dynamic step.shell before any job/SQL. Correction d172573a uses literal OS-specific shells and is accepted/queued as37528085849 behind the live baseline. Official checksum-verified Actionlint1.7.12 now passes both workflows. Fresh critic also approves checkout-local LF custody and the frozen minimal production dependency closure/short .p store. No global Git/WSL/Docker setting changed.
 
 New validation tooling is locally green:565 suites /6,058 tests (metadata only for held tests), latest crypto bounds148 visible/132 held, workspace type/lint5/5, root lint, registry, escape-hatch, knip, zero clones, dependency checks, strict OpenSpec and3YAML parses pass. Independent source and adapter critics return static GO after tests-first malformed/function/owned-byte and bounded-hook corrections. No test body was changed by implementers; root has not read held bodies. Local evidence: docs/evidence/v2/database-validation-local-2026-10-07.json.
 
 Official Windows client-only smoke remains9 cases with exact native pins and unchanged bytes. Root sealed approved source into owner-protected C:/fr-sealed-20261007; runner C:/fr-runner-20261007 is extracted but unregistered. Actual pre-checkout guard rejection, registration-time external watchdog/narrow physical teardown, hosted loss recovery, and matching-input faster complete run remain OPEN. A conservative pre-arm failure can block the gate; no invented recovery or physical proof may bypass it. Before retirement/expiry of protocol artifacts, preserve original/restoration/custody proof and explicitly revise the adopted cutover only from a completed matching success;7-day expiry is fail-closed and is not an automatic green checkpoint.
 
-Independent build agent owns protected C:/gc native build and OnePlus isolated v2check verification, with198 execution-source hashes. Never touch any Play-signed installation; root owns Console. Signed candidate6 will be rechecked in Console before upload; no Play write has occurred.
+Independent build agent owns protected C:/gc native build and OnePlus isolated v2check verification, with187 non-test execution-source hashes and13 critical source-map entries. Never touch any Play-signed installation; root owns Console. Signed candidate6 will be rechecked in Console before upload; no Play write has occurred.
 
 ### Earlier local checkpoint (7 October, 00:55 IST)
 

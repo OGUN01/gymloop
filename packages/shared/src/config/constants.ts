@@ -708,6 +708,7 @@ export const NATIVE_DB_VALIDATION = {
   hookArgumentCount: 2,
   maxRunnerLifetimeMinutes: 240,
   guardProbeTimeoutMinutes: 5,
+  virtualStoreDirMaxLength: 24,
   legacyBaselineRunId: '37519113387',
   legacyBaselineSourceSha: '6802d201df51afc4adc77ade6fa8394dfea5f9f0',
 } as const;

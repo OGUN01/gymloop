@@ -1,15 +1,15 @@
 ## 1. Freeze and independent tests
 
-- [ ] 1.1 Root reviews/freezes DBV-001 through DBV-013 and the public interface/receipt bytes; verify strict OpenSpec validation and a recorded approval/freeze before authors or implementation begin.
-- [ ] 1.2 Fresh implementation-blind visible and holdout authors independently create synthetic manifest/TAP/process/timeout/routing tests from the frozen contract; verify all specified failure discriminators, disjoint authorship and red execution, then commit tests first. The discovery/planning author cannot author these tests and the implementer cannot read the held suite.
-- [ ] 1.3 Independent client author provides the pinned official client's no-database smoke and its `.proverc`/mount/network/timer/native-failure proof; verify no project assertion body was read or changed and no Cloud/local database was created. Record Windows prerequisite failure honestly without enabling settings.
+- [x] 1.1 Root reviews/freezes DBV-001 through DBV-013 and the public interface/receipt bytes; verify strict OpenSpec validation and a recorded approval/freeze before authors or implementation begin.
+- [x] 1.2 Fresh implementation-blind visible and holdout authors independently create synthetic manifest/TAP/process/timeout/routing tests from the frozen contract; verify all specified failure discriminators, disjoint authorship and red execution, then commit tests first. The discovery/planning author cannot author these tests and the implementer cannot read the held suite.
+- [x] 1.3 Independent client author provides the pinned official client's no-database smoke and its `.proverc`/mount/network/timer/native-failure proof; verify no project assertion body was read or changed and no Cloud/local database was created. Record Windows prerequisite failure honestly without enabling settings.
 
 ## 2. Small retained-native implementation
 
-- [ ] 2.1 Implement only the approved manifest/verification/orchestration boundary and guarded CLI adapter, reusing registered rollback/result parsing behavior; verify unchanged independent tests, exact native command/pins, complete per-file plans/hashes, source-safe retention and nonzero failed receipt exits.
+- [x] 2.1 Implement only the approved manifest/verification/orchestration boundary and guarded CLI adapter, reusing registered rollback/result parsing behavior; verify unchanged independent tests, exact native command/pins, complete per-file plans/hashes, source-safe retention and nonzero failed receipt exits.
 - [ ] 2.2 Add original timeout capture, pre-alteration outside-runner receipt, exact restore/verify and independent hosted guardian; verify success, native failure, partial-alter/network-loss, absent original setting, restoration error and interrupted-worker cases with frozen tests.
 - [ ] 2.3 Add hosted-default selection and one-job trusted-main OS-aware routing/teardown, preserving db serialization, drift/seed dependencies and ADR-177 classification; verify PR/untrusted refusal, unavailable-runner fallback, unique run identity, lifetime enforcement and narrow cleanup tests without a permanent service/autoscaler.
-- [ ] 2.4 Register new exports/constants and obtain fresh-context critic GO; verify relevant lint/type/immutability/escape-hatch/rollback gates and failure evidence without touching authored test files.
+- [x] 2.4 Register new exports/constants and obtain fresh-context critic GO; verify relevant lint/type/immutability/escape-hatch/rollback gates and failure evidence without touching authored test files.
 
 ## 3. Land and prove native execution
 

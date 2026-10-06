@@ -70,15 +70,27 @@
     },
     {
       "path": ".github/workflows/db.yml",
-      "sha256": "2123f44b5480f088caaf69e57fd5de5e4e61ccf944b1cb0a0639412dba0c0ab2"
+      "sha256": "d675289003110436a9b6a54e4b5673a2a6a5ddb1926af91e8e770af87401ebfb"
     },
     {
       "path": ".github/workflows/native-database-preflight.yml",
-      "sha256": "b682ceadc85e568307726efc6240f71d26ae8274adb0a0289b6c5345e34b4318"
+      "sha256": "04289ed125133c132e684c01f0470f36c5d3c7df29c47fde4449d499fb887d73"
     },
     {
       "path": ".github/actions/native-database-validation/action.yml",
       "sha256": "7d9ed14eec3ff847e745f3462e57e95c172a5edbc6301b23dc3ecbbe7343725c"
     }
-  ]
+  ],
+  "workflowValidation": {
+    "firstSource": "f3453f74591fc4792e39fe8904e34fb4402ff759",
+    "runId": "37527817511",
+    "status": "invalid workflow; no jobs or Cloud operations",
+    "reason": "runner context unavailable for step shell",
+    "literalShellCorrection": "d172573a2751d47ab1e3d52b7450b9eb098ce03a",
+    "nextRunId": "37528085849",
+    "nextStatus": "pending serialized behind baseline",
+    "actionlint": "official1.7.12 checksum verified; both workflows pass",
+    "finalWindowsDelta": "checkout-local LF override; frozen filtered production adapter dependencies with ignored unrelated scripts; short virtual store .p with central max24",
+    "freshDeltaCritic": "GO"
+  }
 }

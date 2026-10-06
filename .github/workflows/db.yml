@@ -233,7 +233,7 @@ jobs:
       - if: github.event_name == 'workflow_dispatch'
         uses: pnpm/action-setup@v6
       - if: github.event_name == 'workflow_dispatch'
-        run: pnpm install --frozen-lockfile
+        run: pnpm install --frozen-lockfile --filter "@gymloop/shared..." --prod --ignore-scripts
       - uses: supabase/setup-cli@v3
         with: { version: 2.110.0 }
       - name: Did this change add or edit migrations?
@@ -569,17 +569,24 @@ jobs:
         run: echo "DBV_SETUP_STARTED_AT=$(date -u +%Y-%m-%dT%H:%M:%S.%3NZ)" >> "$GITHUB_ENV"
       - uses: actions/checkout@v7
         with: { fetch-depth: 0 }
+        env:
+          GIT_CONFIG_COUNT: '1'
+          GIT_CONFIG_KEY_0: core.autocrlf
+          GIT_CONFIG_VALUE_0: 'false'
       - uses: pnpm/action-setup@v6
       - uses: actions/setup-node@v7
         with: { node-version: '24', cache: pnpm }
       - name: Install the frozen adapter dependencies
         if: runner.os == 'Windows'
         shell: powershell
-        run: pnpm install --frozen-lockfile
+        run: |
+          $storeLimit = & node --input-type=module -e "import { NATIVE_DB_VALIDATION } from './packages/shared/src/config/constants.ts'; console.log(NATIVE_DB_VALIDATION.virtualStoreDirMaxLength)"
+          if ($LASTEXITCODE -ne 0) { throw 'Native dependency path bound unavailable.' }
+          pnpm install --frozen-lockfile --filter "@gymloop/shared..." --prod --ignore-scripts --virtual-store-dir .p --virtual-store-dir-max-length $storeLimit
       - name: Install the frozen hosted adapter dependencies
         if: runner.os != 'Windows'
         shell: bash
-        run: pnpm install --frozen-lockfile
+        run: pnpm install --frozen-lockfile --filter "@gymloop/shared..." --prod --ignore-scripts
       - name: Use the verified Git Bash executable for the pinned CLI installer
         if: runner.os == 'Windows'
         shell: powershell
@@ -699,7 +706,7 @@ jobs:
       - uses: pnpm/action-setup@v6
       - uses: actions/setup-node@v7
         with: { node-version: '24', cache: pnpm }
-      - run: pnpm install --frozen-lockfile
+      - run: pnpm install --frozen-lockfile --filter "@gymloop/shared..." --prod --ignore-scripts
       - uses: supabase/setup-cli@v3
         with: { version: 2.110.0 }
       - name: Find the exact armed receipt, including an earlier attempt of this run

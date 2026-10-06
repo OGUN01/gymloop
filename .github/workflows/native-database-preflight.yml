@@ -24,7 +24,7 @@ jobs:
       - uses: actions/setup-node@v7
         with: { node-version: '24' }
       - uses: pnpm/action-setup@v6
-      - run: pnpm install --frozen-lockfile
+      - run: pnpm install --frozen-lockfile --filter "@gymloop/shared..." --prod --ignore-scripts
       - id: configuration
         run: |
           node --input-type=module <<'JS'
