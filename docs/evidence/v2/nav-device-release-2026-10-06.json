@@ -1,0 +1,261 @@
+{
+  "Device": "OnePlus DN2101",
+  "Serial": "INPZT8DQPJROKFXC",
+  "TestPackage": "in.fitcruxx.v2check",
+  "Date": "2026-10-06",
+  "VerifiedFinalSource": "90fdd8b6d0bfa174e3d5cf6e65667166b99efae4",
+  "VisualVerdict": "GO: no remaining P1/P2 in supplied demo/device pixels",
+  "ClassesFixture": "Enabled empty timetable; populated/mixed-class evidence is independent tests",
+  "SourceLineage": "862 primary navigation and Home/Shop surfaces unchanged in 6ba and 90. 6ba adds fitted Announcements title. 90 moves the unchanged hub Freeze row beside membership; fresh normal/large replacement pixels recorded.",
+  "RestoredState": {
+    "Account": "Aarav member",
+    "MemberClassesEnabled": false,
+    "FontScale": 1.0,
+    "Appearance": "Dark"
+  },
+  "PlayPilotStableIdentityUnchanged": true,
+  "NoPlayUpload": true,
+  "NoFinalUiFormSubmission": true,
+  "Captures": [
+    {
+      "Path": "docs/evidence/screens/2026-10-06-device-release-home-five-tabs-dark.png",
+      "SourceCommit": "86284b4e4a518070789f8c9b0517cce335290355",
+      "ApkSHA256": "A0F9AFABBAF7B554AB8F51644BA61CCAEEF95A96D3E9034E80B6F1430048AAB1",
+      "FontScale": 1,
+      "Appearance": "dark",
+      "PNGSHA256": "5C94BB6524363CD44D3BB43D49BB7FC60BB56FDF4A93105E77FA109DE8FF6059"
+    },
+    {
+      "Path": "docs/evidence/screens/2026-10-06-device-release-home-five-tabs-large-dark.png",
+      "SourceCommit": "86284b4e4a518070789f8c9b0517cce335290355",
+      "ApkSHA256": "A0F9AFABBAF7B554AB8F51644BA61CCAEEF95A96D3E9034E80B6F1430048AAB1",
+      "FontScale": 1.35,
+      "Appearance": "dark",
+      "PNGSHA256": "9B6792E7726507ECEA5D719D2D26D337660903A8AC2A75A11ECFD4AA77284643"
+    },
+    {
+      "Path": "docs/evidence/screens/2026-10-06-device-release-home-four-tabs-large-dark.png",
+      "SourceCommit": "86284b4e4a518070789f8c9b0517cce335290355",
+      "ApkSHA256": "A0F9AFABBAF7B554AB8F51644BA61CCAEEF95A96D3E9034E80B6F1430048AAB1",
+      "FontScale": 1.35,
+      "Appearance": "dark",
+      "PNGSHA256": "C7F0EC0EDC3BE8E0BBAB1FA4FD8876440ADBA77FED6E85E6CAD8AD9BA78B906F"
+    },
+    {
+      "Path": "docs/evidence/screens/2026-10-06-device-release-classes-on-empty-large-dark.png",
+      "SourceCommit": "86284b4e4a518070789f8c9b0517cce335290355",
+      "ApkSHA256": "A0F9AFABBAF7B554AB8F51644BA61CCAEEF95A96D3E9034E80B6F1430048AAB1",
+      "FontScale": 1.35,
+      "Appearance": "dark",
+      "PNGSHA256": "74DC9CBB8275C8B6AE552C812413557CB37A49AC00523EEBECEEF78279CBA1F6"
+    },
+    {
+      "Path": "docs/evidence/screens/2026-10-06-device-release-shop-four-tabs-large-dark.png",
+      "SourceCommit": "86284b4e4a518070789f8c9b0517cce335290355",
+      "ApkSHA256": "A0F9AFABBAF7B554AB8F51644BA61CCAEEF95A96D3E9034E80B6F1430048AAB1",
+      "FontScale": 1.35,
+      "Appearance": "dark",
+      "PNGSHA256": "8B287DD2863D3D73FFC3A92B906B4B148AAE17C88CF35FDF8004FE26C5D088AD"
+    },
+    {
+      "Path": "docs/evidence/screens/2026-10-06-device-release-shop-light.png",
+      "SourceCommit": "86284b4e4a518070789f8c9b0517cce335290355",
+      "ApkSHA256": "A0F9AFABBAF7B554AB8F51644BA61CCAEEF95A96D3E9034E80B6F1430048AAB1",
+      "FontScale": 1,
+      "Appearance": "light",
+      "PNGSHA256": "CEDEE93DBFB1EDCEC17C74AF94E5D33AB9510B0CD2C4AA1ED99296EEDA432CB1"
+    },
+    {
+      "Path": "docs/evidence/screens/2026-10-06-device-release-shop-services-light.png",
+      "SourceCommit": "86284b4e4a518070789f8c9b0517cce335290355",
+      "ApkSHA256": "A0F9AFABBAF7B554AB8F51644BA61CCAEEF95A96D3E9034E80B6F1430048AAB1",
+      "FontScale": 1,
+      "Appearance": "light",
+      "PNGSHA256": "8F0189FACF0C8F66972D061B6829C21451278C89B3FE4D301AE8C54226B1760F"
+    },
+    {
+      "Path": "docs/evidence/screens/2026-10-06-device-release-buy-from-shop-light.png",
+      "SourceCommit": "86284b4e4a518070789f8c9b0517cce335290355",
+      "ApkSHA256": "A0F9AFABBAF7B554AB8F51644BA61CCAEEF95A96D3E9034E80B6F1430048AAB1",
+      "FontScale": 1,
+      "Appearance": "light",
+      "PNGSHA256": "AE843D63BBABAD33AA04E3BE2126AB8383FA373756C84449A24A6C49F258A3FF"
+    },
+    {
+      "Path": "docs/evidence/screens/2026-10-06-device-release-reservations-initial-light.png",
+      "SourceCommit": "86284b4e4a518070789f8c9b0517cce335290355",
+      "ApkSHA256": "A0F9AFABBAF7B554AB8F51644BA61CCAEEF95A96D3E9034E80B6F1430048AAB1",
+      "FontScale": 1,
+      "Appearance": "light",
+      "PNGSHA256": "86A46AE3C7678D96FB4347ADF9E626003A4B31EF2F9E3041834A1BF10E885F58"
+    },
+    {
+      "Path": "docs/evidence/screens/2026-10-06-device-release-reservations-more-light.png",
+      "SourceCommit": "86284b4e4a518070789f8c9b0517cce335290355",
+      "ApkSHA256": "A0F9AFABBAF7B554AB8F51644BA61CCAEEF95A96D3E9034E80B6F1430048AAB1",
+      "FontScale": 1,
+      "Appearance": "light",
+      "PNGSHA256": "2B6EF67863E17E296E45E1780D90B96438E99B4DDF02EBBF5226970E54E8C5B2"
+    },
+    {
+      "Path": "docs/evidence/screens/2026-10-06-device-release-my-classes-off-light.png",
+      "SourceCommit": "86284b4e4a518070789f8c9b0517cce335290355",
+      "ApkSHA256": "A0F9AFABBAF7B554AB8F51644BA61CCAEEF95A96D3E9034E80B6F1430048AAB1",
+      "FontScale": 1,
+      "Appearance": "light",
+      "PNGSHA256": "FD7E079C17CCDE6378F72899A9AECC6C176F9726DB55F7E7E065FFB7524F6E66"
+    },
+    {
+      "Path": "docs/evidence/screens/2026-10-06-device-ship-home-four-tabs-light.png",
+      "SourceCommit": "6ba9a60452eb73b5c133f9b31d764c25d7926128",
+      "ApkSHA256": "0A88C128CE577DB236A23270040862069AFC802C311E9AE985AEC96E849B3737",
+      "FontScale": 1,
+      "Appearance": "light",
+      "PNGSHA256": "CBC55B3AFBF49C093B2925569D58CE1F6F914D9E907E335F7589618B6C4E3C15"
+    },
+    {
+      "Path": "docs/evidence/screens/2026-10-06-device-ship-announcements-light.png",
+      "SourceCommit": "6ba9a60452eb73b5c133f9b31d764c25d7926128",
+      "ApkSHA256": "0A88C128CE577DB236A23270040862069AFC802C311E9AE985AEC96E849B3737",
+      "FontScale": 1,
+      "Appearance": "light",
+      "PNGSHA256": "0B518A0948D6A60C429C3DC6C0D1DB6B78065D2372DA7EE3B1D879EE093C93E1"
+    },
+    {
+      "Path": "docs/evidence/screens/2026-10-06-device-ship-announcements-large-light.png",
+      "SourceCommit": "6ba9a60452eb73b5c133f9b31d764c25d7926128",
+      "ApkSHA256": "0A88C128CE577DB236A23270040862069AFC802C311E9AE985AEC96E849B3737",
+      "FontScale": 1.35,
+      "Appearance": "light",
+      "PNGSHA256": "A6ED88DA6D6F4551335538EAFC5D3A9E3C50B10DF30B39CC130646EEC611F774"
+    },
+    {
+      "Path": "docs/evidence/screens/2026-10-06-device-ship-desk-followups-dark.png",
+      "SourceCommit": "6ba9a60452eb73b5c133f9b31d764c25d7926128",
+      "ApkSHA256": "0A88C128CE577DB236A23270040862069AFC802C311E9AE985AEC96E849B3737",
+      "FontScale": 1,
+      "Appearance": "dark",
+      "PNGSHA256": "7E7F6CAD22EADBDDC1A81AB88B6282215BCC77E0718DD09E32FE4389BAE79B29"
+    },
+    {
+      "Path": "docs/evidence/screens/2026-10-06-device-ship-desk-followups-large-dark.png",
+      "SourceCommit": "6ba9a60452eb73b5c133f9b31d764c25d7926128",
+      "ApkSHA256": "0A88C128CE577DB236A23270040862069AFC802C311E9AE985AEC96E849B3737",
+      "FontScale": 1.35,
+      "Appearance": "dark",
+      "PNGSHA256": "7D1AF39F919DD4D41DD4A649DB9DC1E1D9ADD9C68B81F6AA40D292DADD4F0166"
+    },
+    {
+      "Path": "docs/evidence/screens/2026-10-06-device-ship-desk-more-dark.png",
+      "SourceCommit": "6ba9a60452eb73b5c133f9b31d764c25d7926128",
+      "ApkSHA256": "0A88C128CE577DB236A23270040862069AFC802C311E9AE985AEC96E849B3737",
+      "FontScale": 1,
+      "Appearance": "dark",
+      "PNGSHA256": "567C5803AA62E1F5D8CF4CA8450F40D7F0CF6618D3CFEE669EA91CD949D87EDC"
+    },
+    {
+      "Path": "docs/evidence/screens/2026-10-06-device-ship-desk-more-large-dark.png",
+      "SourceCommit": "6ba9a60452eb73b5c133f9b31d764c25d7926128",
+      "ApkSHA256": "0A88C128CE577DB236A23270040862069AFC802C311E9AE985AEC96E849B3737",
+      "FontScale": 1.35,
+      "Appearance": "dark",
+      "PNGSHA256": "F107A8477066DECF71F6BA8740451F3EF4C023DDD7B4BFE600C8B08518CF766C"
+    },
+    {
+      "Path": "docs/evidence/screens/2026-10-06-device-ship-trainer-more-dark.png",
+      "SourceCommit": "6ba9a60452eb73b5c133f9b31d764c25d7926128",
+      "ApkSHA256": "0A88C128CE577DB236A23270040862069AFC802C311E9AE985AEC96E849B3737",
+      "FontScale": 1,
+      "Appearance": "dark",
+      "PNGSHA256": "7A00B31CBE87601921F23998E038BBC607D357A78D343EFC40E952D32FC49275"
+    },
+    {
+      "Path": "docs/evidence/screens/2026-10-06-device-ship-trainer-more-large-dark.png",
+      "SourceCommit": "6ba9a60452eb73b5c133f9b31d764c25d7926128",
+      "ApkSHA256": "0A88C128CE577DB236A23270040862069AFC802C311E9AE985AEC96E849B3737",
+      "FontScale": 1.35,
+      "Appearance": "dark",
+      "PNGSHA256": "F4E2116E74FE099A7A0A949F28F75F37E51887F24519949B0972FD4CD20F9157"
+    },
+    {
+      "Path": "docs/evidence/screens/2026-10-06-device-ship-trainer-training-dark.png",
+      "SourceCommit": "6ba9a60452eb73b5c133f9b31d764c25d7926128",
+      "ApkSHA256": "0A88C128CE577DB236A23270040862069AFC802C311E9AE985AEC96E849B3737",
+      "FontScale": 1,
+      "Appearance": "dark",
+      "PNGSHA256": "8329DF2582D3B63404D52BB4564F2C911E986C9C517FAB79FC9771851F6EB4E2"
+    },
+    {
+      "Path": "docs/evidence/screens/2026-10-06-device-ship-trainer-training-large-dark.png",
+      "SourceCommit": "6ba9a60452eb73b5c133f9b31d764c25d7926128",
+      "ApkSHA256": "0A88C128CE577DB236A23270040862069AFC802C311E9AE985AEC96E849B3737",
+      "FontScale": 1.35,
+      "Appearance": "dark",
+      "PNGSHA256": "2A4D8234F9DCED9E841899952CD458E4438725C456C1A95855638B02B7058C1E"
+    },
+    {
+      "Path": "docs/evidence/screens/2026-10-06-device-ship-freeze-dates-large-light.png",
+      "SourceCommit": "6ba9a60452eb73b5c133f9b31d764c25d7926128",
+      "ApkSHA256": "0A88C128CE577DB236A23270040862069AFC802C311E9AE985AEC96E849B3737",
+      "FontScale": 1.35,
+      "Appearance": "light",
+      "PNGSHA256": "A05F07AFF693768C014796A3E6DE068BFCEE6497111AEC280C8DD050FC7C42A3"
+    },
+    {
+      "Path": "docs/evidence/screens/2026-10-06-device-ship-freeze-keyboard-scroll-large-light.png",
+      "SourceCommit": "6ba9a60452eb73b5c133f9b31d764c25d7926128",
+      "ApkSHA256": "0A88C128CE577DB236A23270040862069AFC802C311E9AE985AEC96E849B3737",
+      "FontScale": 1.35,
+      "Appearance": "light",
+      "PNGSHA256": "BFC98FE52C81AB396A8B39BD347DFB13A84642919047F3D4FAD327F88E52F415"
+    },
+    {
+      "Path": "docs/evidence/screens/2026-10-06-device-ship-home-four-tabs-dark.png",
+      "SourceCommit": "90fdd8b6d0bfa174e3d5cf6e65667166b99efae4",
+      "ApkSHA256": "D94549DED3E5E564E90495E7A2D3608F124D0912DB0597B3242CC429F8638D69",
+      "FontScale": 1,
+      "Appearance": "dark",
+      "PNGSHA256": "2A13066B712D6FAC0EF5388396D0670735AB8BEEB25FC1916C8BF881CAF43806"
+    },
+    {
+      "Path": "docs/evidence/screens/2026-10-06-device-ship-home-shared-dark.png",
+      "SourceCommit": "90fdd8b6d0bfa174e3d5cf6e65667166b99efae4",
+      "ApkSHA256": "D94549DED3E5E564E90495E7A2D3608F124D0912DB0597B3242CC429F8638D69",
+      "FontScale": 1,
+      "Appearance": "dark",
+      "PNGSHA256": "97B7FF664219CA1A640ED3DF587A4A9B97F22D3F220037D6D32CB2F527500711"
+    },
+    {
+      "Path": "docs/evidence/screens/2026-10-06-device-ship-shop-four-tabs-dark.png",
+      "SourceCommit": "90fdd8b6d0bfa174e3d5cf6e65667166b99efae4",
+      "ApkSHA256": "D94549DED3E5E564E90495E7A2D3608F124D0912DB0597B3242CC429F8638D69",
+      "FontScale": 1,
+      "Appearance": "dark",
+      "PNGSHA256": "08B634434C423FA9F58DAC31DE9F053E872B9FF9EFA377EABC3B0FB7CF8A586C"
+    },
+    {
+      "Path": "docs/evidence/screens/2026-10-06-device-ship-hub-freeze-membership-dark.png",
+      "SourceCommit": "90fdd8b6d0bfa174e3d5cf6e65667166b99efae4",
+      "ApkSHA256": "D94549DED3E5E564E90495E7A2D3608F124D0912DB0597B3242CC429F8638D69",
+      "FontScale": 1,
+      "Appearance": "dark",
+      "PNGSHA256": "2DDB759AEB8D03B03EFA545EA7E75F479799D773AE14BBBDA60BC9DD014D119B"
+    },
+    {
+      "Path": "docs/evidence/screens/2026-10-06-device-ship-hub-freeze-membership-large-dark.png",
+      "SourceCommit": "90fdd8b6d0bfa174e3d5cf6e65667166b99efae4",
+      "ApkSHA256": "D94549DED3E5E564E90495E7A2D3608F124D0912DB0597B3242CC429F8638D69",
+      "FontScale": 1.35,
+      "Appearance": "dark",
+      "PNGSHA256": "AC54445607B20B08155ED8E04DAC65540847CFF535DFA90209B09BF82C4280B2"
+    },
+    {
+      "Path": "docs/evidence/screens/2026-10-06-device-ship-freeze-from-membership-large-dark.png",
+      "SourceCommit": "90fdd8b6d0bfa174e3d5cf6e65667166b99efae4",
+      "ApkSHA256": "D94549DED3E5E564E90495E7A2D3608F124D0912DB0597B3242CC429F8638D69",
+      "FontScale": 1.35,
+      "Appearance": "dark",
+      "PNGSHA256": "5D91DA394A8E4346E3D0AB21CAB87DA44C5531F0E34AD5E6B5BD87998D57FB3F"
+    }
+  ]
+}

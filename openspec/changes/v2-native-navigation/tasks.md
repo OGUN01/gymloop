@@ -8,7 +8,7 @@
 - [x] 2.1 Build one additive migration for visibility, canonical owner command, direct-field guard, backfill and own-bookings read; verify independent visible/holdout acceptance, rollback checks and fresh security critic. Root-only rollback runs: visible115/115, independentheld141/141 and historical36/36; catalog digests restored after each; fresh scoped security GO recorded.
 - [x] 2.2 Land through CI after the preceding DB run finishes, generate types with the authorized CLI and add typed shared/native readers and strict owner API; verify schema drift, API contracts, registry and focused tests. Migration applied by CI; actual CLI-generated metadata landed69236069; schema-drift37422920180 passed08:29:08UTC. Full-suite legacy metadata and independent seed replay failures remain release-gate work in4.2, not waived.
 - [x] 2.3 Add owner/manager Show Classes to members control to class settings; verify On/Off/no-op/refusal and preserve existing class-settings fields. Independent visible26 plus API/shared tests pass; canonical deployed owner/desk/trainer E2E3/3 proves persistence, no-op, restoration and permission presentation.
-- [x] 2.4 Integrate exact-identity native visibility loading/cache/resume/focus behavior; verify NAVC-002/003/006 and late-read/sign-out tests. Full mobile1,018/1,018 and affected independentheld141/141 plus recovery6/6 pass; source GO includes canonical initial-read account exit and exact focused global parameters. Device refresh/On/Off remains in4.3.
+- [x] 2.4 Integrate exact-identity native visibility loading/cache/resume/focus behavior; verify NAVC-002/003/006 and late-read/sign-out tests. Full mobile1,021/1,021 and affected independentheld141/141 plus recovery6/6 pass; source GO includes canonical initial-read account exit and exact focused global parameters. Actual owner On/Off/native refresh and original Off restoration are recorded in4.3.
 
 ## 3. Native presentation
 
@@ -20,7 +20,7 @@
 
 ## 4. Release evidence
 
-- [ ] 4.1 Obtain a fresh-context visual critic against the first approved board and written IA, and resolve findings; verify a recorded GO with truthful limitations.
+- [x] 4.1 Obtain a fresh-context visual critic against the first approved board and written IA, and resolve findings; verify a recorded GO with truthful limitations. Fresh actual-device critic GO, no remaining P1/P2, after normal/Large Announcements and membership-adjacent Freeze corrections. Verdict covers supplied demo/device pixels; populated mixed classes are independent test evidence, not invented device data.
 - [ ] 4.2 Run relevant local gates and push coherent green units on main, then verify CI; record any unrelated baseline failure rather than waive it.
-- [ ] 4.3 Rebuild only in.fitcruxx.v2check using C:/gc, verify connected OnePlus journeys and save fresh Home/Shop/four/five-tab/Classes/desk/context screenshots; verify Play pilot remains untouched.
+- [x] 4.3 Rebuild only in.fitcruxx.v2check using C:/gc, verify connected OnePlus journeys and save fresh Home/Shop/four/five-tab/Classes/desk/context screenshots; verify Play pilot remains untouched. Final90fdd8b6 APK independently verified/installed; eight source-map parities pass; six stable Play identity fields including path unchanged. Owner Off, Aarav/Dark/font1.0 restored. Screenshot manifest records the exact artifact lineage and final default/1.35 role/context proof.
 - [ ] 4.4 Update registry and release evidence, archive completed OpenSpec requirements and verify no unfinished task is marked complete.
