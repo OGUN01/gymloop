@@ -30,3 +30,7 @@ ok 25 ms ( 0.00 usr  0.00 sys +  0.00 cusr  0.00 csys =  0.00 CPU)
 ```
 
 Complete manifest fixtures still include both suite directories and a matching full aggregate; the example is a block, not a complete accepted receipt. This supplies native structural syntax, not a production implementation or another author's oracle.
+
+### Held pre-handoff code-assignment correction
+
+The initial held run retained64 cases with14 failures: ten genuine complete-query-row regressions and four unsupported per-boundary failure-code assumptions. All four boundary outcomes already refuse, while the public contract does not assign their individual codes. Before author edits or implementation, authorize only the original held author to remove those four unfrozen code-assignment assertions while preserving every refused-outcome assertion, scenario and other acceptance check. Preserve the initial file d14fc5ebfc7d49d5b5d772e6d5e53d868c9a08979c70923a9e2cf61f6dec3a21 and all failed receipts. Do not substitute observed implementation codes for an independent oracle. Reserved SQL severity/error prefixes, including an isolated PANIC control, still cannot be treated as ordinary query data; their conservative refusal remains required even when no particular code is prescribed.
