@@ -1,6 +1,12 @@
 # Database follow-ups and next closed-test release
 
-## Current checkpoint (7 October, 07:57 IST; actual timeout recovery VERIFIED)
+## Current checkpoint (7 October, 08:08 IST; static preflight GREEN, ready for exact new run)
+
+Static preflight is source GO at fa2c3938: its full body matches67edfadc after only the two frozen data-read substitutions, with zero GitHub expressions and every identity/array/API/receipt/restore predicate unchanged. Independent infrastructure authors preserve all original assertion bytes; visible35/35 and held22/22 pass, lint/types pass, and final affected1341/1341 passes standard Node. Test-only commits3a51c9db/4bd60acb precede packaging implementation. Held intermediate11/22 was a formatting-only import-port no-op; c81e1269 declares sole-binding whitespace equivalence before its author-only correction. Public aggregate: database-static-preflight-local-2026-10-07.json.
+
+Ordinary CI37561393941 at67edfadc is nowSUCCESS, alongside held/immutability. Actual original timeout recovery and reviewed indices remain verified/published with exact readback; no new Cloud sweep has begun. App/packages/lockfile bytes stay identical to c77cfbaf signed/device-tested vc6. Next immediate: commit/push static packaging, fetch actual exact new DB source/run and launch reviewed register-start-trial7.ps1 (frozen5faaeb65) under hidden PowerShell with private captured output. Observe actual registration/constructor/handoff/readiness/selected runner before native163/16329, guardian/original restore/seed/drift/CI/timing/cleanup. No extra Git config is needed; worker checkout already forces LF. Archive only on evidence, then upload/promote closedAlpha vc6; Play remains untouched.
+
+### Previous checkpoint (7 October, 07:57 IST; actual timeout recovery VERIFIED)
 
 Actual recovery-only37561403360/1 at67edfadc and guardian112599268817 are SUCCESS. Independent outside verification confirms canonical artifact11456702503/archiveSHA7d8b360a, exact original/observed2min, verifiedAt02:20:18.410UTC and complete authenticated source/listings/cleanup; private actual proof594454dd and proposed index2f2f8d3f. Original37556363035/1 staysFAILED. Both reviewed administrator indices are published with exact readback, preserving prior entries; hosted record82703b9c denotes explicit provider completion without invented literal deletion flags. Public actual receipt: database-historical-recovery-actual-2026-10-07.json.
 

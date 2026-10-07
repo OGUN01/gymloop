@@ -94,15 +94,19 @@ jobs:
     steps:
       - uses: actions/checkout@v7
         with: { fetch-depth: 0 }
-      - name: Stage administrator unarmed precheck reviews
+      - name: Stage administrator preflight reviews and current attempt
         shell: bash
         env:
           NATIVE_DB_UNARMED_PRECHECK_RECEIPTS: ${{ vars.NATIVE_DB_UNARMED_PRECHECK_RECEIPTS || '[]' }}
           NATIVE_DB_TIMEOUT_RECOVERY_RECEIPTS: ${{ vars.NATIVE_DB_TIMEOUT_RECOVERY_RECEIPTS || '[]' }}
+          NATIVE_DB_WORKLOAD_TEARDOWN_RECEIPTS: ${{ vars.NATIVE_DB_WORKLOAD_TEARDOWN_RECEIPTS || '[]' }}
+          CURRENT_RUN_ATTEMPT: ${{ github.run_attempt }}
         run: |
           mkdir -p .dbv
           printf '%s\n' "$NATIVE_DB_UNARMED_PRECHECK_RECEIPTS" > .dbv/operator-unarmed-prechecks.json
           printf '%s\n' "$NATIVE_DB_TIMEOUT_RECOVERY_RECEIPTS" > .dbv/operator-timeout-recoveries.json
+          printf '%s\n' "$NATIVE_DB_WORKLOAD_TEARDOWN_RECEIPTS" > .dbv/operator-workload-teardowns.json
+          printf '%s\n' "$CURRENT_RUN_ATTEMPT" > .dbv/current-attempt.txt
       - uses: actions/setup-node@v7
         with: { node-version: '24' }
       - uses: actions/github-script@v8
@@ -170,7 +174,7 @@ jobs:
               if (cutoverReached) break;
             }
             const currentRunId = String(context.runId);
-            const currentAttempt = Number('${{ github.run_attempt }}');
+            const currentAttempt = Number((await readFile('.dbv/current-attempt.txt','utf8')).trim());
             if (!/^[1-9]\d*$/.test(currentRunId) || !Number.isSafeInteger(currentAttempt) || currentAttempt <= 0) {
               throw new Error('Current workflow attempt identity is unavailable.');
             }
@@ -183,7 +187,7 @@ jobs:
               }
               runs.unshift(current);
             }
-            const operatorReceipts = JSON.parse(${{ toJSON(vars.NATIVE_DB_WORKLOAD_TEARDOWN_RECEIPTS || '[]') }});
+            const operatorReceipts = JSON.parse(await readFile('.dbv/operator-workload-teardowns.json','utf8'));
             if (!Array.isArray(operatorReceipts)) throw new Error('Owner workload teardown proof is malformed.');
             const priorJobs = new Map();
             const priorArtifacts = new Map();
