@@ -1,0 +1,24 @@
+{
+  "formatVersion": 1,
+  "boundary": "Local controlled recovery and explicit provider-completion proof only; actual prior restoration and a complete new native run are still required. No held body or assertion diagnostics were read by root/source implementers.",
+  "historicalRecovery": {
+    "redCommit": "c4d89b97",
+    "visible": { "tests": 173, "passed": 173, "failed": 0, "exitCode": 0, "testSha256": "76dc38f19cbd56e63a670cf804538a7b878b726df26a2bdcbc42d9fe871a63ef", "greenLogSha256": "397977d05514ec378f17b625a546d65be6aff2193e7d1be3a8e981575b998c98" },
+    "held": { "tests": 132, "passed": 132, "failed": 0, "exitCode": 0, "testSha256": "d50467482be427d85dcf88b89609880fb66ed91e81698f399e370058d8a0cffa", "greenLogSha256": "c2890d584c1914c69a84fb82bf51f86666e74efd9177dfb38c75dc5df81d37a8" },
+    "regression": { "before": { "tests": 6802, "passed": 6779, "failed": 23 }, "cause": "An eagerly read new administrator index broke existing preflight ports. The index is now read only when same-run restoration is absent.", "affectedGreen": { "tests": 362, "passed": 362, "failed": 0 }, "completeExistingGreen": { "tests": 6802, "passed": 6802, "failed": 0, "exitCode": 0 } },
+    "adapterSha256": "652de345b322cc8359ee0f59d0b0780d7a9953fded81309a4f1e0faf6b90adbc",
+    "recoveryWorkflowSha256": "e8e2a523c647b112fe23b895efd65ff52f263091bac7863d593d591af15daeec"
+  },
+  "explicitHostedCompletion": {
+    "contractCommit": "afdf7370",
+    "redCommit": "b835a02a",
+    "visible": { "red": { "tests": 273, "passed": 0, "failed": 273, "exitCode": 1 }, "green": { "tests": 273, "passed": 273, "failed": 0, "exitCode": 0, "lintExitCode": 0, "typeExitCode": 0 }, "testSha256": "8a504e6b5e03f3641a819f17166acf52d857f8a9a06cb9cc4c904b0e3416e092", "redLogSha256": "4de6c5f6817f8435093ba3e9554d7da5d2d702e1cf63746b879a0be7f1777944", "greenLogSha256": "afeb80c1fab93cf4e08adc216bd1f9ee437425d63acdca9ccef7d47954bbf8ef" },
+    "held": { "red": { "tests": 369, "passed": 0, "failed": 369, "exitCode": 1 }, "green": { "tests": 369, "passed": 369, "failed": 0, "exitCode": 0, "lintExitCode": 0, "typeExitCode": 0 }, "testSha256": "e5353c88118c422710033c6f6b5abcf7e14b1b9c708db30463a684121ed4bfc9", "redLogSha256": "af105a7db655a4437caaa3d262948124e0edc93f4f1852f2629b0e12b578d394", "greenLogSha256": "fb4b2d53457ba91f1600ead1385cbf8bf57d5a84bf9cf726d030f95f096fd370" },
+    "sourceSha256": "b3eec1c99ab29628ba82407e5567daf4fa9a2be5b5ca5d0d31960b0c636bf125",
+    "workflowSha256": "8d3f0e659ded454734753bdb1cbf59b35878d789aa561be886d92f055963c571",
+    "sourceReview": "GO after Object.prototype-only guards required by the frozen hosted contract; existing shared record semantics and extracted dense array body remain unchanged.",
+    "actualProtectedPacketSha256": "d650a297e184f4c6a93fa0765ec40e40f05ac7e8374d97ea0dfa3344b4d4be41",
+    "proposedOperatorRecordSha256": "82703b9c2c49558c5e33dc008c71ab7731c47615552c23d531bf11e62eefb383",
+    "evidenceLimit": "Provider lifecycle guarantees decommission after verified job completion. Individual VM/registration deletion is not directly observed and no literal teardown booleans are invented."
+  }
+}

@@ -1,6 +1,20 @@
 # Database follow-ups and next closed-test release
 
-## Current checkpoint (7 October, 07:20 IST; actual armed run failed)
+## Current checkpoint (7 October, 07:49 IST; recovery and provider completion GREEN)
+
+Complete existing tooling6802/6802 passes after the lazy-index repair. Final affected1341/1341 also passes with new hosted visible273 and held369 unchanged from genuine red b835a02a. Source-only GO after ordinary-prototype guards: hosted verifierb3eec1c9, sharedarraya215896b, oldunarmedalias34fc9015 and workflow8d3f0e65; literal workload module unchanged9934ca0b. Final lint/registry/escape, zero clones, configured Knip, official Actionlint, both target strict OpenSpec and commit immutability pass. Aggregate proof is database-historical-recovery-local-2026-10-07.json; no held bodies/assertion diagnostics read.
+
+The independent actual provider proposal82703b9c is accepted by the final pure verifier against a fresh authenticated112584025129 job read. It remains unpublished; literal VM/registration deletion is not claimed. Historical recovery-only workflow and guardian official upload have source GO and local green. Next immediate action is the coherent main push followed by one serialized original37556363035/1 recovery dispatch, authenticated outside-restoration review and exact index publication. Full new native verdict/restore/seed/drift/timing/physical cleanup still precede archive and Play. App/device/signed AAB bytes remain identical to c77cfbaf; fresh Play read still shows maximum5, closedAlpha5 available to testers.
+
+### Previous checkpoint (7 October, 07:40 IST; recovery integration locally verified)
+
+Historical recovery has independent visible173/173 and held132/132 green checks after genuine red c4d89b97 and declared author-only port corrections. Adapter652de345 and recovery workflowe8e2a523 have fresh source GO. A wider run exposed23 existing preflight regressions caused by eagerly reading the new timeout-recovery index. The source now reads it only when an armed attempt lacks an in-run restoration; affected existing57 plus new305 checks pass362/362. Revised db.yml SHA00ceec0444320f3fcad4244aa2a7779799285710ff12e6ec0771b3e08118a7b3 has source-only re-review; complete tooling recheck is in progress. Original failed aggregate6802/6779 remains historical, not green evidence.
+
+The actual failed worker is GitHub-hosted. Its API proves completed job/cleanup, and the protected factual packetd650a297e184f4c6a93fa0765ec40e40f05ac7e8374d97ea0dfa3344b4d4be41 accounts for zero native invocations and all10 foreground disposable client containers. It does not directly inspect VM or registration deletion. Frozen afdf7370 hosted-worker-completion.md adds an explicit provider-lifecycle completion kind separately from literal self-hosted teardown, preserving timeout recovery and native-success requirements. Fresh independent visible/held authors are constructing red tests before the absent helper; no all-true deletion receipt is fabricated.
+
+Trial7 prepared source is GO and unregistered: diagnostic launcherf6fcceeb, custodian3aba67a4 and wrapper5faaeb65, under protected C:/fr9-20261007 and C:/fr9w-20261007. Old trial5/6 custody and original deadlines remain preserved. Next: push green recovery tooling, dispatch recovery-only against37556363035/1, independently verify outside restoration and publish only exact reviewed indices; complete explicit hosted verifier and full gates, then full exact-source DB validation. App/device/AAB bytes are unchanged and Play remains untouched.
+
+### Previous checkpoint (7 October, 07:20 IST; actual armed run failed)
 
 Remote main8169f393 ordinaryCI37556363077, Holdout37556363015 and immutability37556363026 are SUCCESS. DB37556363035/attempt1 is COMPLETE FAILURE: preflight/rollback/migrate/drift/selector/metadata succeed; hosted native and guardian fail; seed is skipped. Real recovery artifact11454727536 exists with original role-global timeout present/value2min. Native never starts (0files/0assertions/nativeMs0). Preserve the failed attempt and prohibit another Cloud sweep/migration until verified recovery; this is not an unarmed-precheck classification.
 

@@ -1,0 +1,64 @@
+name: Native database timeout recovery
+
+on:
+  workflow_dispatch:
+    inputs:
+      target_run_id:
+        description: Original completed DB run whose armed timeout receipt must be recovered
+        required: true
+        type: string
+      target_run_attempt:
+        description: Exact original armed attempt
+        required: true
+        type: string
+
+permissions: { contents: read, actions: read }
+concurrency:
+  group: db-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+  SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+
+jobs:
+  timeout-guardian:
+    if: github.repository == 'OGUN01/gymloop' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with: { node-version: '24', cache: pnpm }
+      - run: pnpm install --frozen-lockfile --filter "@gymloop/shared..." --prod --ignore-scripts
+      - uses: supabase/setup-cli@v3
+        with: { version: 2.110.0 }
+      - name: Read the existing receipt retention limit
+        id: limits
+        uses: actions/github-script@v8
+        with:
+          script: |
+            const {NATIVE_DB_VALIDATION:limits} = await import('${{ github.workspace }}/packages/shared/src/config/constants.ts');
+            core.setOutput('retention',String(limits.artifactRetentionDays));
+      - name: Recover only the authenticated original timeout
+        id: restore
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          TARGET_RUN_ID: ${{ inputs.target_run_id }}
+          TARGET_RUN_ATTEMPT: ${{ inputs.target_run_attempt }}
+          CURRENT_SOURCE: ${{ github.sha }}
+          RECOVERY_DIRECTORY: ${{ runner.temp }}/native-db-historical-${{ github.run_id }}-${{ github.run_attempt }}
+        run: |
+          node scripts/native-database-validation.mjs restore-prior \
+            --manifest .dbv/manifest.json --receipt .dbv/recovery.json \
+            --out-dir "$RECOVERY_DIRECTORY" --source-sha "$CURRENT_SOURCE" \
+            --target-run-id "$TARGET_RUN_ID" --target-run-attempt "$TARGET_RUN_ATTEMPT"
+      - name: Retain independently hosted historical restoration evidence
+        if: always() && steps.restore.outcome != 'skipped'
+        uses: actions/upload-artifact@v5
+        with:
+          name: native-db-restoration-${{ inputs.target_run_id }}-${{ inputs.target_run_attempt }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/native-db-historical-${{ github.run_id }}-${{ github.run_attempt }}/restoration.json
+          if-no-files-found: error
+          retention-days: ${{ steps.limits.outputs.retention }}

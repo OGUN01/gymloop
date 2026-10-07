@@ -8,3 +8,18 @@ export function exactNativeDataRecord(value, fields) {
     && descriptors[key].enumerable && Object.hasOwn(descriptors[key], 'value'))) return null;
   return Object.fromEntries(fields.map(key => [key, descriptors[key].value]));
 }
+
+/** Internal dense own-data array snapshot shared by native evidence verifiers. */
+export function exactNativeDataArray(value) {
+  if (!Array.isArray(value) || Object.getPrototypeOf(value) !== Array.prototype) return null;
+  const descriptors = Object.getOwnPropertyDescriptors(value);
+  const length = descriptors.length?.value;
+  if (!Number.isSafeInteger(length) || length < 0 || Reflect.ownKeys(descriptors).length !== length + 1) return null;
+  const result = [];
+  for (let index = 0; index < length; index++) {
+    const descriptor = descriptors[String(index)];
+    if (!descriptor || !descriptor.enumerable || !Object.hasOwn(descriptor, 'value')) return null;
+    result.push(descriptor.value);
+  }
+  return result;
+}

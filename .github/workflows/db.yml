@@ -25,6 +25,7 @@ on:
       - 'scripts/pgtap/private-output.mjs'
       - 'scripts/pgtap/runner-job.mjs'
       - 'scripts/pgtap/workload-teardown.mjs'
+      - 'scripts/pgtap/hosted-completion.mjs'
       - 'scripts/pgtap/unarmed-precheck.mjs'
       - 'scripts/pgtap/data-record.mjs'
       - 'scripts/native-database-validation.mjs'
@@ -47,6 +48,7 @@ on:
       - 'scripts/pgtap/private-output.mjs'
       - 'scripts/pgtap/runner-job.mjs'
       - 'scripts/pgtap/workload-teardown.mjs'
+      - 'scripts/pgtap/hosted-completion.mjs'
       - 'scripts/pgtap/unarmed-precheck.mjs'
       - 'scripts/pgtap/data-record.mjs'
       - 'scripts/native-database-validation.mjs'
@@ -96,9 +98,11 @@ jobs:
         shell: bash
         env:
           NATIVE_DB_UNARMED_PRECHECK_RECEIPTS: ${{ vars.NATIVE_DB_UNARMED_PRECHECK_RECEIPTS || '[]' }}
+          NATIVE_DB_TIMEOUT_RECOVERY_RECEIPTS: ${{ vars.NATIVE_DB_TIMEOUT_RECOVERY_RECEIPTS || '[]' }}
         run: |
           mkdir -p .dbv
           printf '%s\n' "$NATIVE_DB_UNARMED_PRECHECK_RECEIPTS" > .dbv/operator-unarmed-prechecks.json
+          printf '%s\n' "$NATIVE_DB_TIMEOUT_RECOVERY_RECEIPTS" > .dbv/operator-timeout-recoveries.json
       - uses: actions/setup-node@v7
         with: { node-version: '24' }
       - uses: actions/github-script@v8
@@ -110,6 +114,7 @@ jobs:
             const {readFile} = await import('node:fs/promises');
             const {NATIVE_DB_VALIDATION: limits} = await import(`${process.cwd()}/packages/shared/src/config/constants.ts`);
             const {verifyNativeWorkloadTeardown} = await import(`${process.cwd()}/scripts/pgtap/workload-teardown.mjs`);
+            const {verifyHostedNativeWorkloadCompletion} = await import(`${process.cwd()}/scripts/pgtap/hosted-completion.mjs`);
             const {verifyUnarmedNativePrecheck} = await import(`${process.cwd()}/scripts/pgtap/unarmed-precheck.mjs`);
             const hash = bytes => createHash('sha256').update(bytes).digest('hex');
             const exact = (value, keys) => value && typeof value === 'object' && !Array.isArray(value) && Object.keys(value).length === keys.length && keys.every(key => Object.hasOwn(value,key));
@@ -183,6 +188,69 @@ jobs:
             const priorJobs = new Map();
             const priorArtifacts = new Map();
             const verifiedUnarmed = new Set();
+            let timeoutRecoveryReviews = null;
+            async function readHistoricalRestoration(r, recovery, run) {
+              const [targetRunId,targetRunAttempt] = r.runId.split('-');
+              const matches = timeoutRecoveryReviews.filter(item => item && item.targetRunId === targetRunId && item.targetRunAttempt === targetRunAttempt);
+              if (matches.length !== 1) throw new Error('Exact outside recovery review is unavailable.');
+              const review = matches[0];
+              const fields = ['formatVersion','targetRunId','targetRunAttempt','targetSourceSha','recoveryRunId','recoveryRunAttempt','recoverySourceSha','guardianJobId','restorationArtifactId','restorationArchiveSha256','privateProofSha256','reviewedAt'];
+              const ids = [review.targetRunId,review.targetRunAttempt,review.recoveryRunId,review.recoveryRunAttempt];
+              if (!exact(review,fields) || review.formatVersion !== limits.formatVersion ||
+                  !ids.every(value => typeof value === 'string' && /^[1-9]\d*$/.test(value)) ||
+                  !source(review.targetSourceSha) || review.targetSourceSha !== r.sourceSha || review.targetSourceSha !== run.head_sha ||
+                  !source(review.recoverySourceSha) || !digest(review.restorationArchiveSha256) || !digest(review.privateProofSha256) ||
+                  !Number.isSafeInteger(review.guardianJobId) || review.guardianJobId <= 0 ||
+                  !Number.isSafeInteger(review.restorationArtifactId) || review.restorationArtifactId <= 0 ||
+                  typeof review.reviewedAt !== 'string' || !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/.test(review.reviewedAt) ||
+                  !Number.isSafeInteger(Date.parse(review.reviewedAt)) || Date.parse(review.reviewedAt) < 0 ||
+                  new Date(review.reviewedAt).toISOString() !== review.reviewedAt) throw new Error('Outside recovery review is invalid.');
+              const targetAttempt = (await github.rest.actions.getWorkflowRunAttempt({...context.repo,run_id:targetRunId,attempt_number:targetRunAttempt})).data;
+              const recoveryAttempt = (await github.rest.actions.getWorkflowRunAttempt({...context.repo,run_id:review.recoveryRunId,attempt_number:review.recoveryRunAttempt})).data;
+              if (String(targetAttempt?.id) !== targetRunId || String(targetAttempt.run_attempt) !== targetRunAttempt ||
+                  targetAttempt.head_sha !== review.targetSourceSha || targetAttempt.head_branch !== 'main' ||
+                  !['push','workflow_dispatch'].includes(targetAttempt.event) || targetAttempt.status !== 'completed' ||
+                  !targetAttempt.conclusion || targetAttempt.path !== '.github/workflows/db.yml' || targetAttempt.repository?.full_name !== limits.repository ||
+                  String(recoveryAttempt?.id) !== review.recoveryRunId || String(recoveryAttempt.run_attempt) !== review.recoveryRunAttempt ||
+                  recoveryAttempt.head_sha !== review.recoverySourceSha || recoveryAttempt.head_branch !== 'main' ||
+                  recoveryAttempt.event !== 'workflow_dispatch' || recoveryAttempt.status !== 'completed' || recoveryAttempt.conclusion !== 'success' ||
+                  recoveryAttempt.path !== '.github/workflows/native-database-recovery.yml' || recoveryAttempt.repository?.full_name !== limits.repository) throw new Error('Outside recovery run provenance is invalid.');
+              const jobs = await github.paginate(github.rest.actions.listJobsForWorkflowRunAttempt,{...context.repo,run_id:review.recoveryRunId,attempt_number:review.recoveryRunAttempt});
+              const guardians = jobs.filter(job => job.name === 'timeout-guardian');
+              if (guardians.length !== 1) throw new Error('Outside recovery guardian is ambiguous.');
+              const job = guardians[0];
+              if (job.id !== review.guardianJobId || String(job.run_id) !== review.recoveryRunId || job.head_sha !== review.recoverySourceSha ||
+                  job.status !== 'completed' || job.conclusion !== 'success' || !Number.isSafeInteger(job.runner_id) || job.runner_id <= 0 ||
+                  job.runner_name !== `GitHub Actions ${job.runner_id}` || job.runner_group_name !== 'GitHub Actions' ||
+                  !Array.isArray(job.labels) || job.labels.length !== 1 || job.labels[0] !== 'ubuntu-latest' || !Array.isArray(job.steps) ||
+                  !job.steps.every(step => step.status === 'completed' && ['success','skipped'].includes(step.conclusion)) ||
+                  !['Post Run supabase/setup-cli@v3','Post Run pnpm/action-setup@v6','Post Run actions/checkout@v7','Complete job'].every(name => {
+                    const steps = job.steps.filter(step => step.name === name);
+                    return steps.length === 1 && steps[0].conclusion === 'success';
+                  })) throw new Error('Outside recovery guardian cleanup is unverified.');
+              const artifacts = await github.paginate(github.rest.actions.listWorkflowRunArtifacts,{...context.repo,run_id:review.recoveryRunId});
+              const artifactName = `native-db-restoration-${r.runId}-${review.recoveryRunId}-${review.recoveryRunAttempt}`;
+              const selected = artifacts.filter(item => item.name === artifactName);
+              if (selected.length !== 1) throw new Error('Outside restoration artifact is ambiguous.');
+              const artifact = selected[0];
+              if (artifact.id !== review.restorationArtifactId || artifact.expired !== false ||
+                  artifact.digest !== `sha256:${review.restorationArchiveSha256}` ||
+                  String(artifact.workflow_run?.id) !== review.recoveryRunId || artifact.workflow_run.head_sha !== review.recoverySourceSha ||
+                  !Number.isSafeInteger(artifact.workflow_run.repository_id) || artifact.workflow_run.repository_id <= 0 ||
+                  artifact.workflow_run.head_repository_id !== artifact.workflow_run.repository_id) throw new Error('Outside restoration artifact provenance is invalid.');
+              const downloaded = await readArtifact(artifact,'restoration.json');
+              if (downloaded.archiveSha256 !== review.restorationArchiveSha256) throw new Error('Outside restoration archive changed.');
+              const restoration = downloaded.value;
+              const workers = (priorJobs.get(Number(targetRunId)) ?? []).filter(item => item.name === limits.job && String(item.boundAttempt) === targetRunAttempt);
+              const verifiedAt = Date.parse(restoration?.verifiedAt);
+              if (workers.length !== 1 || workers[0].status !== 'completed' || !Number.isFinite(Date.parse(workers[0].completed_at)) ||
+                  typeof restoration?.verifiedAt !== 'string' || !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/.test(restoration.verifiedAt) ||
+                  !Number.isSafeInteger(verifiedAt) || verifiedAt < 0 || new Date(verifiedAt).toISOString() !== restoration.verifiedAt ||
+                  verifiedAt <= Date.parse(r.capturedAt) || verifiedAt <= Date.parse(workers[0].completed_at) ||
+                  !Number.isFinite(Date.parse(job.completed_at)) || verifiedAt > Date.parse(job.completed_at) ||
+                  Date.parse(review.reviewedAt) < Date.parse(job.completed_at)) throw new Error('Outside restoration timing is invalid.');
+              return restoration;
+            }
             for (const run of runs) {
               if (!['push','workflow_dispatch'].includes(run.event)) continue;
               if (!Number.isSafeInteger(run.run_attempt) || run.run_attempt <= 0) throw new Error('Previous native attempt identity is unavailable.');
@@ -244,8 +312,10 @@ jobs:
                     ? labels.includes('self-hosted') ? 'self-hosted' : labels.some(label=>/^(ubuntu|windows|macos)-/.test(label)) ? 'github-hosted' : null
                     : null;
                   const expected={runId:`${run.id}-${attempt}`,sourceSha:run.head_sha,jobId:String(job.id),runnerId:job.runner_id,runnerEnvironment};
-                  if (job.head_sha !== run.head_sha || !operatorReceipts.some(receipt=>verifyNativeWorkloadTeardown(expected,receipt))) {
-                    throw new Error('Previous failed native worker lacks verified owner process/container/runner teardown; the shared project is blocked.');
+                  const hostedJob = {...projectUnarmedJob(job,attempt),completedAt:job.completed_at};
+                  if (job.head_sha !== run.head_sha || !operatorReceipts.some(receipt=>
+                      verifyNativeWorkloadTeardown(expected,receipt) || verifyHostedNativeWorkloadCompletion(expected,hostedJob,receipt))) {
+                    throw new Error('Previous failed native worker lacks verified teardown or explicit hosted completion; the shared project is blocked.');
                   }
                 }
               }
@@ -276,8 +346,14 @@ jobs:
                     const left=BigInt(a.name.slice(prefix.length)),right=BigInt(b.name.slice(prefix.length));
                     return left>right ? -1 : left<right ? 1 : 0;
                   });
-                if (matches.length === 0 || (matches[1] && matches[0].name === matches[1].name)) throw new Error('Unverified timeout restoration blocks the shared project.');
-                const restoration = (await readArtifact(matches[0],'restoration.json')).value;
+                if (matches[1] && matches[0].name === matches[1].name) throw new Error('Unverified timeout restoration blocks the shared project.');
+                if (matches.length === 0 && timeoutRecoveryReviews === null) {
+                  const bytes = await readFile('.dbv/operator-timeout-recoveries.json');
+                  if (bytes.length > limits.timeoutQueryMaxBytes) throw new Error('Timeout recovery index exceeds its bound.');
+                  timeoutRecoveryReviews = JSON.parse(bytes.toString('utf8'));
+                  if (!Array.isArray(timeoutRecoveryReviews)) throw new Error('Timeout recovery index is malformed.');
+                }
+                const restoration = matches.length === 0 ? await readHistoricalRestoration(r,recovery,run) : (await readArtifact(matches[0],'restoration.json')).value;
                 if (!exact(restoration,['formatVersion','runId','sourceSha','manifestSha256','recoverySha256','original','observed','verified','verifiedAt']) || restoration.formatVersion !== limits.formatVersion || restoration.runId !== r.runId || restoration.sourceSha !== r.sourceSha || restoration.manifestSha256 !== r.manifestSha256 || restoration.recoverySha256 !== recovery.hash || restoration.verified !== true || !original(restoration.original) || !original(restoration.observed) || JSON.stringify(restoration.original) !== JSON.stringify(r.original) || JSON.stringify(restoration.observed) !== JSON.stringify(r.original) || new Date(restoration.verifiedAt).toISOString() !== restoration.verifiedAt) throw new Error('Unverified timeout restoration blocks the shared project.');
               }
             }
@@ -798,6 +874,9 @@ jobs:
             const name = candidates[0].name;
             core.setOutput('name',name);
             core.setOutput('manifest',name.replace('native-db-recovery-','native-db-manifest-'));
+            core.setOutput('restoration',name.replace('native-db-recovery-','native-db-restoration-')+'-${{ github.run_attempt }}');
+            const {NATIVE_DB_VALIDATION:limits} = await import('${{ github.workspace }}/packages/shared/src/config/constants.ts');
+            core.setOutput('retention',String(limits.artifactRetentionDays));
       - uses: actions/download-artifact@v5
         with:
           name: ${{ steps.recovery.outputs.name }}
@@ -808,6 +887,7 @@ jobs:
           path: .dbv
       - run: supabase link --project-ref "$PROJECT_REF" --yes
       - name: Restore and freshly verify only the captured role-global timeout
+        id: restored
         uses: ./.github/actions/native-database-validation
         env:
           DBV_RECOVERY_ARTIFACT: ${{ steps.recovery.outputs.name }}
@@ -817,3 +897,11 @@ jobs:
           receipt: .dbv/recovery/recovery.json
           out-dir: ${{ runner.temp }}/native-db-guardian-${{ github.run_id }}-${{ github.run_attempt }}
           source-sha: ${{ github.sha }}
+      - name: Retain independently hosted restoration evidence
+        if: always() && steps.recovery.outcome == 'success'
+        uses: actions/upload-artifact@v5
+        with:
+          name: ${{ steps.recovery.outputs.restoration }}
+          path: ${{ runner.temp }}/native-db-guardian-${{ github.run_id }}-${{ github.run_attempt }}/restoration.json
+          if-no-files-found: error
+          retention-days: ${{ steps.recovery.outputs.retention }}

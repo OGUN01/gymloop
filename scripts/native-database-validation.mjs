@@ -338,6 +338,44 @@ async function artifactApi(runtime, path, expectedStatus) {
   return response;
 }
 
+async function readReceiptArtifact(runtime, artifact, filename) {
+  try {
+  if (runtime.GITHUB_ACTIONS !== 'true' || runtime.RUNNER_ENVIRONMENT !== 'github-hosted' || runtime.RUNNER_OS !== 'Linux' ||
+      !['manifest.json', 'recovery.json'].includes(filename) ||
+      !Number.isSafeInteger(artifact?.id) || artifact.id <= 0 || artifact.expired !== false ||
+      !Number.isSafeInteger(artifact.size_in_bytes) || artifact.size_in_bytes <= 0 ||
+      artifact.size_in_bytes > NATIVE_DB_VALIDATION.timeoutQueryMaxBytes ||
+      !new RegExp(`^sha256:[a-f0-9]{${NATIVE_DB_VALIDATION.digestHexLength}}$`).test(artifact.digest)) throw refuse('RECEIPT_UNAVAILABLE');
+  const redirect = await artifactApi(runtime, `actions/artifacts/${artifact.id}/zip`, NATIVE_DB_VALIDATION.artifactRedirectStatus);
+  const location = redirect.headers.get('location');
+  if (!location) throw refuse('RECEIPT_UNAVAILABLE');
+  const url = new URL(location);
+  if (url.protocol !== 'https:' || url.username || url.password || url.hash) throw refuse('RECEIPT_UNAVAILABLE');
+  const response = await globalThis.fetch(location, { redirect: 'error',
+    signal: globalThis.AbortSignal.timeout(NATIVE_DB_VALIDATION.nativeCleanupReserveMs) });
+  if (response.status !== NATIVE_DB_VALIDATION.artifactMetadataStatus) throw refuse('RECEIPT_UNAVAILABLE');
+  const archive = await boundedResponseBytes(response, NATIVE_DB_VALIDATION.timeoutQueryMaxBytes);
+  if (archive.length !== artifact.size_in_bytes || artifact.digest !== `sha256:${hash(archive)}`) throw refuse('RECEIPT_UNAVAILABLE');
+  const script = [
+    'import io,stat,sys,zipfile',
+    'with zipfile.ZipFile(io.BytesIO(sys.stdin.buffer.read())) as z:',
+    ' members=z.infolist()',
+    ' if len(members)!=1: raise SystemExit(1)',
+    ' member=members[0]',
+    ' mode=member.external_attr>>int(sys.argv[3])',
+    ' if member.filename!=sys.argv[1] or member.is_dir() or stat.S_IFMT(mode) not in (0,stat.S_IFREG): raise SystemExit(1)',
+    ' if member.file_size>int(sys.argv[2]) or member.flag_bits&1 or member.compress_type not in (zipfile.ZIP_STORED,zipfile.ZIP_DEFLATED): raise SystemExit(1)',
+    ' sys.stdout.buffer.write(z.read(member))',
+  ].join('\n');
+  const body = execFileSync('python3', ['-c', script, filename, String(NATIVE_DB_VALIDATION.timeoutQueryMaxBytes),
+    String(NATIVE_DB_VALIDATION.artifactUnixModeShiftBits)], { input: archive, maxBuffer: NATIVE_DB_VALIDATION.timeoutQueryMaxBytes,
+    timeout: NATIVE_DB_VALIDATION.nativeCleanupReserveMs, stdio: ['pipe', 'pipe', 'pipe'] });
+  const value = JSON.parse(body.toString('utf8'));
+  if (!body.equals(jsonBytes(value))) throw refuse('RECEIPT_UNAVAILABLE');
+  return { value, hash: hash(body), archiveSha256: hash(archive) };
+  } catch { throw refuse('RECEIPT_UNAVAILABLE'); }
+}
+
 function privateZipMember(archive, expectedSize) {
   const script = [
     'import io,stat,sys,zipfile',
@@ -575,17 +613,21 @@ function options(argv, runtime) {
     '--receipt', runtime.INPUT_RECEIPT ?? runtime.DBV_RECEIPT, '--out-dir', runtime['INPUT_OUT-DIR'] ?? runtime.DBV_OUT_DIR,
     '--source-sha', runtime['INPUT_SOURCE-SHA'] ?? runtime.DBV_SOURCE_SHA];
   const [command, ...tail] = args;
-  if (!['manifest', 'run', 'verify', 'restore'].includes(command)) throw refuse();
+  if (!['manifest', 'run', 'verify', 'restore', 'restore-prior'].includes(command)) throw refuse();
   const result = { command };
   while (tail.length > 0) {
     const key = tail.shift();
     const value = tail.shift();
-    if (!['--manifest', '--receipt', '--out-dir', '--source-sha'].includes(key) || Object.hasOwn(result, key) ||
+    const allowed = ['--manifest', '--receipt', '--out-dir', '--source-sha',
+      ...(command === 'restore-prior' ? ['--target-run-id', '--target-run-attempt'] : [])];
+    if (!allowed.includes(key) || Object.hasOwn(result, key) ||
         typeof value !== 'string' || value.length === 0) throw refuse();
     result[key] = value;
   }
   if (!sourceString(result['--source-sha']) || !result['--manifest'] || !result['--receipt'] ||
       (!result['--out-dir'] && command !== 'manifest')) throw refuse();
+  if (command === 'restore-prior' && (!/^[1-9]\d*$/.test(result['--target-run-id'] ?? '') ||
+      !/^[1-9]\d*$/.test(result['--target-run-attempt'] ?? ''))) throw refuse();
   if (!result['--out-dir']) result['--out-dir'] = join(runtime.RUNNER_TEMP, `native-db-${runtime.GITHUB_RUN_ID}-${runtime.GITHUB_RUN_ATTEMPT}`);
   return result;
 }
@@ -603,19 +645,31 @@ async function validatedManifest(path, expectedSource) {
   return manifest;
 }
 
-async function guardian(runtime, opts, manifest, directory, workdir) {
-  const bytes = await readFile(opts['--receipt']);
+function boundRecoveryReceipt(bytes, manifest, binding, artifactName) {
+  if (!exact(binding, ['runId', 'runAttempt', 'sourceSha'])) throw refuse('TIMEOUT_CAPTURE_INVALID');
   const recovery = JSON.parse(bytes.toString('utf8'));
-  const prefix = `${runtime.GITHUB_RUN_ID}-`;
+  const prefix = `${binding.runId}-`;
   const receiptAttempt = typeof recovery.runId === 'string' && recovery.runId.startsWith(prefix) ? recovery.runId.slice(prefix.length) : '';
   if (!exact(recovery, ['formatVersion', 'runId', 'sourceSha', 'manifestSha256', 'target', 'original', 'capturedAt', 'armed']) ||
       recovery.formatVersion !== NATIVE_DB_VALIDATION.formatVersion ||
-      !/^[1-9]\d*$/.test(receiptAttempt) || BigInt(receiptAttempt) > BigInt(runtime.GITHUB_RUN_ATTEMPT) ||
-      (runtime.DBV_RECOVERY_ARTIFACT ?? `native-db-recovery-${runtime.GITHUB_RUN_ID}-${runtime.GITHUB_RUN_ATTEMPT}`) !== `native-db-recovery-${recovery.runId}` ||
-      recovery.sourceSha !== opts['--source-sha'] || recovery.manifestSha256 !== hash(jsonBytes(manifest)) ||
+      !/^[1-9]\d*$/.test(binding.runId ?? '') || !/^[1-9]\d*$/.test(binding.runAttempt ?? '') || !sourceString(binding.sourceSha) ||
+      !/^[1-9]\d*$/.test(receiptAttempt) || BigInt(receiptAttempt) > BigInt(binding.runAttempt) ||
+      artifactName !== `native-db-recovery-${recovery.runId}` ||
+      recovery.sourceSha !== binding.sourceSha || recovery.manifestSha256 !== hash(jsonBytes(manifest)) ||
       JSON.stringify(recovery.target) !== JSON.stringify(target) || !validOriginal(recovery.original) || recovery.armed !== true ||
-      typeof recovery.capturedAt !== 'string' || new Date(recovery.capturedAt).toISOString() !== recovery.capturedAt ||
+      typeof recovery.capturedAt !== 'string' || !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/.test(recovery.capturedAt) ||
+      !Number.isSafeInteger(Date.parse(recovery.capturedAt)) || Date.parse(recovery.capturedAt) < 0 ||
+      new Date(recovery.capturedAt).toISOString() !== recovery.capturedAt ||
       !bytes.equals(jsonBytes(recovery))) throw refuse('TIMEOUT_CAPTURE_INVALID');
+  return recovery;
+}
+
+async function guardian(runtime, opts, manifest, directory, workdir, binding = {
+  runId: runtime.GITHUB_RUN_ID, runAttempt: runtime.GITHUB_RUN_ATTEMPT, sourceSha: opts['--source-sha'],
+}) {
+  const bytes = await readFile(opts['--receipt']);
+  const recovery = boundRecoveryReceipt(bytes, manifest, binding,
+    runtime.DBV_RECOVERY_ARTIFACT ?? `native-db-recovery-${binding.runId}-${binding.runAttempt}`);
   let restored = false;
   let observed = null;
   try { await alterTimeout(workdir, directory, { target, setting: recovery.original }); restored = true; } catch { /* fresh verification still runs */ }
@@ -626,9 +680,72 @@ async function guardian(runtime, opts, manifest, directory, workdir) {
     original: recovery.original, observed, verified, verifiedAt: new Date().toISOString() };
   const path = join(directory, 'restoration.json');
   await privateWrite(path, jsonBytes(receipt));
-  await uploadArtifact(runtime, `native-db-restoration-${recovery.runId}-${runtime.GITHUB_RUN_ATTEMPT}`, path, directory);
   if (!verified) throw refuse('TIMEOUT_NOT_RESTORED');
   console.log('Native database timeout restoration verified.');
+}
+
+async function recoverPriorTimeout(runtime, opts, directory, workdir) {
+  const targetRun = opts['--target-run-id'];
+  const targetAttempt = opts['--target-run-attempt'];
+  const sourceSha = opts['--source-sha'];
+  const recoveryWorkflow = NATIVE_DB_VALIDATION.workflowRef.replace('/db.yml@', '/native-database-recovery.yml@');
+  if (runtime.GITHUB_ACTIONS !== 'true' || runtime.GITHUB_REPOSITORY !== NATIVE_DB_VALIDATION.repository ||
+      runtime.GITHUB_EVENT_NAME !== 'workflow_dispatch' || runtime.GITHUB_REF !== NATIVE_DB_VALIDATION.mainRef ||
+      runtime.GITHUB_WORKFLOW_REF !== recoveryWorkflow || runtime.GITHUB_JOB !== 'timeout-guardian' ||
+      runtime.RUNNER_ENVIRONMENT !== 'github-hosted' || runtime.RUNNER_OS !== 'Linux' ||
+      runtime.GITHUB_SHA !== sourceSha || !sourceString(sourceSha) ||
+      ![runtime.GITHUB_RUN_ID, runtime.GITHUB_RUN_ATTEMPT, targetRun, targetAttempt].every(value =>
+        typeof value === 'string' && /^[1-9]\d*$/.test(value))) throw refuse('RUNNER_UNTRUSTED');
+  if ((await checked('git', ['rev-parse', 'HEAD'], { cwd: workdir })).trim() !== sourceSha ||
+      (await checked('supabase', ['--version'], { cwd: workdir })).trim() !== NATIVE_DB_VALIDATION.cliVersion) throw refuse('RUNNER_UNTRUSTED');
+  const runResponse = await artifactApi(runtime, `actions/runs/${targetRun}/attempts/${targetAttempt}`, NATIVE_DB_VALIDATION.artifactMetadataStatus);
+  const run = JSON.parse((await boundedResponseBytes(runResponse, NATIVE_DB_VALIDATION.timeoutQueryMaxBytes)).toString('utf8'));
+  if (String(run?.id) !== targetRun || String(run.run_attempt) !== targetAttempt || !sourceString(run.head_sha) ||
+      !['push', 'workflow_dispatch'].includes(run.event) || run.head_branch !== 'main' || run.status !== 'completed' ||
+      typeof run.conclusion !== 'string' || run.conclusion.length === 0 || run.path !== '.github/workflows/db.yml' ||
+      run.repository?.full_name !== NATIVE_DB_VALIDATION.repository) throw refuse('RECEIPT_UNAVAILABLE');
+  const artifacts = [];
+  let total = null;
+  let page = 1;
+  do {
+    const response = await artifactApi(runtime, `actions/runs/${targetRun}/artifacts?page=${page}`, NATIVE_DB_VALIDATION.artifactMetadataStatus);
+    const result = JSON.parse((await boundedResponseBytes(response, NATIVE_DB_VALIDATION.timeoutQueryMaxBytes)).toString('utf8'));
+    if (!Number.isSafeInteger(result?.total_count) || result.total_count < 0 || !Array.isArray(result.artifacts) ||
+        (total !== null && result.total_count !== total) || (result.artifacts.length === 0 && artifacts.length < result.total_count)) throw refuse('RECEIPT_UNAVAILABLE');
+    total = result.total_count;
+    artifacts.push(...result.artifacts);
+    if (artifacts.length > total || artifacts.some(item => !Number.isSafeInteger(item?.id) || item.id <= 0) ||
+        new Set(artifacts.map(item => item.id)).size !== artifacts.length) throw refuse('RECEIPT_UNAVAILABLE');
+    page += 1;
+  } while (artifacts.length < total);
+  const binding = { runId: targetRun, runAttempt: targetAttempt, sourceSha: run.head_sha };
+  const selected = [];
+  for (const kind of ['manifest', 'recovery']) {
+    const name = `native-db-${kind}-${targetRun}-${targetAttempt}`;
+    const matches = artifacts.filter(item => item.name === name);
+    if (matches.length !== 1) throw refuse('RECEIPT_UNAVAILABLE');
+    const artifact = matches[0];
+    if (artifact.expired !== false || !Number.isSafeInteger(artifact.size_in_bytes) || artifact.size_in_bytes <= 0 ||
+        artifact.size_in_bytes > NATIVE_DB_VALIDATION.timeoutQueryMaxBytes ||
+        !new RegExp(`^sha256:[a-f0-9]{${NATIVE_DB_VALIDATION.digestHexLength}}$`).test(artifact.digest) ||
+        String(artifact.workflow_run?.id) !== targetRun || artifact.workflow_run.head_sha !== run.head_sha ||
+        !Number.isSafeInteger(artifact.workflow_run.repository_id) || artifact.workflow_run.repository_id <= 0 ||
+        artifact.workflow_run.head_repository_id !== artifact.workflow_run.repository_id) throw refuse('RECEIPT_UNAVAILABLE');
+    selected.push(await readReceiptArtifact(runtime, artifact, `${kind}.json`));
+  }
+  const manifestPath = join(directory, 'prior-manifest.json');
+  const recoveryPath = join(directory, 'prior-recovery.json');
+  await privateWrite(manifestPath, jsonBytes(selected[0].value));
+  await privateWrite(recoveryPath, jsonBytes(selected[1].value));
+  const manifest = await validatedManifest(manifestPath, binding.sourceSha);
+  const recoveryName = `native-db-recovery-${targetRun}-${targetAttempt}`;
+  if (selected[1].value?.runId !== `${targetRun}-${targetAttempt}` ||
+      (runtime.DBV_RECOVERY_ARTIFACT !== undefined && runtime.DBV_RECOVERY_ARTIFACT !== recoveryName)) throw refuse('TIMEOUT_CAPTURE_INVALID');
+  boundRecoveryReceipt(jsonBytes(selected[1].value), manifest, binding, recoveryName);
+  await checked('supabase', ['link', '--project-ref', NATIVE_DB_VALIDATION.projectRef, '--yes'],
+    { cwd: workdir, timeoutMs: NATIVE_DB_VALIDATION.nativeCleanupReserveMs });
+  if ((await readFile(join(workdir, 'supabase/.temp/project-ref'), 'utf8')).trim() !== NATIVE_DB_VALIDATION.projectRef) throw refuse('RUNNER_UNTRUSTED');
+  await guardian(runtime, { ...opts, '--receipt': recoveryPath }, manifest, directory, workdir, binding);
 }
 
 async function main() {
@@ -638,6 +755,10 @@ async function main() {
   const workdir = await realpath(process.cwd());
   const directory = await privateDirectory(opts['--out-dir'], workdir);
   const sourceSha = opts['--source-sha'];
+  if (opts.command === 'restore-prior') {
+    await recoverPriorTimeout(runtime, opts, directory, workdir);
+    return;
+  }
   if (opts.command === 'manifest') {
     const schemaReceipt = JSON.parse(await readFile(opts['--receipt'], 'utf8'));
     const manifest = buildNativePgtapManifest(await collectFiles(workdir, sourceSha, schemaReceipt, runtime));
