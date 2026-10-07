@@ -1,6 +1,14 @@
 # Database follow-ups and next closed-test release
 
-## Current checkpoint (7 October, 07:49 IST; recovery and provider completion GREEN)
+## Current checkpoint (7 October, 07:57 IST; actual timeout recovery VERIFIED)
+
+Actual recovery-only37561403360/1 at67edfadc and guardian112599268817 are SUCCESS. Independent outside verification confirms canonical artifact11456702503/archiveSHA7d8b360a, exact original/observed2min, verifiedAt02:20:18.410UTC and complete authenticated source/listings/cleanup; private actual proof594454dd and proposed index2f2f8d3f. Original37556363035/1 staysFAILED. Both reviewed administrator indices are published with exact readback, preserving prior entries; hosted record82703b9c denotes explicit provider completion without invented literal deletion flags. Public actual receipt: database-historical-recovery-actual-2026-10-07.json.
+
+DB push37561392965 at67edfadc has NO JOBS and FAILS GitHub workflow evaluation, not preflight: inline JavaScript23297characters contains expression interpolation exceeding21000. Actionlint did not expose this provider limit. Frozen14e8cb07 preflight-static-inputs.md prescribes minimal static data-file staging for only current attempt/workload-reviewed array, retaining every named inline resolver and predicate. Independent fresh visible/held infrastructure authors are adapting only controlled readFile invocation ports with assertion bytes unchanged before source packaging construction. Require affected57/305/1341 checks and actual accepted startup. Existing CI37561393941 is inprogress; held37561393891 and immutability37561393871SUCCESS.
+
+No extra runner Git configuration is needed: current worker checkout already sets GIT_CONFIG_COUNT/key core.autocrlf/valuefalse and officialcheckout forwards it. Trial7 staysunregistered until static preflight packaging is green/pushed and exact new source/run is known. Current app/AAB hash89f3aceb/deviceproofs unchanged; Play maximum5/closedAlpha5available. Next: green static input transport, push and launch approved trial7 against exact newrun, complete native/guardian/seed/drift/CI/timing/cleanup, archive then closedAlpha vc6 upload.
+
+### Previous checkpoint (7 October, 07:49 IST; recovery and provider completion GREEN)
 
 Complete existing tooling6802/6802 passes after the lazy-index repair. Final affected1341/1341 also passes with new hosted visible273 and held369 unchanged from genuine red b835a02a. Source-only GO after ordinary-prototype guards: hosted verifierb3eec1c9, sharedarraya215896b, oldunarmedalias34fc9015 and workflow8d3f0e65; literal workload module unchanged9934ca0b. Final lint/registry/escape, zero clones, configured Knip, official Actionlint, both target strict OpenSpec and commit immutability pass. Aggregate proof is database-historical-recovery-local-2026-10-07.json; no held bodies/assertion diagnostics read.
 
