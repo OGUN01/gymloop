@@ -1,0 +1,49 @@
+{
+  "kind": "LOCAL_PROGRESS_NOT_RELEASE_ACCEPTANCE",
+  "checkedAt": "2026-10-07T22:15:59Z",
+  "candidateSha256": "f16cfefee0606268e7c42b1b582fb054fe565f5485962c59affe69c6894b846e",
+  "sourceRevisionAfterIndependentRedCommits": ["c4645c81", "e52e77c4"],
+  "firstCandidateRetentionSha256": "d62dd6b6bcbd46201c8ceca7e29bdc30a02e363c8719dcc7b972bc5a8d185436",
+  "exactTwoLineReverseToFirstCandidate": true,
+  "focusedWindows": {
+    "total": 49,
+    "passed": 49,
+    "failed": 0,
+    "skipped": 0,
+    "sourceUnchangedDuringRun": true,
+    "receiptSha256": "4a92c1b893486796229a971e7bda46895b74565c7a1d6e9640098edce327f585"
+  },
+  "fullTooling": {"status": "RUNNING", "expectedTests": 7694, "acceptanceClaimed": false},
+  "freshSourceReview": {"status": "RUNNING", "acceptanceClaimed": false},
+  "compatiblePackage": {
+    "wrapperSha256": "976f6f764ccbefc7d7992c1da522ed76b64d7e28a353bb35f13c99c6f6bf96d5",
+    "custodianSha256": "6c54c10613960d63bb9a223685ba1009450fb4022cbd782b3a030deb8ca3bd61",
+    "preparationSha256": "e7e28d5ef9f90832df916b18a251d906d4e317be0ba5054ab1b243adf0be44d3",
+    "registrationStarted": false
+  },
+  "ordinaryCI": {"runId": "37680115515", "sourceSha": "bd2efe323d15714e8a5cf457c55081e28eebaff3", "conclusion": "SUCCESS"},
+  "currentDatabase": {
+    "runId": "37680115612",
+    "attempt": 1,
+    "nativeJobId": "112994568121",
+    "status": "IN_PROGRESS",
+    "terminalReviewSnapshotSha256": "fe44b343a0009608e62a27b1f249c6a64901137f0d300a5f3bfccdbc27d90d26",
+    "nativePassClaimed": false,
+    "restorationClaimed": false,
+    "guardianPassClaimed": false,
+    "seedPassClaimed": false,
+    "nextProviderObservationNoEarlierThan": "2026-10-07T22:26:00Z"
+  },
+  "signedRelease": {
+    "versionCode": 6,
+    "bytes": 93727171,
+    "sha256": "89f3acebe9197502fcebecfd7df2c9dcbed6c276cdaf193d7b05daa5e59c5d61",
+    "applicationPayloadMatchesDeviceTestedSource": "c77cfbaf60054951fae707bc5bdb62f801d43b41",
+    "playUploaded": false
+  },
+  "originalTrial8DeadlineUnchanged": "2026-10-08T00:12:47.002Z",
+  "newCloudSweepStarted": false,
+  "regionalImprovementClaimed": false,
+  "archived": false,
+  "goalComplete": false
+}

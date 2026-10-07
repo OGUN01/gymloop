@@ -1,6 +1,14 @@
 # Database follow-ups and next closed-test release
 
-## Current checkpoint (8 October, 03:05 IST; app ready, native DB still running)
+## Current checkpoint (8 October, 03:46 IST; focused runner checks green, full DB still running)
+
+Both original metadata units pass actual zero-skip Windows independently: visible23/23 and held22/22. Meaningful compatibility/protection append-only red commits c4645c81 ande52e77c4 preserve every earlier byte as exact prefixes. Only after both commits, compatible draftf16cfefee0606268e7c42b1b582fb054fe565f5485962c59affe69c6894b846e replaces the directory-security retrieval with the equivalent common API and enforces inheritance-disabled protection. Exact two-line reversal returns preserved43d, all other source remains unchanged, and actual focused49/49 passes with zero skips, source unchanged and receipt4a92c1b893486796229a971e7bda46895b74565c7a1d6e9640098edce327f585. Full7694 tooling is running in private watchdog-portable-full-20261008 (exec54820); fresh watchdog_portable_final_critic review is still running. Neither is inferred green.
+
+Distinct compatible wrapper976f6f764ccbefc7d7992c1da522ed76b64d7e28a353bb35f13c99c6f6bf96d5 and custodian6c54c10613960d63bb9a223685ba1009450fb4022cbd782b3a030deb8ca3bd61 mechanically prepare only fixed trial9 paths/final hashes from original trial8, proofe7e28d5ef9f90832df916b18a251d906d4e317be0ba5054ab1b243adf0be44d3. First refused trial9 drafts and43d snapshots remain untouched. Metadata/registry/escape/immutability/rollback/coverage, root lint, Knip, zero-clone and dependency gates return zero; retained private gate logs await final manifest. No registration or new Cloud sweep has started.
+
+The independent actual22:15:59UTC provider snapshot still shows sole native112994568121 running, no guardian/seed/terminal outcome, proof fe44b343a0009608e62a27b1f249c6a64901137f0d300a5f3bfccdbc27d90d26. Leave next provider observation to current_db_terminal_reviewer at/after22:26UTC. App CI and signed/device-testedvc6 remain ready; Play is untouched. Public aggregate is docs/evidence/v2/database-watchdog-compatible-local-progress-2026-10-08.json. Finish exact-source full tooling/critic/gates and coherent push, then require actual current native/seed/restoration before the serialized regional trial. Original trial8 custodian/deadline00:12:47.002UTC remains immutable; archive/performance/Play and the active goal are unfinished.
+
+### Previous checkpoint (8 October, 03:05 IST; app ready, native DB still running)
 
 Actual DB37680115612 remains RUNNING at the21:28:33UTC provider check; ordinary CI37680115515, held37680115541 and immutability37680115506 remain SUCCESS. Signed/device-tested vc6 still has SHA89f3acebe9197502fcebecfd7df2c9dcbed6c276cdaf193d7b05daa5e59c5d61,93727171bytes, and the current app/packages/lock execution payload matches c77cfbaf. No Play write or new Cloud sweep has started.
 
