@@ -468,8 +468,10 @@ while($true){[Threading.Thread]::Sleep(100)}
                 $liveListener = Get-OriginalProcess $binding.listenerPid $binding.listenerCreation
                 $liveWatchdog = Get-OriginalProcess $binding.watchdogPid $binding.watchdogCreation
                 $watchdogAlive = $null -ne $liveWatchdog
-                if ($mode -ceq 'watchdog-lost' -and $State.MonotonicMs -ge 700) { $watchdogAlive = $false }
                 $verified = $null -ne $liveListener -and [RegistrationFixtureProbe]::ExactMember([int]$binding.listenerPid, $binding.ownerJobName) -and $binding.deadlineUtc -cle '2026-10-07T00:00:04.000Z' -and $watchdogAlive
+                # Simulate only watcher disappearance after genuine ownership
+                # observation; retain the independently verified control facts.
+                if ($mode -ceq 'watchdog-lost' -and $State.MonotonicMs -ge 700) { $watchdogAlive = $false }
                 if ($null -ne $liveListener) { $liveListener.Dispose() }; if ($null -ne $liveWatchdog) { $liveWatchdog.Dispose() }
                 return [ordered]@{ request = $requestBytes; verified = $verified; watchdogAlive = $watchdogAlive; fullJobFinalVerified = $false }
             }.GetNewClosure()
