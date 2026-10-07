@@ -190,7 +190,7 @@ try {
 } finally { $env:PSModulePath = $originalCaller }
 `, 'utf8');
   try {
-    const completion = spawnSync('C:/Users/Harsh/.cache/codex-runtimes/codex-primary-runtime/dependencies/native/powershell/pwsh.exe', ['-NoLogo', '-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', fixture], {
+    const completion = spawnSync('C:\\Users\\Harsh\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\native\\powershell\\pwsh.exe', ['-NoLogo', '-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', fixture], {
       encoding: 'utf8',
       windowsHide: true,
       timeout: limits.nativeCleanupReserveMs + limits.processStopGraceMs + limits.processStopGraceMs,

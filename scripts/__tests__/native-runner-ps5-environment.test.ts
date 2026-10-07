@@ -192,7 +192,7 @@ $json = $receipt | ConvertTo-Json -Depth $taskLimits.hookArgumentCount -Compress
 [IO.File]::WriteAllText([IO.Path]::Combine($Directory, 'receipt.json'), $json, $taskUtf8)
 [Console]::Out.Write($json)
 `, 'utf8');
-  const result = spawnSync('C:/Users/Harsh/.cache/codex-runtimes/codex-primary-runtime/dependencies/native/powershell/pwsh.exe', [
+  const result = spawnSync('C:\\Users\\Harsh\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\native\\powershell\\pwsh.exe', [
     '-NoProfile', '-NonInteractive', '-File', fixturePath,
     '-Candidate', visibleCandidate, '-LimitsPath', visibleLimitsPath,
     '-Directory', directory, '-Scenario', scenario,
