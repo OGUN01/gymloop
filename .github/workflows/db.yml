@@ -118,7 +118,7 @@ jobs:
             const source = value => typeof value === 'string' && new RegExp(`^[a-f0-9]{${limits.sourceShaLength}}$`).test(value);
             const readArtifact = async (artifact, filename) => {
               if (artifact.expired || !Number.isSafeInteger(artifact.size_in_bytes) || artifact.size_in_bytes <= 0 || artifact.size_in_bytes > limits.timeoutQueryMaxBytes) throw new Error('Expired or invalid recovery custody blocks the shared project.');
-              const response = await github.rest.actions.downloadArtifact({...context.repo, artifact_id:artifact.id, archive_format:'zip', request:{redirect:'manual'}});
+              const response = await github.rest.actions.downloadArtifact({...context.repo, artifact_id:artifact.id, archive_format:'zip', request:{fetch:(url,options)=>fetch(url,{...options,redirect:'manual',signal:AbortSignal.timeout(limits.nativeCleanupReserveMs)})}});
               if (response.status !== limits.artifactRedirectStatus || !response.headers.location) throw new Error('Recovery custody is unavailable.');
               const location = new URL(response.headers.location);
               if (location.protocol !== 'https:' || location.username || location.password || location.hash) throw new Error('Recovery custody is unavailable.');
