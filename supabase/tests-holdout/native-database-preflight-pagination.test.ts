@@ -109,7 +109,7 @@ function successfulBaselineJobs(): Job[] {
   return ['migrate', 'pgtap', 'seed-dry-run'].map(name => job(name));
 }
 
-function opaqueScript(attempt: number): string {
+function opaqueScript(): string {
   const lines = readFileSync(workflowPath, 'utf8').split(/\r?\n/);
   const jobIndex = lines.findIndex(line => line.trim() === 'database-recovery-preflight:');
   if (jobIndex === -1) throw new Error('Required Actions job is absent.');
@@ -145,8 +145,7 @@ function opaqueScript(attempt: number): string {
   if (!firstCode) throw new Error('Required Actions script is empty.');
   const bodyIndent = firstCode.search(/\S/);
   const script = body.map(line => line.slice(bodyIndent)).join('\n')
-    .replace(/\$\{\{\s*github\.run_attempt\s*\}\}/g, String(attempt))
-    .replace(/\$\{\{\s*toJSON\(vars\.NATIVE_DB_WORKLOAD_TEARDOWN_RECEIPTS(?:\s*\|\|\s*'\[\]')?\)\s*\}\}/g, JSON.stringify('[]'));
+    .replace("const { readFile } = await import('node:fs/promises');", '');
   if (/\$\{\{/.test(script)) throw new Error('Unspecified Actions expression in fixture boundary.');
   return script;
 }
@@ -254,19 +253,23 @@ async function execute(scenario: Scenario = {}) {
   };
   let threw = false;
   let runtimeTypeError = false;
-  const preflight = compileFunction(`return (async () => {\n${opaqueScript(attempt)}\n})();`,
-    ['github', 'context', 'core', 'require'], {
+  const preflight = compileFunction(`return (async () => {\n${opaqueScript()}\n})();`,
+    ['github', 'context', 'core', 'require', 'readFile'], {
       importModuleDynamically: vmConstants.USE_MAIN_CONTEXT_DEFAULT_LOADER,
     });
-  // Adapt only native module resolution: workflow bytes and all verifier
-  // behavior remain unchanged, including the real filesystem cwd.
+  // Adapt native module resolution and the declared readFile import only.
+  // Verifier behavior and all existing filesystem reads remain unchanged.
   const loader = registerHooks({
     resolve(specifier, context, nextResolve) {
       return nextResolve(isAbsolute(specifier) ? pathToFileURL(specifier).href : specifier, context);
     },
   });
   try {
-    await preflight(github, context, core, requireFromRoot);
+    await preflight(github, context, core, requireFromRoot, async (path: string, encoding: string) => {
+      if (encoding === 'utf8' && path === '.dbv/current-attempt.txt') return `${attempt}\n`;
+      if (encoding === 'utf8' && path === '.dbv/operator-workload-teardowns.json') return '[]\n';
+      return requireFromRoot('node:fs/promises').readFile(path, encoding);
+    });
   } catch (caught) {
     const code = caught && typeof caught === 'object' && 'code' in caught ? String(caught.code) : '';
     if (code.startsWith('ERR_')) throw new Error(`Holdout execution setup port failed: ${code}.`, { cause: caught });

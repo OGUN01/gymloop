@@ -1,11 +1,12 @@
 import { readFileSync } from 'node:fs';
+import * as filesystem from 'node:fs/promises';
 import { createRequire } from 'node:module';
 import { constants as vmConstants, runInThisContext } from 'node:vm';
 import { beforeAll, describe, expect, it, vi } from 'vitest';
 
 // Independent integration fixtures from the frozen DBV transport contract.
 // The workflow is parsed and executed as the system under test; its script is
-// never displayed or rewritten, apart from explicit GitHub expression inputs.
+// never displayed or rewritten, apart from the declared readFile fixture port.
 type Run = {
   id: number;
   run_attempt: number;
@@ -154,10 +155,16 @@ async function executePreflight(fixture: Fixture = {}) {
     notice: vi.fn(),
     setOutput: vi.fn(),
   };
-  const substituted = preflightScript
-    .replace(/\$\{\{\s*github\.run_attempt\s*\}\}/g, String(attempt))
-    .replace(/\$\{\{\s*toJSON\(vars\.NATIVE_DB_WORKLOAD_TEARDOWN_RECEIPTS\s*\|\|\s*'\[\]'\)\s*\}\}/g, JSON.stringify('[]'))
-    .replace(/\$\{\{\s*vars\.NATIVE_DB_WORKLOAD_TEARDOWN_RECEIPTS\s*\}\}/g, '[]');
+  const fixtureReadFile = async (path: Parameters<typeof filesystem.readFile>[0], encoding: Parameters<typeof filesystem.readFile>[1]) => {
+    if (path === '.dbv/current-attempt.txt' && encoding === 'utf8') return `${attempt}\n`;
+    if (path === '.dbv/operator-workload-teardowns.json' && encoding === 'utf8') return '[]\n';
+    return filesystem.readFile(path, encoding);
+  };
+  const fileBoundary = "const {readFile} = await import('node:fs/promises');";
+  if (preflightScript.indexOf(fileBoundary) === -1 || preflightScript.indexOf(fileBoundary) !== preflightScript.lastIndexOf(fileBoundary)) {
+    throw new Error('Fixture must bind exactly one declared readFile boundary.');
+  }
+  const substituted = preflightScript.replace(fileBoundary, '');
   if (/\$\{\{/.test(substituted)) throw new Error('Fixture must explicitly control each GitHub expression.');
   const fetch = vi.fn(async () => { throw new Error('Synthetic fixture forbids network transport.'); });
   // Hosted absolute import paths are POSIX paths. On this Windows authoring
@@ -167,10 +174,10 @@ async function executePreflight(fixture: Fixture = {}) {
   try {
     // Node's main loader is required for the real step's dynamic imports.
     // The returned value is an AsyncFunction, with unchanged step body bytes.
-    const execute = runInThisContext(`(async function (github, context, core, require, fetch, process) {\n${substituted}\n})`, {
+    const execute = runInThisContext(`(async function (github, context, core, require, fetch, process, readFile) {\n${substituted}\n})`, {
       importModuleDynamically: vmConstants.USE_MAIN_CONTEXT_DEFAULT_LOADER,
     }) as (...arguments_: unknown[]) => Promise<unknown>;
-    await execute(github, context, core, localRequire, fetch, processFixture);
+    await execute(github, context, core, localRequire, fetch, processFixture, fixtureReadFile);
   } catch (reason) {
     error = reason instanceof Error ? reason.message : 'Non-error rejection';
   }
