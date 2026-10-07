@@ -16,6 +16,8 @@ Current capability receipts: Windows Supabase reports 2.110.0; Windows PowerShel
 
 The existing DBV-008 startup/retirement mechanism is frozen in [registration-startup-custody.md](registration-startup-custody.md) before independent controlled tests and private construction. It closes configuration/partial-registration custody while preserving the sealed listener/watchdog and every native/database gate.
 
+The subsequent watchdog result-pipe inheritance repair is frozen in [watchdog-handle-isolation.md](watchdog-handle-isolation.md) before independent native regressions and a distinct protected launcher. Keep the existing wrapper's real pipe EOF completeness and all original admissions/deadlines; restrict the watchdog's inherited handles to its own private logs and NUL input.
+
 The observed native query-result reporting compatibility is frozen in [native-query-result-reporting.md](native-query-result-reporting.md) before independent regressions and correction. Preserve native authority and all complete-stream/cleanup predicates; ordinary non-test query rows inside a known file cannot create or remove a native test point.
 
 ### Retain the native command and isolate reporting
