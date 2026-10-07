@@ -385,6 +385,9 @@ function parseNativeOutput(manifest, stdout, stderr, failures) {
       continue;
     }
     if (/^All \d+ subtests passed\s*$/.test(line)) continue;
+    if (/^\s*(?:ERROR|FATAL|PANIC)\b/i.test(line)) { current.incomplete = true; continue; }
+    // Uppercase SQL status identifiers are not native lowercase test tokens.
+    if (/^\s*[A-Z][A-Z0-9_]*\s*$/.test(line)) continue;
     // Native SQL result rows are non-test output; malformed control records still refuse.
     if (/^\s*(?:(?:not\s+)?ok\b|1\.|TAP\s+version\b|All\s+(?:tests\b|.*\bsubtests\b)|Files\b|Result\b|(?:ERROR|FATAL|PANIC)\b|(?:psql|postgres|supabase):|\[\d\d:)/i.test(line)) current.incomplete = true;
   }

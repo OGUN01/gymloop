@@ -1,0 +1,18 @@
+{
+  "formatVersion": 1,
+  "contractFreezeCommit": "8ea878b3",
+  "scope": "Ordinary native query rows and standalone-uppercase SQL status compatibility, preserving native authority and failure boundaries",
+  "testsFirst": {
+    "visible": { "commit": "0ef03fb6", "cases": 80, "redPassed": 77, "genuineRedFailures": 3, "old58CasesUnchanged": true, "appendReversalSha256": "0b52c42b2612629614a59934719fb77c48dad29f143feefb31bcbfcfd9497d6c", "finalSha256": "734de26be48a1796be1cb6770c5223ab4b2a3b6acd6cfeb076166143b385f94e" },
+    "held": { "commit": "a65a65a0", "cases": 102, "redPassed": 98, "genuineRedFailures": 4, "old64CasesUnchanged": true, "appendReversalSha256": "887b55f730300f9abded44e7efb5d223efbb5da89c5c604855d0c28f75379375", "finalSha256": "6faf7d84c2f5dce8c5929d34784936ea7ece7a0fe91c6abbab19a8e52b365554" },
+    "allPriorFilesAndFailedReceiptsRetained": true,
+    "implementationReadAssertionBodies": false
+  },
+  "acceptedFinalSourceSha256": "ec69370f213697daa74bd9abde99b55307362b51e7a8a7b6a67d8440393c0dc7",
+  "focused": { "cases": 182, "passed": 182, "failed": 0, "skipped": 0, "reportSha256": "b052f70d42e1c9a7963921028f79c85f74da2b7c32f989c59e4e944b8617d115" },
+  "completeTooling": { "cases": 7645, "passed": 7645, "failed": 0, "skipped": 0, "unchangedSourceBeforeAfter": true, "reportSha256": "96da6c297f7de3ac1cf66df65f0600f2f7cce67aacabba9b88a27ea2701ae081" },
+  "sourceCritic": { "verdict": "GO", "reviewRecordSha256": "7047059dab08b13d7317b08dd620f46d6f8051f5bb646608097349dcb158cd55", "allPriorFindingsAndNoGoRecordsRetained": true, "testsSqlBodiesAndPrivateDiagnosticsUnread": true },
+  "finalNonTestGates": { "passed": 8, "eslint": true, "registry": true, "escapeHatches": true, "jscpdZeroClones": true, "immutability": true, "configuredLocalKnip": true, "strictShopOpenSpec": true, "strictDatabaseOpenSpec": true, "manifestSha256": "b8a0b4b79eb12736a3668f18c798d6a292f5f390fc318d188f1b28b2931e38ba", "priorActionlintPassedAndWorkflowUnchanged": true, "freshLinuxCiKnipStillRequired": true },
+  "retainedActualInputDiagnostic": { "kind": "DIAGNOSTIC_ONLY", "compatible": true, "passFiles": 163, "assertions": 16329, "failedAssertions": 0, "incompleteFiles": 0, "failureCodes": [], "exactAuthenticatedOriginalEvidenceUsed": true, "allOriginalPlansTimersStreamsAndFileHashesUnchanged": true, "proofSha256": "952f978f4e91d4a957d6587646db2120bea4dd5e2da8c8fe6658f1fcae2fffce", "plaintextOrValuesRenderedOrPersisted": false, "originalFailedWorkflowAndRejectedReceiptUnchanged": true },
+  "releaseBoundary": "Local and retained-input diagnostic green only. One fresh actual source-bound native/recovery/guardian/seed/drift/app CI run, regional timing and physical cleanup remain required before archive and closed Alpha upload. No new Cloud sweep or trial8 registration has occurred yet; signed vc6 remains unchanged and not uploaded."
+}

@@ -1,6 +1,14 @@
 # Database follow-ups and next closed-test release
 
-## Current checkpoint (8 October, 01:22 IST; actual-input collision caught before push)
+## Current checkpoint (8 October, 01:40 IST; final reporting and actual-input diagnostic green)
+
+The standalone-uppercase collision was repaired only after independent append-only red regressions a65a65a0 and0ef03fb6. Original64 held and58 visible cases remain byte-identical; final182/182 focused and7645/7645 complete tooling pass with zero skips and unchanged sourceec69370f213697daa74bd9abde99b55307362b51e7a8a7b6a67d8440393c0dc7. Comprehensive source-only criticism gives GO; all eight final source-sensitive/metadata gates pass, with earlier Actionlint still valid for the unchanged workflows. Public final local proof is docs/evidence/v2/database-query-result-final-local-2026-10-08.json. Fresh Linux CI remains required.
+
+Independent same-input replay now handles all163 files/16329 assertions with zero failures or incomplete files, using exact authenticated original evidence and unchanged raw/archive/test hashes, plans and timers. Proof952f978f4e91d4a957d6587646db2120bea4dd5e2da8c8fe6658f1fcae2fffce is DIAGNOSTIC_ONLY; original37563272622 workflow and rejected final bytes remain failed. No new Cloud/native/seed execution is inferred.
+
+Trial8 remains fresh/unregistered, with protected empty paths and prior global binding/source-receipt raw bytes copied and hash-verified before any overwrite. Signed/device-testedvc6 and application execution payload remain unchanged. Next immediate action: coherent green source push on main, discover the sole actual normal DB run at that exact SHA, hidden bundled-PowerShell7 trial8 startup against its run/attempt1, then observe actual ownership/readiness/selection/full native/recovery/guardian/seed/drift/CI/timing and narrow cleanup. No duplicate baseline or overlapping Cloud workload; archive and existing closedAlpha upload only after accepted evidence. Play remains untouched and the release goal remains active.
+
+### Previous checkpoint (8 October, 01:22 IST; actual-input collision caught before push)
 
 Local reporting revision6c175a51 passes122 focused,7585 complete tooling and all nine non-test gates, with source-only GO. The independent in-memory replay of the unchanged actual failed output nevertheless yields162 PASS and one INCOMPLETE. Exactly eight uppercase standalone SQL-status identifiers are vendor-unknown non-test records caught by a case-insensitive reserved test-word check. Every163 file/16329 assertion/timer and raw/input hash remains unchanged. Public diagnostic proof is docs/evidence/v2/database-query-result-collision-2026-10-08.json. This is useful diagnostic evidence, not fresh native or release acceptance.
 
