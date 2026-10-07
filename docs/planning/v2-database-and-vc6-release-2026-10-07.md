@@ -1,6 +1,16 @@
 # Database follow-ups and next closed-test release
 
-## Current checkpoint (7 October, 08:19 IST; accepted preflight and full native RUNNING)
+## Current checkpoint (8 October, 00:12 IST; resumed, native failed report under independent review)
+
+The owner resumed the persistent release objective after a paused interval. Actual full DB37563272622/attempt1 at8727213ec47b8136c8332c6e757015a3075dbb33 is now terminal FAILURE: native112605659467 ended7October04:50:00UTC and reports TAP_INCOMPLETE. Preflight/migration/rollback/drift succeeded, timeout-guardian succeeded, native-job-metadata succeeded and seed-dry-run was skipped. This is not a successful release gate. An independent outside-worker reviewer is checking the actual canonical final/restoration/custody/timing artifacts before any further Cloud sweep; job success alone is not a verified timeout restoration receipt or complete native result.
+
+Prepared trial8 compatibility source remains sealed248975da96c4b4b4da5d0f003c2f331f5deb549d7c2f6785dca6f4790029e675; its local actual-Windows visible8/8 and held11/11 tests and source-only GO were completed before pause. New tests are committed separately from declarations. Knip exposed PATH-based pwsh.exe fixture metadata; d55b39a2 freezes the original-author-only absolute executable correction before edits, with every oracle unchanged. Actual Windows/native discovery/lint/type/Knip and relevant CI must be green before this unit is pushed. Trial8 is still unregistered and has no admission or binding; no regional success or timing improvement is claimed.
+
+Old trial5 and trial6 custodians left truthful RETIREMENT_UNVERIFIED final receipts after their original deadlines: configuration processes stopped and registrations absent, but physical teardown is not proved. Trial7's original deadline also elapsed; no admission-final receipt was present during resumed inspection. Preserve all old admissions/sources/logs/deadlines and independently audit remaining owned resources rather than relabeling404 as physical cleanup.
+
+App/packages/lockfile execution payload still matches signed/device-testedc77cfbaf; vc6 artifact/device evidence remain retained. Play has not been touched by this task. Next: resolve the actual incomplete-report failure without changing native authority or SQL/test oracles, verify recovery/teardown, complete one serialized matching regional trial with real timing and seed/drift/app gates, archive only accepted outcomes, then verified existing closedAlpha vc6 upload/promotion. The remaining work is active; production and Play-pilot replacement remain outside scope.
+
+### Previous checkpoint (7 October, 08:19 IST; accepted preflight and full native RUNNING)
 
 Remote main is8727213ec47b8136c8332c6e757015a3075dbb33. Actual DB37563272622/attempt1 has successful recovery preflight112605158311, rollback112605158522, migration112605254167, generated-type drift112605416740 and selector112605613260. Full native112605659467 started02:44:39UTC, with the full163-file/16329-assertion frozen manifest and its outside-worker recovery custody step active. No native verdict, fresh restoration, guardian, serial seed or performance completion is inferred. This is the sole active Cloud sweep; do not queue another while it or its dependent seed is active. Ordinary CI37562871694 is running; held37562871676 and immutability37562871747 are SUCCESS.
 

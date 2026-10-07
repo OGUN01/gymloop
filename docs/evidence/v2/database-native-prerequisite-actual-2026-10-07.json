@@ -1,0 +1,17 @@
+{
+  "formatVersion": 1,
+  "runId": "37563272622",
+  "attempt": "1",
+  "sourceSha": "8727213ec47b8136c8332c6e757015a3075dbb33",
+  "nativeJobId": 112605659467,
+  "runnerEnvironment": "github-hosted",
+  "expectedFiles": 163,
+  "expectedAssertions": 16329,
+  "baseline": { "runId": "37519113387", "sourceSha": "6802d201df51afc4adc77ade6fa8394dfea5f9f0", "unchangedSqlInputs": 269, "testMetadataHashesMatch": true, "assertionBodiesRead": false },
+  "manifest": { "artifactId": 11457443950, "archiveSha256": "ee0389c50b62f6a4b01bfae11c942c95982a5aaac5fc9cd3d2afa318645485d5", "bodySha256": "f7d6d575f77a53e5282b61b344b0f85db93e66b8d47437b4af959f76b2fc6d1f" },
+  "recovery": { "artifactId": 11457478848, "archiveSha256": "7a78ffecf0f98b33b39653d77c4104199c55effcad95265bfe3718a649ffcfe1", "bodySha256": "80e63a3b9287ddccd6fe825c1dc7539f89dd0e8e60921da2469530f167691560", "capturedAt": "2026-10-07T02:45:31.036Z", "originalPresent": true, "originalValue": "2min" },
+  "schema": { "artifactId": 11458360298, "archiveSha256": "3618f7c031b1ab0c7d97347615b446b7a91baf64cd59df9918fb3c61c7433e50", "bodySha256": "6339b3a0fcc6bc8e559e6cdf30f6a113a1554562eddc4d8bb7a0b1e97a38aef8" },
+  "independentReview": { "verdict": "PREREQUISITE_CUSTODY_GO", "privateProofSha256": "8a339e49e0f0aa65d69741b5aacde477aff5b9ec79399c59a086dd3faf316401", "authenticatedApi302AndCredentialFreeStorage200": true, "exactSizeDigestOrdinaryZipCanonicalJson": true, "sourceRunManifestBindings": true },
+  "appCi": { "runId": "37562871694", "conclusion": "success", "heldRunId": "37562871676", "heldConclusion": "success", "immutabilityRunId": "37562871747", "immutabilityConclusion": "success" },
+  "boundary": "Prerequisite artifacts and original timeout capture are verified. Artifact existence alone does not prove ALTER or native execution. Native completion, every file plan/result/timer, fresh restoration, guardian, seed and timing acceptance remain unproven; no release or performance success is inferred."
+}
