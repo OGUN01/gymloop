@@ -15,3 +15,18 @@ Acceptance still requires the full unchanged native stream and successful proces
 ## Independent tests first
 
 Fresh visible and held authors use only the frozen public buildNativePgtapManifest and verifyNativePgtapRun interfaces in design.md and synthetic nonpersonal data. Do not read implementation, existing tests, SQL bodies or the other author. Cover a complete native transcript with query-result rows in all three positions and prove the candidate receipt remains accepted with exact counts/timers; positive cases must fail against the current implementation before any source change. Independently cover the failure boundaries above with result noise present. Tests may import existing shared constants; register any new private fixture helper before writing it. Preserve red receipts and immutable assertions; root never opens held assertions. No Cloud access or real credentials are needed.
+
+### Public native reporting grammar clarification
+
+Before fixture construction, both authors requested the missing native stream ABI. They may independently obtain it from the fixed client using only a synthetic stub, network-disabled disposable container and their own fixture files. The timestamped verbose header is `[HH:MM:SS] <manifest path> <one or more dots>`; an absolute native path ending in the manifest path is also valid. A file has one `1..N` plan, numbered `ok`/`not ok` test points in sequence and one native footer `ok <integer milliseconds> ms (<native timing text>)` or its failed `not ok` counterpart. A timestamp-only line ends its block. After all files, the native output has one `All tests successful.`, one `Files=<file count>, Tests=<point count>, <native timing text>` and one final `Result: PASS`. Synthetic nonpersonal structural example for a single file block:
+
+```text
+[01:02:03] supabase/tests/synthetic-query.sql ....
+1..2
+ok 1 - synthetic first point
+ok 2 - synthetic second point
+ok 25 ms ( 0.00 usr  0.00 sys +  0.00 cusr  0.00 csys =  0.00 CPU)
+[01:02:04]
+```
+
+Complete manifest fixtures still include both suite directories and a matching full aggregate; the example is a block, not a complete accepted receipt. This supplies native structural syntax, not a production implementation or another author's oracle.
