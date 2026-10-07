@@ -28,7 +28,19 @@ Production AAB requires applicationId `in.fitcruxx.app`, label FitCruxx, OAuth s
 
 Existing pilot exceptions (ADR-159/168), manual-only payments, unresolved HTTPS App Links proof and native Firebase/push setup are not silently turned into passed gates by this upload. Do not expand the release to unrelated feature implementation. Keep actual Console draft/review/published status distinct.
 
-## Current execution checkpoint (7 October, 06:20 IST; 8d82cbf5)
+## Current execution checkpoint (7 October, 06:29 IST; a4aa6ebf)
+
+Main623c9f72 is pushed. Actual DB37554115136 attempt1 FAILED at recovery preflight before migration/query/timeout/suite: `Recovery custody is unavailable.` The original strict guard correctly refuses the final200 produced by the shipped github-script v8 / Octokit request8.1.1 bundle, which ignores request.redirect. The minimal correction must enforce manual redirect through the documented request.fetch port while preserving strict302, credential-free HTTPS storage access, deadlines, bounded bytes/digest/ZIP and canonical JSON. Contract/fixture metadata are frozen9bae09e7/a4aa6ebf; independent visible/held authors are constructing new narrow red tests before the transport correction. No full native pass or performance improvement is established by this attempt.
+
+Real client-only operator probe at00:57:45UTC independently gets302 without following, then storage200; actual1784-byte archiveSHA1091ff970e9a3b0cfe2f04771d6218211b0c5549147536e8b7cf17b59e543caa matches the official API digest. No API authorization is forwarded to storage or signed URL printed. This proves actual archive availability, not the workflow's acceptance.
+
+Actual trial5 admits/configures runner27 under independent custody, with verified config exit0, assigned-before-resume and stopped original processes. Wrapper refuses before listener launch; API now lists zero runners. Source-only review identifies an overstrict initial Windows-only check conflicting with the frozen permitted unknown/offline/strict-idle state. Exact API OS at refusal was not retained, so this remains the source defect consistent with the stage, not an invented actual row observation. Old trial5 bytes/config/admission/proofs remain preserved and custodian39472 continues its original deadline04:51:19.497UTC; no full physical teardown receipt exists yet.
+
+Distinct checksum-verified C:/fr8-20261007, short work root and empty trial6 protected custody/physical directories are prepared UNREGISTERED. Trial6 source-only GO: unchanged coreca6c1d1a, new fixed CLI115e57cef1e998f2ec0a659a843ac4f35654a32dc180a86fb651e59af42faf58 and wrapperd1927c0da667ac9a36c037a67b7d5aa80ca3882d2973f3683e00053021551e06. Only pre-launch call narrowly allows unknown/offline/boolfalse; post-launch and publisher remain Windows/online/idle strict. All identities, pins, acknowledgments and original budgets remain; old custody cannot match a new source/run label. Safe private fixed milestones aid actual refusal diagnosis without logging secrets.
+
+Next: commit genuine independent transport tests red, apply the minimal request.fetch correction and pass affected gates/source-only review, then push and launch trial6 against its exact new run. Continue full native/guardian/seed/drift/ordinaryCI/timing and physical evidence before archive and closedAlpha vc6 upload. AAB/device proofs are complete and unchanged; Play is untouched.
+
+### Previous checkpoint (7 October, 06:20 IST; 8d82cbf5)
 
 Independent startup validation is now GREEN on the final sealed private source: core SHA256 `ca6c1d1a50597174e7fee32083e47cf4e728055b4e7ebd9aaf544d1ef403c5e0`, CLI `d61f43b3619186a07eabbe56d13fc77b1ddccfb3d6c5f8b200bfcfd69afcb41e`, wrapper `b807429fc7965145fd5ffbfd3499c8309dc57c7c2fc91ffc387cb247c9a2947c`. A fresh source-only critic gives GO for those exact bytes. Actual configuration results and retained handoff acceptance are required before readiness. Atomic request publication, original-handle process observations and one original stop grace address the real startup races; there is no production fixture override.
 
@@ -132,8 +144,8 @@ Next: push the coherent green Shop unit to let CI apply its migration and run th
 - [x] Commit independent tests red; implement without altering tests.
 - [ ] Green focused/local gates, CI-applied migration, generated types and complete CI.
 - [ ] Prepared safe regional harness, hosting/access decision, independent failure-equivalence checks and measured complete run.
-- [ ] Fresh isolated-device pagination/navigation smoke and screenshots.
-- [ ] Verified signed AAB from final green source.
+- [x] Fresh isolated-device pagination/navigation smoke and screenshots.
+- [x] Verified signed AAB; application bytes remain equivalent through later validation-only source.
 - [ ] Closed Alpha upload/promote and actual Console evidence.
 - [ ] Archive completed units, final evidence and goal completion.
 
