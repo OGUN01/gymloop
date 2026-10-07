@@ -1,0 +1,16 @@
+{
+  "formatVersion": 1,
+  "runId": "37680115612",
+  "attempt": "1",
+  "sourceSha": "bd2efe323d15714e8a5cf457c55081e28eebaff3",
+  "event": "push",
+  "status": "in_progress",
+  "conclusion": null,
+  "completedPrerequisites": { "recoveryPreflightJob": 112993658617, "rollbackJob": 112993658302, "migrationJob": 112993831029, "schemaDriftJob": 112994024279, "allSuccess": true },
+  "selection": { "jobId": 112994221642, "conclusion": "success", "path": "github-hosted", "regionalReadinessPublishedBeforeSelection": false },
+  "native": { "jobId": 112994568121, "runnerId": 1000014687, "startedAt": "2026-10-07T20:13:33Z", "status": "in_progress", "terminalVerdict": null },
+  "outsideWorkerPrerequisiteCustody": { "accepted": true, "files": 163, "plannedAssertions": 16329, "originalTimeoutPresent": true, "originalTimeoutValue": "2min", "capturedAt": "2026-10-07T20:14:23.211Z", "recoveryArtifactId": 11508568241, "manifestBodySha256": "8b407746f3e96c98c04ae0ca977d253b06bceca2c9b82f2cbfc1e8315bca2528", "recoveryBodySha256": "655130c16c2790c4d7940de6b06793f1895027e4b25e4485a00a2707762b3a26", "schemaBodySha256": "cfab0099c6d3e345edecbf6649e2e2da11303267f0ebf8055e17fc47e8e45162", "proofSha256": "c3c70b906c6acb8c7248f9173f0ba783d25bff83a363f598fbb15f41b291a646", "exact269SqlMigrationGitBlobsAnd163TestHashesPlansMatchPriorMetadata": true, "artifactPresenceAloneDoesNotProveAlterationOrNativeStart": true },
+  "trial8": { "startup": "failed_after_verified_listener_resume_before_handoff", "registrationAt": "2026-10-07T20:12:47.002Z", "configurationExitCode": 0, "ownershipAt": "2026-10-07T20:13:15.652Z", "resumedAt": "2026-10-07T20:13:15.988Z", "handoffAccepted": false, "readinessPublished": false, "shutdownAt": "2026-10-07T20:13:53.458Z", "shutdownProofSha256": "9c4a33b80d71869f061119ec1522834a623a8893525959513588d8f881e2b360", "stopReason": "STARTUP_REFUSED", "errors": ["WATCHDOG_OPERATION_UNVERIFIED", "JOB_METADATA_UNVERIFIED"], "nativeProcessesStopped": true, "ownedContainersAbsent": true, "registrationRemoved204Then404": true, "jobBindingVerified": false, "workloadReceiptAvailable": false, "originalCustodianStillAlive": true, "admissionFinalPresent": false, "originalCleanupAt": "2026-10-08T00:11:47.002Z", "originalDeadline": "2026-10-08T00:12:47.002Z", "completeRetirementAccepted": false, "sourcesAdmissionsReceiptsAndDeadlinesPreserved": true },
+  "otherCi": { "ciRunId": "37680115515", "ciStatus": "in_progress", "typecheckLintBuildAppTestsAndScriptTests": "success", "accessibility": "in_progress", "freshLinuxKnip": "pending", "holdoutRunId": "37680115541", "holdoutConclusion": "success", "immutabilityRunId": "37680115506", "immutabilityConclusion": "success" },
+  "boundary": "Running checkpoint only. No terminal native/restoration/guardian/seed/provider completion, regional performance, complete trial8 retirement, archive or Play upload is inferred. This is the sole active Cloud sweep; do not queue another until its native and serial seed finish and cleanup/recovery are verified. Original37563272622 stays failed."
+}
