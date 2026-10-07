@@ -1,0 +1,12 @@
+{
+  "formatVersion": 1,
+  "actualRun": { "runId": "37556363035", "attempt": "1", "sourceSha": "8169f39303880988f8b6870d8319d854d21e07b3", "conclusion": "failure", "nativeFiles": 0, "nativeAssertions": 0, "nativeMs": 0, "restorationVerified": false },
+  "cause": "Official upload-artifact v5 finalized recovery before failing to write acknowledgment to an uncreated GITHUB_OUTPUT file. HASH_CHANGED was a downstream missing-output failure; native execution did not start.",
+  "privateActualProofSha256": "491309936804af399d121c2f7b931b0621f6cc404d5a12d64c58e4cf79ad3b9a",
+  "redCommit": "142eca9f",
+  "implementationCommit": "4d3ac0cc",
+  "visible": { "red": { "tests": 33, "passed": 27, "failed": 6, "exitCode": 1, "testSha256": "e835f5ae3512a2404bc9343a9d3582a6cb5ee867630707549a9382ef2f44fca5" }, "green": { "tests": 33, "passed": 33, "failed": 0, "exitCode": 0, "lintExitCode": 0 }, "testSha256": "129812db62a9400474ff142e9344e3fa29b0331d4624f4ba0583c398f7adbc40", "redLogSha256": "f813e5d893c9eab022b85ccd07790c115d26769a033e9e82e0060c2a3145a9bf", "greenLogSha256": "0a288d9878cfd1180ac1b5641730ca398e018e5d16f7e3b1375b78fab5ee9008" },
+  "held": { "red": { "tests": 30, "passed": 6, "failed": 24, "exitCode": 1 }, "green": { "tests": 30, "passed": 30, "failed": 0, "exitCode": 0, "lintExitCode": 0 }, "testSha256": "ce146b9d0a655af36e1891be39c68bca583339d809ff5b76eed51bcd4313ab1e", "redLogSha256": "c0b265017c4e1e1045890d27c86e294f001082b7f0b95ce523a6d0ea8cb14644", "greenLogSha256": "78d2bda463ea917b67cc265a40d91188a895a519638ffec6172bbbdc0fb10d2a" },
+  "implementationSha256": "bdd0c92644b46af006bd030b399c7e5e7c6dc5071ff591969daac3b2bf5ec3b4",
+  "boundary": "Local acknowledgment proof only. No full native success, timeout restoration or Play upload claimed. Root has read neither held bodies nor assertion diagnostics. Original-author-only cwd, distribution refusal and cache-layout observation repairs preserve declared oracles; all intermediate receipts remain retained."
+}

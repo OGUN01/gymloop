@@ -1,5 +1,17 @@
 # Database follow-ups and next closed-test release
 
+## Current checkpoint (7 October, 07:20 IST; actual armed run failed)
+
+Remote main8169f393 ordinaryCI37556363077, Holdout37556363015 and immutability37556363026 are SUCCESS. DB37556363035/attempt1 is COMPLETE FAILURE: preflight/rollback/migrate/drift/selector/metadata succeed; hosted native and guardian fail; seed is skipped. Real recovery artifact11454727536 exists with original role-global timeout present/value2min. Native never starts (0files/0assertions/nativeMs0). Preserve the failed attempt and prohibit another Cloud sweep/migration until verified recovery; this is not an unarmed-precheck classification.
+
+Source-only actual triage identifies missing exclusive GITHUB_OUTPUT precreation: official upload-artifact v5 finalizes remote files then fails its acknowledgment. Independent tests were committed red142eca9f before one-line source4d3ac0cc; final visible33/33 and held30/30 pass, unchanged held bytes, author-only mechanical fixture repairs declared separately. Public aggregate: docs/evidence/v2/database-artifact-acknowledgment-local-2026-10-07.json. No application/packages/lock bytes changed.
+
+Guardian's fresh hosted job never stages the internal uploader distribution, so it can fail ENOENT after writing a local restoration receipt. Physical restoration is not inferred from source. Frozen historical recovery7802cc4f/1bc5e5d5 prescribes explicit official guardian publication and an honest dispatch-only recovery of the original bound receipt, authenticated cross-run provenance/index and existing failed-worker teardown gate. Independent authors are writing missing-function regressions before construction; do not override GITHUB runtime identity, attach artifacts to a different run by name alone or rerun all old failed jobs without preflight.
+
+Trial6 actually configures Windows runner28, then launcher refuses before retained handoff/readiness. Exact registration is now absent; old custodian preserves original deadline05:17:48.693UTC. Read-only exact PS5 launcher guards and C# compilation pass; first actual constructor/proof failure remains unproven. Distinct diagnostic-only trial7 startup preparation is delegated; sealed old sources/watchdog/limits/core/deadlines remain unchanged and no real new runner action is authorized until fresh source review and database recovery. Earlier trial5 custody remains on original deadline04:51:19.497UTC.
+
+Signed vc6 AAB/device proofs remain complete and payload-identical to c77cfbaf. Play is untouched. Next: green independently tested recovery-only path, actual verified restoration/outside receipt and failed-hosted-worker proof; then exact-source full native/guardian/serial seed/drift/CI and measured comparison/physical cleanup; archive both changes; upload/promote vc6 to existing closedAlpha and retain real Console proof. Production/pilot replacement remain outside scope.
+
 7 October 2026. Active continuation of the owner's 6 October instruction: "so do the database and db one then upload on the play console". The previous native navigation/Classes/Home/Shop implementation is closed and archived at `f91a745127b32154fa3265f62febac3e7cfc9d7b`; this document tracks new work rather than reopening that accepted evidence.
 
 ## Authorized scope and execution order
