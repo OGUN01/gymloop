@@ -38,17 +38,29 @@ Create-new READY `admission-ready.json`, before any configuration instruction:
 
 configKillOnClose and baselineExhausted are true only from actual verified facts. Before READY, exhaust runner-list pages with stable totalCount and unique IDs. Any preexisting exact runner name OR unique label refuses admission, including unknown/offline rows. Errors, incomplete pagination or contradiction do not become absence.
 
+Create-new `configuration-result.json`, only after actual original configuration process exit and owned-tree observation:
+
+`{formatVersion,admissionSha256,configurationRequestSha256,sourceSha,runId,runAttempt,runnerName,runnerLabel,configProcessId,configCreationFileTimeUtc,configExecutablePath,configOwnerJobName,assignedBeforeResume,configKillOnClose,configExited,configExitCode,budgetExpired,configProcessesStopped,verifiedAt}`.
+
+The request hash binds exact consumed private request bytes. Process/job identity comes from actual StartConfig evidence; exit/timer facts come from actual Snapshot and owned-tree stop verification. No result is emitted by inferring completion from `.runner` existence or API idle. Wrapper may launch the listener only after exact source/run/admission/request identity, configExited true, actual integer exitCode0, budgetExpired false and configProcessesStopped true, then its existing local config/API checks. Refused/nonzero/timed-out results remain failed. This configuration-only record makes no workload/container claim.
+
 Create-new `watchdog-handoff.json`:
 
 `{formatVersion,admissionSha256,sourceSha,runId,runAttempt,runnerId,runnerName,runnerLabel,configSha256,launchBindingPath,launchBindingSha256,ownershipProofDirectory}`.
 
 Paths match admission exactly. Acceptance requires actual sealed launch/local-config bytes; existing ownership-ready and listener-resumed binding; original live listener PID, creation time, executable and exact kernel-job membership; and live watchdog PID, executable and complete source/run/ID/config command binding. Its original deadline cannot exceed the admission deadline. The production observer retains the verified listener handle and exact owned-kernel control while live, so shutdown remains authorized after watchdog/PID loss. A receipt's own assertion is insufficient. Before accepted handoff, wrapper loss/refusal stops any started admitted listener through that retained capability plus the configuration job. Unreadable or ambiguous started ownership remains unverified. After accepted handoff, ordinary wrapper exit is allowed; independent registration backstop remains alive.
 
+Create-new `handoff-accepted.json`, after actual retained-control handoff verification:
+
+`{formatVersion,admissionSha256,handoffRequestSha256,sourceSha,runId,runAttempt,runnerId,runnerName,runnerLabel,configSha256,launchBindingSha256,deadlineUtc,handoffAccepted,verifiedAt}`.
+
+The request hash binds exact consumed handoff bytes, all identities match that request/admission, original deadline is unchanged, and handoffAccepted is true only after genuine observer verification and a successful protected acknowledgment write. Wrapper waits for this exact acknowledgment before normal exit or readiness publication. Request-file existence is insufficient. Missing/mismatched/unwritten acknowledgment preserves setup-failure custody; an acknowledgment-write failure must stop admitted listener/configuration and remain failed (`ACKNOWLEDGMENT_UNVERIFIED`), never release wrapper-loss monitoring.
+
 Create-new final `admission-final.json`, only when the backstop ends:
 
 `{formatVersion,admissionSha256,sourceSha,runId,runAttempt,runnerName,runnerLabel,registrationUtc,deadlineUtc,learnedRunnerId,handoffAccepted,configTerminationRequested,configProcessesStopped,runnerDeregistered,readinessState,physicalTeardownVerified,status,stopReason,verifiedAt}`.
 
-learnedRunnerId is null or a positive canonical decimal string; flags are strict booleans. physicalTeardownVerified is always false in this config-only record. readinessState is `absent`, `matching-removed`, `unrelated-preserved` or `unverified`; status is `ADMISSION_REFUSED`, `RETIRED` or `RETIREMENT_UNVERIFIED`. stopReason is `BASELINE_CONFLICT`, `BASELINE_UNVERIFIED`, `REQUEST_INVALID`, `REQUEST_TIMEOUT`, `CONFIG_REFUSED`, `CONFIG_TIMEOUT`, `WRAPPER_LOST`, `WATCHDOG_LOST`, `BOUND_ROW_AMBIGUOUS`, `DEADLINE` or `FULL_JOB_FINAL`. The core returns the same final record it emits through WriteReceipt; tests may inspect captured receipts alone. A baseline refusal starts no configuration and performs no remote deletion; an uncertain baseline does not claim registration absence.
+learnedRunnerId is null or a positive canonical decimal string; flags are strict booleans. physicalTeardownVerified is always false in this config-only record. readinessState is `absent`, `matching-removed`, `unrelated-preserved` or `unverified`; status is `ADMISSION_REFUSED`, `RETIRED` or `RETIREMENT_UNVERIFIED`. stopReason is `BASELINE_CONFLICT`, `BASELINE_UNVERIFIED`, `REQUEST_INVALID`, `REQUEST_TIMEOUT`, `CONFIG_REFUSED`, `CONFIG_TIMEOUT`, `WRAPPER_LOST`, `WATCHDOG_LOST`, `BOUND_ROW_AMBIGUOUS`, `ACKNOWLEDGMENT_UNVERIFIED`, `DEADLINE` or `FULL_JOB_FINAL`. The core returns the same final record it emits through WriteReceipt; tests may inspect captured receipts alone. A baseline refusal starts no configuration and performs no remote deletion; an uncertain baseline does not claim registration absence.
 
 Early404 never ends failure/late-creation monitoring. Retain the backstop through the original deadline unless the existing watchdog supplies genuinely verified full-job/kernel/container/registration final evidence. A configuration-only record cannot certify workload/container teardown. API uncertainty, contradictory registration identity or unverified retirement remains failed and blocks another shared-project attempt.
 
@@ -68,7 +80,7 @@ Early404 never ends failure/late-creation monitoring. Retain the backstop throug
 | `ObserveHandoff()` | Null or `{request:<raw UTF8 bytes>,verified:boolean,watchdogAlive:boolean,fullJobFinalVerified:boolean}`; production performs the actual retained-handle/sealed/kernel checks above |
 | `StopAdmittedListener()` | `{terminationRequested:boolean}`; production uses only retained exact original-handle/kernel capability, or false if no listener started; ambiguous started custody throws |
 | `RemoveOwnReadiness(id,sourceSha,runId,attempt)` | Exact readinessState enum; unrelated authority remains untouched |
-| `WriteReceipt(name,record)` | Fixed receipt names only, protected create-new writes |
+| `WriteReceipt(name,record)` | Only admission-ready.json, configuration-result.json, handoff-accepted.json and admission-final.json; protected create-new writes |
 | `NewOwner(admission)` | Actual native owner below; configuration is suspended and kernel-owned before first instruction |
 
 Each runner is exactly `{id,name,os,status,busy,labels}` with labels exactly `{name,type}` records. Discovery requires one new exact name AND unique label AND existing default read-only `self-hosted`, `Windows`, `X64` labels. Windows is ordinary; unknown OS is allowed only offline and idle. Missing/default/custom-label confusion, ambiguity, preexisting baseline IDs or a different subsequent exact ID cannot be adopted. Freeze the first exact positive ID; always reassert identity before DELETE. Unrelated/rebound IDs survive.
@@ -89,3 +101,5 @@ Production owner budget is sealed nativeCleanupReserveMs. Each production API ch
 ## Independent red groups
 
 Visible and held authors independently cover: complete paginated name-OR-label absence admission; genuine first-instruction exact named-job ownership/descendant stop/root loss with an unrelated sentinel; configuration failure/timeout and partial/late remote registration without `.runner`; exact new API-ID/default-label/unknown-OS/ambiguity discovery; real owned handoff plus normal wrapper exit/watchdog loss/no deadline extension; and stop-before-delete/fresh404/matching-readiness-only/API uncertainty/truthful final claims. Provider fixtures are no-network recorders. Native fixtures are harmless compiled probes with no credentials. Root never inspects held bodies or diagnostics. Fresh source-only review and actual controlled native/process results precede production admission.
+
+Mechanical acknowledgment declaration, 7 October before acknowledgment construction: configuration-result and handoff-accepted explicitly communicate the already-frozen actual completion/acceptance states to the separate wrapper. Original authors append small independent red transport-binding regressions before these writes/consumer behavior are implemented; parent test assertions remain unchanged. These records introduce no port/export/limit/authorization relaxation.
