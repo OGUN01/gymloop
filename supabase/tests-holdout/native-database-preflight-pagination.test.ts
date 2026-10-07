@@ -144,10 +144,10 @@ function opaqueScript(): string {
   const firstCode = body.find(line => line.trim());
   if (!firstCode) throw new Error('Required Actions script is empty.');
   const bodyIndent = firstCode.search(/\S/);
-  const script = body.map(line => line.slice(bodyIndent)).join('\n')
-    .replace("const { readFile } = await import('node:fs/promises');", '');
+  const script = body.map(line => line.slice(bodyIndent)).join('\n');
+  if ((script.match(/^[ \t]*const[ \t]+\{[ \t]*readFile[ \t]*\}[ \t]*=[ \t]*await[ \t]+import\('node:fs\/promises'\);[ \t]*$/gm) ?? []).length !== 1) throw new Error('Declared readFile fixture import differs.');
   if (/\$\{\{/.test(script)) throw new Error('Unspecified Actions expression in fixture boundary.');
-  return script;
+  return script.replace(/^[ \t]*const[ \t]+\{[ \t]*readFile[ \t]*\}[ \t]*=[ \t]*await[ \t]+import\('node:fs\/promises'\);[ \t]*$/gm, '');
 }
 
 async function execute(scenario: Scenario = {}) {
