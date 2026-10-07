@@ -1,6 +1,14 @@
 # Database follow-ups and next closed-test release
 
-## Current checkpoint (8 October, 01:57 IST; fresh hosted full DB running, regional startup failed before handoff)
+## Current checkpoint (8 October, 02:04 IST; ordinary CI green, full native DB still running)
+
+Fresh actual CI37680115515 atbd2efe323d15714e8a5cf457c55081e28eebaff3 is terminal SUCCESS, including accessibility, Linux Knip, gates and Deno. Held37680115541 and immutability37680115506 also remain SUCCESS. At20:34:28UTC, the sole full DB37680115612 remains RUNNING in native112994568121 after successful recovery preflight, rollback, migration and generated-type drift. No native terminal result, exact restoration, guardian, serial seed or Play upload is claimed.
+
+Independent process-only discovery now proves a launcher result-pipe inheritance delay: a separately redirected descendant retained three inheritable aliases of the outer two output pipes; the direct launcher exited earlier, but both outer EOF reads waited for the descendant. Excluding all aliases in a controlled diagnostic removed that wait while the descendant continued. Closing only the standard-handle pair did not. Discovery report9f66dc1d6017c940f0192e6381b84dcb40bcc47ee0e3ae3e92619cff46452711 and isolation report25b2c817b12f6e590b1722e2f914a1424f7217a18f308877bc9c7f9e8de961f7 are DIAGNOSTIC_ONLY. Actual trial8's lost launcher-exit/original-exception records still limit exact causal provenance; original admissions, sources and00:12:47.002UTC deadline are unchanged. No repair has been constructed or new registration started. Review the smallest output/handle-isolation boundary, freeze it, then use independent red tests before a distinct protected revision. No new Cloud run while this full native/seed is active.
+
+Signed/device-tested vc6 remains ready and byte-identical, with no Play writes. Next release gate is the current full database outcome and cleanup evidence; the regional performance objective remains separately unproved. The active goal and original authorized scope remain unchanged.
+
+### Previous checkpoint (8 October, 01:57 IST; fresh hosted full DB running, regional startup failed before handoff)
 
 Green local reporting sourcebd2efe323d15714e8a5cf457c55081e28eebaff3 was pushed to main after7645/7645 complete tooling,182/182 focused checks, source-only GO and final gates. Sole actual normal DB37680115612/attempt1 now has successful recovery preflight112993658617, rollback112993658302, migration112993831029 and drift112994024279. Native-selector112994221642 chose GitHub-hosted fallback; pgtap112994568121 on hosted1000014687 started20:13:33UTC and remains RUNNING. Outside-worker canonical manifest/recovery/schema transport is verified at163files/16329plans and original2min captured20:14:23.211UTC, proofc3c70b906c6acb8c7248f9173f0ba783d25bff83a363f598fbb15f41b291a646. Do not start another Cloud sweep or claim terminal native/guardian/restore/seed success.
 
