@@ -12,7 +12,7 @@ const heldRequire = createRequire(import.meta.url);
 const heldRoot = 'C:/fr-sealed-20261007/artifact-redirect-held';
 const heldLog = join(heldRoot, `run-${Date.now()}.log`);
 await mkdir(heldRoot, { recursive: true });
-const heldPython = 'C:/Users/Harsh/AppData/Local/hermes/hermes-agent/venv/Scripts/python.exe';
+const heldPython = process.platform === 'win32' ? 'C:/Users/Harsh/AppData/Local/hermes/hermes-agent/venv/Scripts/python.exe' : 'python3';
 const heldWorkflow = resolve('.github/workflows/db.yml');
 const heldConstants = await readFile(resolve('packages/shared/src/config/constants.ts'), 'utf8');
 const heldLimits = (await import(pathToFileURL(resolve('packages/shared/src/config/constants.ts')).href)).NATIVE_DB_VALIDATION;
@@ -167,7 +167,9 @@ sys.stdout.buffer.write(sink.getvalue())
   try {
     const result = await runner(github, { repo: { owner: 'OGUN01', repo: 'gymloop' } }, { setFailed: () => { throw new Error('Held surrounding workflow refused.'); } }, fetchPort, requirePort, Buffer, URL,
       { timeout: timeoutSignal, any: signals => AbortSignal.any(signals) }, AbortController, timerPort, clearTimeout, artifact, filename,
-      specifier => import(typeof specifier === 'string' && /^[A-Za-z]:[\\/]/.test(specifier) ? pathToFileURL(specifier).href : specifier));
+      specifier => specifier === 'node:child_process' || specifier === 'child_process'
+        ? Promise.resolve(requirePort(specifier))
+        : import(typeof specifier === 'string' && /^[A-Za-z]:[\\/]/.test(specifier) ? pathToFileURL(specifier).href : specifier));
     assert.equal(JSON.stringify(artifact), immutableBefore);
     return { result, state, expected: { value, hash: createHash('sha256').update(canonical).digest('hex'), archiveSha256 } };
   } catch (error) {
@@ -223,7 +225,7 @@ for (const scenario of [
     } catch (error) {
       heldMetadata.failed += 1;
       await writeFile(heldLog, `${scenario.name}: ${error.stack}\n${JSON.stringify(error.heldTransportState ?? null)}\n`, { flag: 'a' });
-      throw new Error('Held transport check failed.');
+      throw new Error('Held transport check failed.', { cause: error });
     }
   });
 }

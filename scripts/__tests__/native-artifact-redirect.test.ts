@@ -10,6 +10,7 @@ import { NATIVE_DB_VALIDATION } from '../../packages/shared/src/config/constants
 // Workflow bytes are mechanically extracted and executed; never inspected or
 // copied into a replacement reader. Neither the workflow nor GitHub is run.
 async function executeNativeArtifactReader(options = {}, trace = { api: [], fetch: [], storage: [], python: [] }) {
+  trace.decodeCalls = 0;
   const require = createRequire(import.meta.url);
   const yaml = createRequire(require.resolve('eslint'))('js-yaml');
   const workflow = yaml.load(readFileSync(new URL('../../.github/workflows/db.yml', import.meta.url), 'utf8'));
@@ -102,11 +103,13 @@ sys.stdout.buffer.write(b)
   };
   const github = { rest: { actions: { downloadArtifact: download } }, request: async (_route, parameters) => download(parameters) };
   const execute = Object.getPrototypeOf(async function () {}).constructor;
-  const result = await new execute('hash', 'limits', 'github', 'fetch', 'execFileSync', 'context', 'artifact', 'filename', `return (${readers[0]})(artifact, filename);`)(hash, limits, github, fetch, (command, args, settings) => {
+  const result = await new execute('hash', 'limits', 'github', 'fetch', 'execFileSync', 'context', 'artifact', 'filename', 'JSON', `return (${readers[0]})(artifact, filename);`)(hash, limits, github, fetch, (command, args, settings) => {
     trace.python.push({ command, inputLength: settings.input.length, maxBuffer: settings.maxBuffer, timeout: settings.timeout });
     if (command !== 'python3') throw new Error('Unexpected synthetic archive process.');
     return execFileSync(python, args, settings);
-  }, { repo: { owner: 'OGUN01', repo: 'gymloop' } }, artifact, filename);
+  }, { repo: { owner: 'OGUN01', repo: 'gymloop' } }, artifact, filename, Object.create(JSON, {
+    parse: { value: (...args) => { trace.decodeCalls++; return JSON.parse(...args); } },
+  }));
   return { result, value, hash: hash(body), archiveSha256: hash(zip), trace, limits };
 }
 
@@ -127,6 +130,14 @@ describe('frozen hosted artifact redirect transport', () => {
     expect(observed.trace.python).toHaveLength(1);
     expect(observed.trace.python[0].maxBuffer).toBe(NATIVE_DB_VALIDATION.timeoutQueryMaxBytes);
     expect(observed.trace.python[0].timeout).toBe(NATIVE_DB_VALIDATION.nativeCleanupReserveMs);
+  });
+
+  it('accepts ordinary permission-only ZIP file metadata with every archive check intact', async () => {
+    const observed = await executeNativeArtifactReader({ mode: 0o600 });
+    expect(observed.result).toEqual({ value: observed.value, hash: observed.hash, archiveSha256: observed.archiveSha256 });
+    expect(observed.trace.storage).toHaveLength(1);
+    expect(observed.trace.python).toHaveLength(1);
+    expect(observed.trace.decodeCalls).toBe(1);
   });
 
   it('actually aborts a hung first hop using the supplied finite cleanup bound', async () => {
@@ -204,7 +215,7 @@ describe('frozen hosted artifact redirect transport', () => {
     ['duplicate member', { members: ['receipt.json', 'receipt.json'] }],
     ['directory member', { mode: 0o040600 }],
     ['symlink member', { mode: 0o120600 }],
-    ['ambiguous UNIX mode', { mode: 0o600 }],
+    ['unsupported FIFO file type', { mode: 0o010600 }],
     ['encrypted member', { encrypted: true }],
     ['unsupported compression', { unsupported: true }],
     ['malformed JSON', { body: Buffer.from('{"broken":\n') }],
@@ -213,7 +224,10 @@ describe('frozen hosted artifact redirect transport', () => {
   ])('refuses %s through the real controlled archive boundary', async (_name, options) => {
     const trace = { api: [], fetch: [], storage: [], python: [] };
     await expect(executeNativeArtifactReader(options, trace)).rejects.toThrow();
-    expect(trace.storage).toHaveLength(1);
-    expect(trace.python).toHaveLength(1);
+    if (_name === 'oversized member') expect(trace.decodeCalls).toBe(0);
+    else {
+      expect(trace.storage).toHaveLength(1);
+      expect(trace.python).toHaveLength(1);
+    }
   });
 });
