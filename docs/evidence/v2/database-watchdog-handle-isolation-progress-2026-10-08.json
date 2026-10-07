@@ -1,0 +1,42 @@
+{
+  "formatVersion": 1,
+  "kind": "PRECONSTRUCTION_PROGRESS",
+  "frozenCommit": "571b6d8b",
+  "contract": "openspec/changes/database-validation-regional-runner/watchdog-handle-isolation.md",
+  "diagnostic": {
+    "boundary": "Harmless owned process fixtures only; no production or database execution",
+    "outerPipeAliasesInheritedByRedirectedDescendant": true,
+    "closingOnlyStandardHandlePairInsufficient": true,
+    "excludingAllAliasesCompletesBothOuterReadsWhileDescendantLives": true,
+    "threeCaseReportSha256": "9f66dc1d6017c940f0192e6381b84dcb40bcc47ee0e3ae3e92619cff46452711",
+    "isolationReportSha256": "25b2c817b12f6e590b1722e2f914a1424f7217a18f308877bc9c7f9e8de961f7",
+    "actualTrial8LostExitAndExceptionLimitExactProvenance": true
+  },
+  "preparation": {
+    "proofSha256": "e484e41a8295efd6857a5a6bc60901dde5fb4f45633457255dc5048a6ff45efe",
+    "runnerVersion": "2.338.0",
+    "officialLatestReleaseRechecked": true,
+    "officialArchiveSha256": "f48e0750a21812bca5f82de5f7f5aeae71abee647fab5a582f1742d07eba455f",
+    "freshOwnerProtectedRunnerWorkProofCustodyRoots": true,
+    "configured": false,
+    "registered": false,
+    "newLauncherConstructed": false,
+    "independentVisibleAndHeldAuthorsAssigned": true,
+    "acceptedRedTestsCommitted": false
+  },
+  "archivePreparation": {
+    "snapshotSha256": "ef65b0ed94de7f82d94e81c68a4622a9b11d499f53f0442c8887f093b401ae6a",
+    "shopFiles": 5,
+    "databaseFiles": 14,
+    "priorSnapshotsPreserved": true,
+    "archiveAllowed": false
+  },
+  "releasePayload": {
+    "executionDiffFilesFromDeviceTestedC77cfbaf": 0,
+    "signedAabBytes": 93727171,
+    "signedAabSha256": "89f3acebe9197502fcebecfd7df2c9dcbed6c276cdaf193d7b05daa5e59c5d61",
+    "trackedFinalDeviceScreenshots": 9,
+    "playUploaded": false
+  },
+  "boundary": "Preparation only. Preserve trial8 sources/admission/deadline and sole active DB37680115612. Independent red tests precede construction; no new registration/Cloud trial until current native/serial seed and recovery are verified. No performance or complete retirement acceptance."
+}
