@@ -272,7 +272,7 @@ $ast=[Management.Automation.Language.Parser]::ParseFile($request.Candidate,[ref]
 if($errors.Count){ throw 'opaque candidate parse failed' }
 $bindings=@($ast.FindAll({ param($node) $node -is [Management.Automation.Language.AssignmentStatementAst] -and $node.Left -is [Management.Automation.Language.VariableExpressionAst] -and $node.Left.VariablePath.UserPath -ceq 'launcherType' },$true))
 if($bindings.Count -ne 1){ throw 'opaque candidate launcher type missing' }
-$opaque=$bindings[0].Right.SafeGetValue()
+$opaque=$bindings[0].Right.Expression.SafeGetValue()
 if($opaque -isnot [string]){ throw 'opaque candidate launcher type invalid' }
 Add-Type -TypeDefinition $opaque | Out-Null
 $watchdogType='NativeDbPrivateSuspended.Watchdog' -as [type]
@@ -334,15 +334,15 @@ function HeldFixtureProtect([string]$Path) {
   $rule=New-Object Security.AccessControl.FileSystemAccessRule($sid,[Security.AccessControl.FileSystemRights]::FullControl,([Security.AccessControl.InheritanceFlags]::ContainerInherit -bor [Security.AccessControl.InheritanceFlags]::ObjectInherit),[Security.AccessControl.PropagationFlags]::None,[Security.AccessControl.AccessControlType]::Allow)
   [void]$acl.AddAccessRule($rule)
  }
- Set-Acl -LiteralPath $Path -AclObject $acl
+ [IO.FileSystemAclExtensions]::SetAccessControl([IO.DirectoryInfo]::new($Path),$acl)
 }
 function HeldFixtureBroad([string]$Path,[bool]$Inherited) {
  $target=$Path
  if($Inherited){ $target=[IO.Directory]::GetParent($Path).FullName }
- $acl=Get-Acl -LiteralPath $target
+ $acl=[IO.FileSystemAclExtensions]::GetAccessControl([IO.DirectoryInfo]::new($target),[Security.AccessControl.AccessControlSections]::Access)
  $rule=New-Object Security.AccessControl.FileSystemAccessRule((New-Object Security.Principal.SecurityIdentifier('S-1-1-0')),[Security.AccessControl.FileSystemRights]::ReadAndExecute,([Security.AccessControl.InheritanceFlags]::ContainerInherit -bor [Security.AccessControl.InheritanceFlags]::ObjectInherit),[Security.AccessControl.PropagationFlags]::None,[Security.AccessControl.AccessControlType]::Allow)
- [void]$acl.AddAccessRule($rule); Set-Acl -LiteralPath $target -AclObject $acl
- if($Inherited){ $childAcl=Get-Acl -LiteralPath $Path; $childAcl.SetAccessRuleProtection($false,$true); Set-Acl -LiteralPath $Path -AclObject $childAcl }
+ [void]$acl.AddAccessRule($rule); [IO.FileSystemAclExtensions]::SetAccessControl([IO.DirectoryInfo]::new($target),$acl)
+ if($Inherited){ $childAcl=[IO.FileSystemAclExtensions]::GetAccessControl([IO.DirectoryInfo]::new($Path),[Security.AccessControl.AccessControlSections]::Access); $childAcl.SetAccessRuleProtection($false,$true); [IO.FileSystemAclExtensions]::SetAccessControl([IO.DirectoryInfo]::new($Path),$childAcl) }
 }
 function HeldFixtureOrdinary([string]$Path) {
  $full=[IO.Path]::GetFullPath($Path)
@@ -495,7 +495,7 @@ async function executeHeldHandleIsolation(variant = 'success', mode = 'dispose')
     await writeFile(join(root, 'driver-error.txt'), String(error));
     throw error;
   }
-  return { receipt: JSON.parse(await readFile(metadata.Receipt, 'utf8')) as HeldHandleReceipt, metadata, childArguments, limits };
+  return { receipt: JSON.parse(await readFile(metadata.Receipt, 'utf8')) as HeldHandleReceipt, metadata: variant === 'native-powershell' ? { ...metadata, NativeModules: 'C:\\Windows\\system32\\WindowsPowerShell\\v1.0\\Modules' } : metadata, childArguments, limits };
 }
 
 function registerHeldHandleIsolation(name: string, body: () => Promise<void>) {
