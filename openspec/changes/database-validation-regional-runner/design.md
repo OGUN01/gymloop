@@ -16,6 +16,8 @@ Current capability receipts: Windows Supabase reports 2.110.0; Windows PowerShel
 
 The existing DBV-008 startup/retirement mechanism is frozen in [registration-startup-custody.md](registration-startup-custody.md) before independent controlled tests and private construction. It closes configuration/partial-registration custody while preserving the sealed listener/watchdog and every native/database gate.
 
+The observed native query-result reporting compatibility is frozen in [native-query-result-reporting.md](native-query-result-reporting.md) before independent regressions and correction. Preserve native authority and all complete-stream/cleanup predicates; ordinary non-test query rows inside a known file cannot create or remove a native test point.
+
 ### Retain the native command and isolate reporting
 
 The release invocation remains exactly `supabase test db --linked supabase/tests supabase/tests-holdout` with CLI 2.110.0. Its independent checker is the official `supabase/pg_prove:3.36` client. The CLI passes `pg_prove --ext .pg --ext .sql -r` and the two paths, read-only test mounts and host networking. Its Windows conversion strips the drive from container targets while retaining the absolute Windows host bind. Source support is not a successful smoke.
