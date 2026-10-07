@@ -1,6 +1,12 @@
 # Database follow-ups and next closed-test release
 
-## Current checkpoint (8 October, 01:15 IST; reporting repair fully local green, ready for one fresh run)
+## Current checkpoint (8 October, 01:22 IST; actual-input collision caught before push)
+
+Local reporting revision6c175a51 passes122 focused,7585 complete tooling and all nine non-test gates, with source-only GO. The independent in-memory replay of the unchanged actual failed output nevertheless yields162 PASS and one INCOMPLETE. Exactly eight uppercase standalone SQL-status identifiers are vendor-unknown non-test records caught by a case-insensitive reserved test-word check. Every163 file/16329 assertion/timer and raw/input hash remains unchanged. Public diagnostic proof is docs/evidence/v2/database-query-result-collision-2026-10-08.json. This is useful diagnostic evidence, not fresh native or release acceptance.
+
+Before production correction,8ea878b3 freezes the existing ordinary-query category's standalone-uppercase status distinction while preserving malformed numbered controls and case-independent SQL severity refusal. Original independent visible/held authors are appending new red collision cases using their own registered helpers, with every original case byte preserved and exact append-only reversal required. No new source edit, normal push, Cloud sweep, runner registration or Play write has occurred since this collision was found. Original full workflow37563272622 remains failed. Next: commit independent collision regressions first, make the minimal reporting correction, recheck retained actual input and final-source gates, then bind/launch one fresh normal DB run after the coherent green main push.
+
+### Previous checkpoint (8 October, 01:15 IST; reporting repair fully local green, ready for one fresh run)
 
 The completed hosted DB37563272622 remains FAILURE. Independent canonical-artifact review verified163/16329 native assertions, exit0, unchanged test hashes and exact original2min timeout restoration; its supplementary reporting layer rejected1885 ordinary non-TAP query-result rows in113 files. The pinned official pg_prove3.36/TAP::Parser3.44 classified those rows as non-test output with zero parse errors. The actual reviewed provider completion record is published with exact readback, preserving the prior entry; this is provider job completion, not invented literal physical-deletion evidence. Public retained truth is docs/evidence/v2/database-native-terminal-2026-10-08.json.
 

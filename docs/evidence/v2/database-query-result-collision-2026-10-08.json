@@ -1,0 +1,19 @@
+{
+  "formatVersion": 1,
+  "kind": "Diagnostic-only replay of unchanged retained failed native output",
+  "originalRunId": "37563272622",
+  "originalAttempt": "1",
+  "originalSourceSha": "8727213ec47b8136c8332c6e757015a3075dbb33",
+  "candidateLocalCommit": "6c175a51",
+  "candidateSourceSha256": "c3fbfbf504315e5c8aefc4f831831775bc2a0a71c3423ca6075ae3a3f1fe0e3b",
+  "candidateLocalChecks": { "focusedPassed": 122, "completeToolingPassed": 7585, "nonTestGatesPassed": 9, "sourceCritic": "GO" },
+  "actualInputDiagnostic": { "compatible": false, "files": 163, "assertions": 16329, "failedAssertions": 0, "matchingTimers": 163, "passFiles": 162, "incompleteFiles": 1, "failureCodes": ["TAP_INCOMPLETE"], "rawStreamsAndAllFileHashesUnchanged": true },
+  "remainingCollision": { "records": 8, "uppercaseStandaloneIdentifiers": 8, "lowercase": 0, "mixedCase": 0, "whitespace": 0, "numeric": 0, "actualPinnedVendorToken": "unknown", "valuesAndDescriptionsRendered": false },
+  "proofs": { "replaySha256": "9d25b9c82f45cd630475871042b20869d71c857371393b7b3ad7479a54c68223", "prefixSha256": "37f7b952d41a58497c1d63907d1a1abe44ce480f5d0640ea790869e2a2a69d64", "caseSha256": "448fae03afc2a062aec6f30037274e32d447065065e82c1e7a86ebe3c6df9a50", "perRowVendorSha256": "c45bfcded9b7b4adf603b0b8eb96af553e021ee45ba71bf5d3f509e00d243855" },
+  "nextBoundary": "Standalone-uppercase SQL-status clarification frozen in8ea878b3 before append-only independent red regressions and collision repair. Preserve all old case bytes and receipts. No normal push/new Cloud sweep until the actual-input diagnostic and final-source checks pass.",
+  "originalWorkflowAndReceiptReclassified": false,
+  "plaintextTranscriptPersisted": false,
+  "newCloudOrNativeOrSeedExecution": false,
+  "trial8Registered": false,
+  "playUploaded": false
+}
