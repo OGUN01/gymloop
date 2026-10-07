@@ -42,6 +42,7 @@ function executeHeldPs5Environment(scenario: string) {
   writeFileSync(payload, 'Independent held DBV-008 payload\r\n', 'utf8');
   writeFileSync(join(directory, 'native-probe.ps1'), `
 $ErrorActionPreference = 'Stop'
+[Console]::OutputEncoding = [Text.UTF8Encoding]::new($false)
 $commands = @('Get-FileHash', 'ConvertTo-Json', 'ConvertFrom-Json', 'Get-Item', 'Get-ChildItem', 'Get-Acl')
 $observed = @()
 foreach ($commandName in $commands) {
@@ -125,7 +126,7 @@ try {
       $result = Invoke-Private -Executable $taskNativePowerShell -Arguments @() -CommandLine ($lineParts -join ' ')
     }
     'other-executable' {
-      $result = Invoke-Private -Executable 'C:\\Windows\\System32\\cmd.exe' -Arguments @('/d', '/c', 'echo %PSModulePath%')
+      $result = Invoke-Private -Executable 'C:\\Windows\\System32\\cmd.exe' -Arguments @() -CommandLine '/d /c echo %PSModulePath%'
     }
     'nonzero' {
       $result = Invoke-Private -Executable $taskNativePowerShell -Arguments ($nativePrefix + @((Join-Path $PSScriptRoot 'exit-probe.ps1')))
