@@ -108,6 +108,8 @@ async function histvExtract(name: string, ports: HistvRecord, inline = false): P
   let declaration: string | undefined;
   function histvVisit(node: ts.Node): void {
     if (ts.isFunctionDeclaration(node) && node.name?.text === name) declaration = node.getText(tree);
+    if (ts.isVariableDeclaration(node) && node.name.getText(tree) === name && node.initializer
+      && (ts.isArrowFunction(node.initializer) || ts.isFunctionExpression(node.initializer))) declaration = node.initializer.getText(tree);
     ts.forEachChild(node, histvVisit);
   }
   histvVisit(tree);
@@ -116,7 +118,8 @@ async function histvExtract(name: string, ports: HistvRecord, inline = false): P
     : async () => { throw new Error(`Declared boundary missing: ${name}`); };
   const context = createContext({ Buffer, URL, Response, Headers, AbortSignal, TextDecoder, TextEncoder,
     process: { platform: 'linux', execPath: process.execPath, cwd: () => histvWorkdir },
-    limits, NATIVE_DB_VALIDATION: limits, hash: histvHash, jsonBytes: histvBytes, exact: histvExact,
+    limits, NATIVE_DB_VALIDATION: limits, target: { projectRef: limits.projectRef, role: limits.role, parameter: limits.parameter },
+    hash: histvHash, jsonBytes: histvBytes, exact: histvExact,
     validOriginal: histvOriginal, original: histvOriginal,
     sourceString: (value: unknown) => typeof value === 'string' && /^[a-f0-9]{40}$/.test(value),
     source: (value: unknown) => typeof value === 'string' && /^[a-f0-9]{40}$/.test(value),
@@ -161,8 +164,13 @@ async function histvTransport(options: HistvRecord = {}) {
   const filename = String(options.filename ?? 'recovery.json');
   const archive = options.archive instanceof Buffer ? options.archive : histvZip(body, String(options.member ?? filename), options);
   const artifact = { ...histvArtifact('fixture-receipt', histvFixture.recoveryId, archive), ...(options.artifact as HistvRecord ?? {}) };
-  const api = vi.fn(async () => new Response(null, { status: Number(options.apiStatus ?? limits.artifactRedirectStatus),
-    headers: options.location === null ? {} : { location: String(options.location ?? 'https://storage.example/receipt.zip?signature=fixture') } }));
+  const api = vi.fn(async (_runtime: unknown, _path: string, expectedStatus: number) => {
+    void _runtime; void _path;
+    const status = Number(options.apiStatus ?? limits.artifactRedirectStatus);
+    if (status !== expectedStatus) histvRefuse('RECEIPT_UNAVAILABLE');
+    return new Response(null, { status,
+      headers: options.location === null ? {} : { location: String(options.location ?? 'https://storage.example/receipt.zip?signature=fixture') } });
+  });
   const storage = vi.fn(async (_url: string, _options: RequestInit) => {
     void _url; void _options;
     if (options.networkFailure) throw new Error('synthetic network refusal');
@@ -278,13 +286,13 @@ async function histvHistorical(options: HistvRecord = {}) {
   const review = { formatVersion: limits.formatVersion, targetRunId: histvFixture.targetRun, targetRunAttempt: histvFixture.targetAttempt,
     targetSourceSha: histvFixture.originalSource, recoveryRunId: histvFixture.currentRun, recoveryRunAttempt: histvFixture.currentAttempt,
     recoverySourceSha: histvFixture.currentSource, guardianJobId: histvFixture.guardianId, restorationArtifactId: histvFixture.restorationId,
-    restorationArchiveSha256: outside.archiveSha256, privateProofSha256: '3'.repeat(limits.digestHexLength), reviewedAt: histvFixture.reviewedAt,
+    restorationArchiveSha256: '2'.repeat(limits.digestHexLength), privateProofSha256: '3'.repeat(limits.digestHexLength), reviewedAt: histvFixture.reviewedAt,
     ...(options.review as HistvRecord ?? {}) };
   const targetRun = { ...histvRun(), ...(options.targetRun as HistvRecord ?? {}) };
   const recoveryRun = { ...histvRun(true), ...(options.recoveryRun as HistvRecord ?? {}) };
   const job = { ...histvJob(), ...(options.job as HistvRecord ?? {}) };
   const artifact = { ...histvArtifact(`native-db-restoration-${histvFixture.targetRun}-${histvFixture.targetAttempt}-${histvFixture.currentRun}-${histvFixture.currentAttempt}`,
-    histvFixture.restorationId, Buffer.from('fixture-zip'), true), digest: `sha256:${outside.archiveSha256}`,
+    histvFixture.restorationId, Buffer.from('fixture-zip'), true), digest: `sha256:${review.restorationArchiveSha256}`,
     ...(options.artifact as HistvRecord ?? {}) };
   const jobs = options.jobs as HistvRecord[] | undefined ?? [job];
   const artifacts = options.artifacts as HistvRecord[] | undefined ?? [artifact];
@@ -416,7 +424,8 @@ describe('DBV-007 dispatch recovery refuses before Cloud', () => {
     expect(fixture.runtime).toEqual(runtimeBefore); expect(fixture.guardian).toHaveBeenCalledOnce();
     expect(fixture.checked).toHaveBeenCalledWith('git', ['rev-parse', 'HEAD'], { cwd: histvWorkdir });
     expect(fixture.checked).toHaveBeenCalledWith('supabase', ['--version'], { cwd: histvWorkdir });
-    expect(fixture.checked).toHaveBeenCalledWith('supabase', ['link', '--project-ref', limits.projectRef, '--yes'], { cwd: histvWorkdir });
+    expect(fixture.checked).toHaveBeenCalledWith('supabase', ['link', '--project-ref', limits.projectRef, '--yes'],
+      { cwd: histvWorkdir, timeoutMs: limits.nativeCleanupReserveMs });
     const link = fixture.events.indexOf(`supabase:link --project-ref ${limits.projectRef} --yes`);
     expect(fixture.events.indexOf('manifest-valid')).toBeLessThan(link);
     expect(fixture.events.indexOf('recovery-valid')).toBeLessThan(link);
@@ -600,7 +609,9 @@ describe('DBV-007 official restoration publication and narrow command wiring', (
     const job = workflow.slice(workflow.indexOf('\n  timeout-guardian:'));
     expect(job).toContain('actions/upload-artifact@v5');
     expect(job).toMatch(/if-no-files-found:\s*error/); expect(job).toContain('restoration.json');
-    expect(job).toContain('native-db-restoration-${{ github.run_id }}-${{ github.run_attempt }}');
+    expect(job).toContain('native-db-restoration-'); expect(job).toContain('${{ github.run_attempt }}');
+    const upload = job.slice(job.indexOf('actions/upload-artifact@v5'));
+    expect(upload).toMatch(/name:\s*\$\{\{\s*steps\.recovery\.outputs\.restoration\s*\}\}/);
     expect(job).toMatch(/if:.*always\(\).*recovery/);
     expect(job).not.toMatch(/continue-on-error:\s*true/);
   });

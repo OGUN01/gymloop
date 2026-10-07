@@ -182,11 +182,11 @@ async function executeHeldHistoricalRecovery(options: {
   const guardianJob = {
     id: review.guardianJobId, run_id: Number(currentId), head_sha: currentSource, name: 'timeout-guardian',
     status: 'completed', conclusion: 'success', runner_id: 901, runner_name: 'GitHub Actions 901', runner_group_name: 'GitHub Actions',
-    labels: ['ubuntu-latest', 'Linux', 'X64'], completed_at: '2026-10-07T12:05:00.000Z',
+    labels: ['ubuntu-latest'], completed_at: '2026-10-07T12:05:00.000Z',
     steps: [
-      { name: 'Restore original timeout', status: 'completed', conclusion: 'success', completed_at: verifiedAt },
-      { name: 'Publish restoration receipt', status: 'completed', conclusion: 'success', completed_at: '2026-10-07T12:02:00.000Z' },
-      { name: 'Post Checkout', status: 'completed', conclusion: 'success', completed_at: '2026-10-07T12:04:00.000Z' },
+      { name: 'Post Run supabase/setup-cli@v3', status: 'completed', conclusion: 'success', completed_at: verifiedAt },
+      { name: 'Post Run pnpm/action-setup@v6', status: 'completed', conclusion: 'success', completed_at: '2026-10-07T12:02:00.000Z' },
+      { name: 'Post Run actions/checkout@v7', status: 'completed', conclusion: 'success', completed_at: '2026-10-07T12:04:00.000Z' },
       { name: 'Complete job', status: 'completed', conclusion: 'success', completed_at: '2026-10-07T12:05:00.000Z' },
     ],
   };
@@ -266,8 +266,10 @@ async function executeHeldHistoricalRecovery(options: {
       const location = scenario === 'redirect-http' ? 'http://storage.held.invalid/archive.zip'
         : scenario === 'redirect-credentials' ? 'https://user:secret@storage.held.invalid/archive.zip'
           : scenario === 'redirect-fragment' ? 'https://storage.held.invalid/archive.zip#fragment' : 'https://storage.held.invalid/archive.zip';
-      return new Response(null, { status: scenario === 'redirect-status' ? NATIVE_DB_VALIDATION.artifactMetadataStatus : status,
+      const response = new Response(null, { status: scenario === 'redirect-status' ? NATIVE_DB_VALIDATION.artifactMetadataStatus : status,
         headers: scenario === 'redirect-missing' ? {} : { location } });
+      if (response.status !== status) throw refuse('RECEIPT_UNAVAILABLE');
+      return response;
     }
     throw new Error('Unexpected authenticated provider request');
   };
@@ -299,6 +301,7 @@ async function executeHeldHistoricalRecovery(options: {
   const ports = {
     resolve, join, hash, jsonBytes, exact, source, digest, original, refuse, sourceString: source,
     NATIVE_DB_VALIDATION, PHASE8_BACKUP_LIMITS, limits: NATIVE_DB_VALIDATION,
+    target: { projectRef: NATIVE_DB_VALIDATION.projectRef, role: NATIVE_DB_VALIDATION.role, parameter: NATIVE_DB_VALIDATION.parameter },
     process: { execPath: process.execPath, cwd: () => workdir }, Buffer, URL, AbortSignal,
     github, context: { repo: { owner: 'OGUN01', repo: 'gymloop' }, runId: Number(currentId), sha: currentSource },
     timeoutRecoveryReviews, priorJobs,
@@ -308,7 +311,7 @@ async function executeHeldHistoricalRecovery(options: {
       if (bytes.length > limit) throw refuse('RECEIPT_UNAVAILABLE');
       return bytes;
     },
-    globalThis: { fetch: async (url: string | URL, init?: RequestInit) => {
+    globalThis: { AbortSignal, fetch: async (url: string | URL, init?: RequestInit) => {
       calls.storage.push({ url: String(url), init });
       return new Response(archive, { status: scenario === 'storage-status' ? NATIVE_DB_VALIDATION.artifactRedirectStatus : NATIVE_DB_VALIDATION.artifactMetadataStatus });
     } },
@@ -381,10 +384,24 @@ async function executeHeldHistoricalRecovery(options: {
         && (!options.ordinaryCommand || scenario === 'options-with-targets' || !key.startsWith('--target-'))
         && !(scenario === 'options-missing-run' && key === '--target-run-id')
         && !(scenario === 'options-missing-attempt' && key === '--target-run-attempt')).flat()];
-      value = port === 'recover' ? await callable(runtime, opts, directory, workdir)
+      const candidate = port === 'recover' ? await callable(runtime, opts, directory, workdir)
         : port === 'transport' ? await callable(runtime, transportArtifact, filename)
           : port === 'options' ? await callable(argv, runtime)
           : await callable(recoveryValue, { value: recoveryValue, hash: hash(recoveryBody), archiveSha256: archivePin }, targetRun);
+      if (port === 'inline') {
+        const decoded = candidate as typeof restoration;
+        if (!exact(decoded, ['formatVersion', 'runId', 'sourceSha', 'manifestSha256', 'recoverySha256', 'original', 'observed', 'verified', 'verifiedAt'])
+          || decoded.formatVersion !== NATIVE_DB_VALIDATION.formatVersion || decoded.runId !== recoveryValue.runId
+          || decoded.sourceSha !== recoveryValue.sourceSha || decoded.manifestSha256 !== recoveryValue.manifestSha256
+          || decoded.recoverySha256 !== hash(recoveryBody) || !original(decoded.original) || !original(decoded.observed)
+          || decoded.original.originalPresent !== recoveryValue.original.originalPresent || decoded.original.originalValue !== recoveryValue.original.originalValue
+          || decoded.observed.originalPresent !== recoveryValue.original.originalPresent || decoded.observed.originalValue !== recoveryValue.original.originalValue
+          || decoded.verified !== true || typeof decoded.verifiedAt !== 'string'
+          || !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/.test(decoded.verifiedAt)
+          || !Number.isSafeInteger(Date.parse(decoded.verifiedAt)) || Date.parse(decoded.verifiedAt) < 0
+          || new Date(decoded.verifiedAt).toISOString() !== decoded.verifiedAt) throw refuse('EVIDENCE_INVALID');
+      }
+      value = candidate;
     }
   } catch (failure) { error = failure; }
   return { value, error, calls, runtime, runtimeBefore, opts, binding, directory, workdir, manifest, recoveryValue, restoration,
