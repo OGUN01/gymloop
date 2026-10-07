@@ -335,7 +335,7 @@ function parseNativeOutput(manifest, stdout, stderr, failures) {
         incomplete = true;
         current = null;
       } else {
-        current = { file, plans: [], executed: 0, failed: 0, durationMs: null, timers: 0, incomplete: false, failedDiagnostic: false };
+        current = { file, plans: [], executed: 0, failed: 0, durationMs: null, timers: 0, versions: 0, incomplete: false, failedDiagnostic: false };
         observations.set(file.path, current);
       }
       continue;
@@ -379,8 +379,14 @@ function parseNativeOutput(manifest, stdout, stderr, failures) {
       if (assertion[1] === 'not ok') current.failed += 1;
       continue;
     }
-    if (/^TAP version \d+$/.test(line) || /^All \d+ subtests passed\s*$/.test(line)) continue;
-    current.incomplete = true;
+    if (/^TAP version \d+$/.test(line)) {
+      current.versions += 1;
+      if (current.versions !== 1 || current.plans.length > 0 || current.executed > 0 || current.timers > 0) current.incomplete = true;
+      continue;
+    }
+    if (/^All \d+ subtests passed\s*$/.test(line)) continue;
+    // Native SQL result rows are non-test output; malformed control records still refuse.
+    if (/^\s*(?:(?:not\s+)?ok\b|1\.|TAP\s+version\b|All\s+(?:tests\b|.*\bsubtests\b)|Files\b|Result\b|(?:ERROR|FATAL|PANIC)\b|(?:psql|postgres|supabase):|\[\d\d:)/i.test(line)) current.incomplete = true;
   }
   const files = manifest.files.map(file => {
     const observed = observations.get(file.path);
