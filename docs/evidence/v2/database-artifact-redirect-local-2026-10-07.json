@@ -1,0 +1,28 @@
+{
+  "sourceCommit": "c492f2f7d2a1fd47efe32bb585b33ca9c3208a65",
+  "workflowWorkingSha256": "d96e4b8e5a002d0e114fd140a39eac7a089f6bdfe4c391e4bb3ef7f96d2fe61b",
+  "scope": "One bounded request.fetch correction; every existing receipt/ZIP/history/restoration/workload predicate remains unchanged.",
+  "freshSourceOnlyCritic": "GO",
+  "testsFirstCommits": {"held": "5d78591c", "visible": "ab0f3a83"},
+  "genuineInitialRed": {
+    "visible": {"total": 32, "passed": 13, "failed": 19, "testSha256": "93c916ef1d9661fdd56139aa54d0133832e97ee798e8d2e9bfd3b5bfc904b88d", "privateLogSha256": "52205931906456dda134d71067b27b81302708b1aa63794478857aaa9afa3c3d"},
+    "held": {"total": 19, "passed": 16, "failed": 3, "testSha256": "76e63e31f3580f0fd301c81c45cbe98d79be189427d46f66920ffaa577e92bfb", "privateLogSha256": "653646bc9024bbfae56b88a18e8089e6edad4dfe4c618341ccff92aebc1f742b"},
+    "actualBoundaryReached": true,
+    "automaticApi200BeforeStorage": true
+  },
+  "finalIndependentGreen": {
+    "visible": {"total": 33, "passed": 33, "failed": 0, "testSha256": "f724b519d960566c688761b1ce898f1dfd8e6dd0d7be5c908b67630ecaa21721", "privateLogSha256": "c9609762203b1d21ce62c3050e32cdf7e2dfdda83cd9f38685068f31a82b589b"},
+    "held": {"total": 19, "passed": 19, "failed": 0, "testSha256": "27972e80aaa82e9b0d30ed7780d7ed395c5d23f8b74215bb6ba89ac087d8c155", "privateLogSha256": "094dc20a3d5cb6a8b499a47f090b9449012d7bf1bab3b05901db6b12cbc23e97"},
+    "stableTestAndSourceHashesAcrossFinalRuns": true,
+    "bothExistingCiDiscoveryAndLinuxPython3Resolver": true,
+    "originalAuthorCorrectionsCommit": "c92a51eb",
+    "corrections": "Declared original-author-only extraction/ESM observation, caught-error cause and portable interpreter infrastructure. Oversized refusal keeps zero decoding without unjustified downstream-stage prerequisites. Unsupported-mode fixture encodes an actually forbidden explicit type; a new positive proves standard permission-only0600 compatibility. Original failure receipts retained."
+  },
+  "affectedIntegration": {"total": 345, "passed": 345, "failed": 0, "exitCode": 0, "privateReportSha256": "6143b715fb6a254cfc38f7b449bdeeed463c34f9bec87261e5d85e98bda7f090"},
+  "actualReadOnlyArtifactProbe": {"observedAt": "2026-10-07T00:57:45.038Z", "artifactId": 11449106224, "apiStatus": 302, "storageStatus": 200, "byteLength": 1784, "archiveSha256": "1091ff970e9a3b0cfe2f04771d6218211b0c5549147536e8b7cf17b59e543caa", "apiDigestMatched": true, "apiAuthorizationForwardedToStorage": false, "locationPrinted": false},
+  "gates": {"fixtureLint": true, "registry": true, "escapeHatches": true, "knipWithConfiguredEnvironment": true, "actionlint": true, "whitespace": true, "unpushedCommitImmutability": true, "changedOpenSpecStrictPinned112": true},
+  "newerOpenSpec114Observation": "Exits1 on existing long-requirement warnings for these unchanged requirement texts. Pinned1.12 strict checks pass; no requirement semantics edited or suppression added. Global legacy limitation remains separate.",
+  "historicalActualRun": {"runId": "37554115136", "sourceSha": "623c9f72c097f1ddbf1b34aa7da75a41a3ed2f18", "databaseConclusion": "failure", "failure": "Recovery custody is unavailable.", "cloudWorkloadStarted": false, "ordinaryCi": "37554115151", "ordinaryCiConclusion": "success", "heldCiConclusion": "success", "immutabilityConclusion": "success"},
+  "trial6Preparation": {"coreSha256": "ca6c1d1a50597174e7fee32083e47cf4e728055b4e7ebd9aaf544d1ef403c5e0", "cliSha256": "115e57cef1e998f2ec0a659a843ac4f35654a32dc180a86fb651e59af42faf58", "wrapperSha256": "d1927c0da667ac9a36c037a67b7d5aa80ca3882d2973f3683e00053021551e06", "sourceOnlyCritic": "GO", "registered": false, "oldTrial5BytesAndOriginalDeadlinePreserved": true, "physicalTeardownClaimed": false},
+  "release": {"applicationBytesUnchangedFromSignedVc6": true, "vc6Uploaded": false, "actualFullDatabaseAndPerformanceAcceptancePending": true}
+}

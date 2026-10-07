@@ -28,7 +28,15 @@ Production AAB requires applicationId `in.fitcruxx.app`, label FitCruxx, OAuth s
 
 Existing pilot exceptions (ADR-159/168), manual-only payments, unresolved HTTPS App Links proof and native Firebase/push setup are not silently turned into passed gates by this upload. Do not expand the release to unrelated feature implementation. Keep actual Console draft/review/published status distinct.
 
-## Current execution checkpoint (7 October, 06:29 IST; a4aa6ebf)
+## Current execution checkpoint (7 October, 06:45 IST; c492f2f7)
+
+The one-line recovery artifact redirect correction is GREEN with fresh source-only GO. Independent original authors report final visible33/33 and held19/19; affected hosted-preflight/unarmed/smoke/redirect integration345/345 passes. Exact test/source hashes, genuine original red, narrowly declared author-only fixture corrections, standard ZIP compatibility and earlier infrastructure failures are preserved in [local proof](../evidence/v2/database-artifact-redirect-local-2026-10-07.json). Both fixtures use existing CI discovery and select python3 on Linux. Own-file lint, registry, escape-hatches, configured Knip, official actionlint, whitespace and unpushed-commit immutability pass. Pinned OpenSpec1.12 strict checks pass; a1.14 attempt reports existing long-paragraph warnings, with no semantic/spec suppression.
+
+Ordinary CI37554115151 at pushed623c9f72 is now SUCCESS, alongside its held/immutability runs. Historical DB37554115136 remains FAILED before Cloud; never reclassify it as a native pass. New application/packages/lockfile bytes remain identical to the signed/device-tested c77vc6 output.
+
+Trial6 fixed source/preparation remain GO and UNREGISTERED: coreca6c1d1a, CLI115e57ce and wrapperd1927c0d, checksum-verified fr8/shortwork/newemptyprotectedproofs. Old trial5 custody remains intact through its original04:51:19.497UTC deadline. Next action is the normal coherent main push, then immediately fetch actual new DB run and invoke reviewed register-start-trial6.ps1 with its exact sourceSHA/runID. Observe/publish/refresh bound readiness and actual selected runner; a queued-variable refresh is still unproven. Full native163/16329, guardian/restoration, serial seed, drift, ordinary CI, comparable timing and actual physical cleanup remain required before archive/closedAlpha vc6 upload. Play remains untouched.
+
+### Previous checkpoint (7 October, 06:29 IST; a4aa6ebf)
 
 Main623c9f72 is pushed. Actual DB37554115136 attempt1 FAILED at recovery preflight before migration/query/timeout/suite: `Recovery custody is unavailable.` The original strict guard correctly refuses the final200 produced by the shipped github-script v8 / Octokit request8.1.1 bundle, which ignores request.redirect. The minimal correction must enforce manual redirect through the documented request.fetch port while preserving strict302, credential-free HTTPS storage access, deadlines, bounded bytes/digest/ZIP and canonical JSON. Contract/fixture metadata are frozen9bae09e7/a4aa6ebf; independent visible/held authors are constructing new narrow red tests before the transport correction. No full native pass or performance improvement is established by this attempt.
 
