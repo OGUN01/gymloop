@@ -1,0 +1,91 @@
+{
+  "kind": "FINAL_LOCAL_ACCEPTANCE_NOT_REGIONAL_OR_RELEASE_ACCEPTANCE",
+  "checkedAt": "2026-10-07T22:30:01Z",
+  "candidateSha256": "f16cfefee0606268e7c42b1b582fb054fe565f5485962c59affe69c6894b846e",
+  "sourceRevisionAfterIndependentRedCommits": ["c4645c81", "e52e77c4"],
+  "firstCandidateRetentionSha256": "d62dd6b6bcbd46201c8ceca7e29bdc30a02e363c8719dcc7b972bc5a8d185436",
+  "exactTwoLineReverseToFirstCandidate": true,
+  "independentSuiteBytesUnchanged": {
+    "visibleSha256": "21ff2139957a23f5551a9107996ea7e10465788760b38b26e65e536635258c75",
+    "heldSha256": "22433a0fb305e64e8d9605fd57012c89320acbc92b3831476c3e18eb26317583"
+  },
+  "focusedWindows": {
+    "total": 49,
+    "passed": 49,
+    "failed": 0,
+    "skipped": 0,
+    "sourceUnchangedDuringRun": true,
+    "receiptSha256": "4a92c1b893486796229a971e7bda46895b74565c7a1d6e9640098edce327f585"
+  },
+  "fullTooling": {
+    "status": "PASS",
+    "total": 7694,
+    "passed": 7694,
+    "failed": 0,
+    "skipped": 0,
+    "exitCode": 0,
+    "sourceUnchangedDuringRun": true,
+    "receiptSha256": "24603cb5b4426915785288adbc75f652acdf6988f219073fedc85c3c9e667179"
+  },
+  "freshSourceReview": {
+    "status": "GO_SOURCE_AND_PACKAGING_ONLY",
+    "receiptSha256": "e264a89988f66dd8b33253378f03b5bf7ad432a43785bb53abe0dd72cca042ec",
+    "wholeTypeBlockCompilesOnBothActualConsumers": true,
+    "exactPackageReversalsVerified": true,
+    "ownHarmlessNativeChecksAccepted": true,
+    "allFourteenOwnDirectoriesProtectedAndRestored": true,
+    "ownChildrenExited": true,
+    "allIntermediateFailuresRetained": true,
+    "scope": "Exact sealed one-job package with fixed C: paths. Admission must independently reverify the executable, working, proof, runner, work and custody paths on ready Fixed NTFS C:.",
+    "generalMappedDriveRejectionImplementedOrClaimed": false,
+    "independenceDisclosure": "A team inventory exposed aggregate author counts, suite hash, prior-prefix length and proof path. No suite, assertion, scenario predicate or author record body was read. Own independent probes and this disclosure are retained."
+  },
+  "codeGates": {
+    "manifestSha256": "5ad51dcde4bcf4a484aed2c4479c49d71d2e42211e9ca10564233af3034ece63",
+    "metadataRegistryEscapeImmutabilityRollbackCoverageExitCode": 0,
+    "lintExitCode": 0,
+    "knipExitCode": 0,
+    "zeroCloneExitCode": 0,
+    "dependenciesExitCode": 0,
+    "bothSelectedStrictOpenSpecChanges": "PASS",
+    "historicalManifestPendingReviewAndFullToolingFlagsPreserved": true
+  },
+  "compatiblePackage": {
+    "wrapperSha256": "976f6f764ccbefc7d7992c1da522ed76b64d7e28a353bb35f13c99c6f6bf96d5",
+    "custodianSha256": "6c54c10613960d63bb9a223685ba1009450fb4022cbd782b3a030deb8ca3bd61",
+    "preparationSha256": "e7e28d5ef9f90832df916b18a251d906d4e317be0ba5054ab1b243adf0be44d3",
+    "registrationStarted": false
+  },
+  "ordinaryCI": {
+    "runId": "37680115515",
+    "sourceSha": "bd2efe323d15714e8a5cf457c55081e28eebaff3",
+    "conclusion": "SUCCESS",
+    "freshCompatiblePackagePushCIPending": true
+  },
+  "currentDatabase": {
+    "runId": "37680115612",
+    "attempt": 1,
+    "nativeJobId": "112994568121",
+    "sourceSha": "bd2efe323d15714e8a5cf457c55081e28eebaff3",
+    "providerCheckedAt": "2026-10-07T22:26:08Z",
+    "status": "IN_PROGRESS",
+    "terminalReviewSnapshotSha256": "cf27fcaec19726e5c297976abc5410489d592760f7e48db4942fad08d9a2dc3d",
+    "nativePassClaimed": false,
+    "restorationClaimed": false,
+    "guardianPassClaimed": false,
+    "seedPassClaimed": false,
+    "nextProviderObservationNoEarlierThan": "2026-10-07T22:41:00Z"
+  },
+  "signedRelease": {
+    "versionCode": 6,
+    "bytes": 93727171,
+    "sha256": "89f3acebe9197502fcebecfd7df2c9dcbed6c276cdaf193d7b05daa5e59c5d61",
+    "applicationPayloadMatchesDeviceTestedSource": "c77cfbaf60054951fae707bc5bdb62f801d43b41",
+    "playUploaded": false
+  },
+  "originalTrial8DeadlineUnchanged": "2026-10-08T00:12:47.002Z",
+  "newCloudSweepStarted": false,
+  "regionalImprovementClaimed": false,
+  "archived": false,
+  "goalComplete": false
+}
