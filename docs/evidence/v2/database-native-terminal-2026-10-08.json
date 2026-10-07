@@ -1,0 +1,15 @@
+{
+  "formatVersion": 1,
+  "runId": "37563272622",
+  "attempt": "1",
+  "sourceSha": "8727213ec47b8136c8332c6e757015a3075dbb33",
+  "overallConclusion": "failure",
+  "nativeJobId": 112605659467,
+  "native": { "completed": true, "exitCode": 0, "signal": null, "files": 163, "assertions": 16329, "failedAssertions": 0, "matchingPlansSequencesTimers": true, "milliseconds": 7451856 },
+  "supplementaryReceipt": { "accepted": false, "failureCodes": ["TAP_INCOMPLETE"], "passFiles": 50, "incompleteFiles": 113, "finalBodySha256": "8cc99947a46bb0e09b9de014b0c26910d126c968c5a3ee08cb282ad23186dc3d" },
+  "independentDiagnosis": { "structuralProofSha256": "1554da233340e2c2b5a6efa2e099d90ae1810e221d3416f34d97e87e1c7f5a0b", "vendorLexerProofSha256": "c69ae5d520e6bab3d747a26886e18f3ecc10123b57e06a4e874868ed2d6439fa", "officialClientDigest": "sha256:eda7c5e68719e9c8287e78c017118407b48df904a51c935f5ab6098b8c0bc6bc", "pgProveVersion": "3.36", "tapParserVersion": "3.44", "ordinaryNonTapQueryRecords": 1885, "affectedFiles": 113, "nativeParseErrors": 0, "nativeHasProblems": false, "intrinsicTapIncompleteFiles": 0, "unknownOutsideFiles": 0, "all163TestHashesUnchanged": true, "plaintextTranscriptPersisted": false, "assertionDescriptionsRendered": false },
+  "recovery": { "guardianConclusion": "success", "guardianJobId": 112636679685, "original": "2min", "observed": "2min", "verifiedAt": "2026-10-07T04:50:51.353Z", "sameRunBoundRestorationVerified": true, "reportingConfigurationRestoredAndVerified": true },
+  "hostedCompletion": { "independentProofSha256": "d5087a74609ec4712bb8074eb6138f257ba5ba2d5cdf30fd36e130b36a3ba658", "reviewedRecordSha256": "a48ac4a881f07e5562a66d95c356d3a29a84dc078f4f6da97d31c87a8ff6e7b6", "productionVerifierAccepted": true, "administratorIndexPublished": true, "previousEntriesPreserved": 1, "currentEntries": 2, "exactReadbackSha256": "2edd7369a68f594f53319c3c8ddb595e7c4f0d62bd3122b836f51152496ed35f", "literalPhysicalDeletionObserved": false },
+  "oldLocalTrials": { "trials": [5, 6, 7], "lateCleanupProofSha256": "eca72db462243d5632f19f46023c195fdb0635bb6d8f0a7da0c9bd12fea179fb", "removedOnlyThreeExactEmptyWorkDirectoriesNonrecursively": true, "retainedDiagnosticFiles": 3, "retainedDiagnosticBytes": 42051, "originalSourcesAdmissionsReceiptsDiagnosticsUnchanged": true, "unrelatedContainersPreserved": 7, "currentProcessJobRegistrationAndOwnedContainerAbsenceVerified": true, "originalDeadlineCompliance": "NOT_PROVED", "trial7OriginalFinalStillMissing": true },
+  "gateBoundary": "The original workflow remains failed and seed was skipped. Native exit0 and diagnostic replay do not reclassify it as a green release gate. Independently authored regressions and fresh complete native validation, regional timing, cleanup, seed, drift, app CI and archive remain required before closed Alpha upload."
+}
