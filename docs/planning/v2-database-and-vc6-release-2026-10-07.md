@@ -28,7 +28,19 @@ Production AAB requires applicationId `in.fitcruxx.app`, label FitCruxx, OAuth s
 
 Existing pilot exceptions (ADR-159/168), manual-only payments, unresolved HTTPS App Links proof and native Firebase/push setup are not silently turned into passed gates by this upload. Do not expand the release to unrelated feature implementation. Keep actual Console draft/review/published status distinct.
 
-## Current execution checkpoint (7 October, 05:49 IST; b69dd822)
+## Current execution checkpoint (7 October, 06:20 IST; 8d82cbf5)
+
+Independent startup validation is now GREEN on the final sealed private source: core SHA256 `ca6c1d1a50597174e7fee32083e47cf4e728055b4e7ebd9aaf544d1ef403c5e0`, CLI `d61f43b3619186a07eabbe56d13fc77b1ddccfb3d6c5f8b200bfcfd69afcb41e`, wrapper `b807429fc7965145fd5ffbfd3499c8309dc57c7c2fc91ffc387cb247c9a2947c`. A fresh source-only critic gives GO for those exact bytes. Actual configuration results and retained handoff acceptance are required before readiness. Atomic request publication, original-handle process observations and one original stop grace address the real startup races; there is no production fixture override.
+
+Original independent authors report one final fresh Windows PowerShell run each: visible 9/9 groups, 2,258 assertions and 18/18 native ownership checks; held 27/27 checks, including native 4/4 and acknowledgment 4/4. Exit and parse errors are zero, with source/test hashes unchanged. Separate actual native Stop/Snapshot observation is 30/30 consistent. Original-author-only fixture corrections are committed separately at c9728791 and 8d82cbf5; the parent assertions, budgets and original deadlines remain unchanged. Root/source implementers read neither test bodies nor private assertion diagnostics. Earlier red evidence remains historical. [Final local proof](../evidence/v2/database-registration-startup-local-2026-10-07.json).
+
+The public implementation remains d4745f6d: full local 583 suites / 6,382 assertions passed before unchanged helper extraction, and 331 affected checks passed afterward. Root registry, escape-hatches and whitespace checks pass; all 28 unpushed commits pass test immutability. Application/packages/lockfile bytes remain identical to the signed c77cfbaf vc6 artifact and its nine isolated-device screenshots. The separate global legacy OpenSpec limitation remains recorded, not waived.
+
+Read-only GitHub observation at 06:19 IST confirms zero registered runners and only the already verified administrator unarmed-precheck variable. The new protected physical and registration proof directories are empty; C:/fr7-20261007 has no .runner, and real trial admission is absent. No actual trial, database workload, readiness publication or Play upload has started. Physical cleanup is not claimed from synthetic/configuration-only evidence.
+
+Next: push the green coherent commits, obtain the exact new main DB run, execute the reviewed startup wrapper for that exact source/run, observe real ownership/acceptance and refresh readiness before selection. Require the complete 163-file/16,329-assertion native verdict, guardian/restoration, serial seed, drift, ordinary CI, matched-input timing and actual process/container/registration cleanup. Archive both accepted changes and confirm final application-byte parity before uploading/promoting vc6 to existing closed Alpha. Production remains outside scope.
+
+### Previous checkpoint (7 October, 05:49 IST; b69dd822)
 
 DBV-008 private registration-startup contract is frozen06bf40d9 in openspec/changes/database-validation-regional-runner/registration-startup-custody.md. Mechanical actual configuration-result and retained handoff-accepted acknowledgment transport is frozena9a5da9e; helper reuse/author-only fixture corrections are declared6d4b4b81. Exact two-entry module, retained original native handles, fixed production CLI and all sealed limits remain required. There is no production fixture override.
 

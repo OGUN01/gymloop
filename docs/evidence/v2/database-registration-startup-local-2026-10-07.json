@@ -1,0 +1,87 @@
+{
+  "observedAt": "2026-10-07T00:50:06Z",
+  "localHeadBeforeEvidence": "8d82cbf5",
+  "source": {
+    "coreSha256": "ca6c1d1a50597174e7fee32083e47cf4e728055b4e7ebd9aaf544d1ef403c5e0",
+    "cliSha256": "d61f43b3619186a07eabbe56d13fc77b1ddccfb3d6c5f8b200bfcfd69afcb41e",
+    "wrapperSha256": "b807429fc7965145fd5ffbfd3499c8309dc57c7c2fc91ffc387cb247c9a2947c",
+    "freshSourceOnlyCritic": "GO",
+    "productionFixtureOverride": false,
+    "powershell51And76ParseErrors": 0
+  },
+  "visible": {
+    "testSha256": "7094836210b22c880022db5d846c8b44d3913dfcbb52bf1243a1789b659f141f",
+    "groups": 9,
+    "passedGroups": 9,
+    "assertions": 2258,
+    "nativeOwnershipChecks": 18,
+    "passedNativeOwnershipChecks": 18,
+    "exitCode": 0,
+    "privateAggregateLogSha256": "df70dfbc6f7cf20ca1d733ceb23df113d69ca07211e9db887f5d22d56f3ab002"
+  },
+  "held": {
+    "testSha256": "cefdedfea9a4caa524f298a0f4244f4d400585b3f2fa773c45f9f925d693feb8",
+    "checks": 27,
+    "passedChecks": 27,
+    "nativeChecks": 4,
+    "passedNativeChecks": 4,
+    "acknowledgmentChecks": 4,
+    "passedAcknowledgmentChecks": 4,
+    "exitCode": 0,
+    "privateLogSha256": "a531906982710bb75158ae7518a1ebf49431603a85469e2ec81996c74b78d2be",
+    "separateStopObservations": 30,
+    "consistentStopObservations": 30,
+    "originalHandlesUnsignalledAfterVerifiedStop": 0,
+    "separateStopLogSha256": "d449001a989256ed87d5f357d513e503181e8a97b99e17164d17bd46bcb1f25d"
+  },
+  "independence": {
+    "originalAuthorsExecutedOwnFrozenTests": true,
+    "oneFinalFreshRunEach": true,
+    "testAndSourceHashesUnchangedAcrossFinalRuns": true,
+    "implementersReadTestBodiesOrDiagnostics": false,
+    "authorOnlyInfrastructureCorrectionCommits": ["c9728791", "8d82cbf5"],
+    "parentAssertionsBudgetsAndOriginalDeadlinesUnchanged": true,
+    "initialRedCommits": ["8c2680ad", "b7683945"],
+    "acknowledgmentRedCommit": "b69dd822"
+  },
+  "preservedFailureHistory": {
+    "nativeStartupSnapshotBeforeRepair": {
+      "observations": 20,
+      "exceptions": 17,
+      "privateLogSha256": "78c57cfdd190d706f8d87fba2e3ac0883fb5ff406772b749b8b821d11aa16083"
+    },
+    "nativeHandleSnapshotRepair": {
+      "observations": 20,
+      "exceptions": 0,
+      "privateLogSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "jobEmptyBeforeOriginalConfigurationHandleSignalled": {
+      "observations": 30,
+      "inconsistencies": 30,
+      "privateLogSha256": "070511eced9e9e271ece1a8e5e28777e998319b058c8d14d2efb525f62c8b191",
+      "repair": "Require empty job and original retained configuration handle signalled within the same existing stop grace."
+    }
+  },
+  "gates": {
+    "registry": true,
+    "escapeHatches": true,
+    "whitespace": true,
+    "unpushedCommitsTestImmutability": true,
+    "checkedUnpushedCommits": 28,
+    "publicFullAssertionsPreviouslyPassed": 6382,
+    "postExtractionAffectedAssertionsPassed": 331,
+    "signedArtifactApplicationBytesUnchanged": true
+  },
+  "actualTrial": {
+    "registeredRunners": 0,
+    "registrationConfigPresent": false,
+    "admissionPresent": false,
+    "physicalProofDirectoryItems": 0,
+    "registrationProofDirectoryItems": 0,
+    "readinessPublished": false,
+    "realDatabaseTrialStarted": false,
+    "physicalTeardownVerified": false,
+    "fullNativeAndPerformanceAcceptancePending": true
+  },
+  "release": {"vc6Uploaded": false, "productionRolloutAuthorized": false}
+}
