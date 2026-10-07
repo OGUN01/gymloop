@@ -299,6 +299,7 @@ async function uploadArtifact(runtime, name, path, directory) {
   const distribution = resolve(runtime.RUNNER_WORKSPACE, '..', '_actions/actions/upload-artifact/v5/dist/upload/index.js');
   if (!(await stat(distribution)).isFile()) throw refuse('RECEIPT_UNAVAILABLE');
   const output = join(directory, `upload-${randomBytes(PHASE8_BACKUP_LIMITS.ivBytes).toString('hex')}.txt`);
+  await privateWrite(output, Buffer.alloc(0));
   const env = { ...nativeDatabaseProcessEnv(), INPUT_NAME: name, INPUT_PATH: path, 'INPUT_IF-NO-FILES-FOUND': 'error',
     'INPUT_RETENTION-DAYS': String(NATIVE_DB_VALIDATION.artifactRetentionDays), 'INPUT_COMPRESSION-LEVEL': '0',
     INPUT_OVERWRITE: 'false', 'INPUT_INCLUDE-HIDDEN-FILES': 'false', GITHUB_OUTPUT: output };
