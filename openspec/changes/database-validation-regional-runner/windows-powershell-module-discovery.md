@@ -1,0 +1,17 @@
+# DBV-008 native Windows PowerShell module discovery
+
+Frozen by root on 7 October 2026 before independent regressions and construction. Actual trial7 configured successfully but its sealed launcher refused at binding-file. Independent readonly checks confirm exact parameter transport and unchanged binding bytes; an isolated native Windows PowerShell5 -File probe fails because Get-FileHash cannot be discovered under the inherited PowerShell7 module environment. This is a compatibility repair of the existing approved startup, not a new runner, command interface or proof exception.
+
+## Minimal production boundary
+
+The fresh protected register-start-trial8.ps1 retains the existing Invoke-Private and Windows-Argument interfaces, arguments, output bounds, original registration deadline, monotonic/wall budget, hidden process creation and exact-child termination. Only when its Executable equals the already fixed native Windows PowerShell executable (case-insensitive Windows path comparison) shall its ProcessStartInfo set the child-only PSModulePath to C:\Windows\System32\WindowsPowerShell\v1.0\Modules before child startup. Every other executable retains its inherited environment. The caller, global environment, profiles and machine configuration remain unchanged.
+
+The canonical native module directory must exist and resolve without a reparse point. Built-in Utility, Management and Security command discovery must succeed from the native vendor module tree in an actual harmless -File probe; no user or PowerShell7 module path is appended. The unchanged sealed native constructor inherits that environment for its sealed watchdog. Launcher, watchdog, guard, core, limits, receipts and all ownership/registration/database acceptance rules remain unchanged.
+
+Fresh trial8 preparation mechanically replaces trial7/fr9 paths with distinct trial8/fr10 runner, work, physical and custody roots and reseals its path-bound wrapper/custodian entries. It does not alter old trial admissions, deadlines, sources, credentials, receipts or cleanup ownership. No real registration starts before independent tests-first, source review and native probe acceptance; no Cloud sweep overlaps the current hosted validation or its seed.
+
+## Independent regression invocation
+
+Tests shall not invoke the real production wrapper, launcher, registration, API, listener or database. They may parse the candidate wrapper as an opaque file, extract only the named existing Windows-Argument and Invoke-Private function extents without reading/outputting their implementation, and execute those helpers in a controlled private PowerShell7 fixture. The fixture supplies the sealed existing taskLimits, taskUtf8, taskNativePowerShell and a null taskDeadline; it exposes no production override. Target candidate register-start-trial8.ps1 is absent before construction, making the initial regression red.
+
+Require a harmless native PowerShell5 -File child to discover the built-in file hash/JSON, filesystem and security commands under the canonical native module path, preserve exact arguments and failed-file refusal, and demonstrate no caller/global environment mutation. Require a different child executable to retain its inherited module environment; the compatibility branch must not generalize to arbitrary executables. Output/budget/nonzero-exit behavior remains authoritative. Assertions/test bytes are immutable to the implementer and are committed before the candidate is constructed.
