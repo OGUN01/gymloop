@@ -413,3 +413,109 @@ for (const mode of ['stdout-existing', 'stderr-existing', 'stdout-directory', 's
     expect(result.bothEofBeforeRelease).toBe(true);
   });
 }
+
+// Append-only independent coverage for the separately frozen preserved-runtime contract.
+type VisibleWatchdogCompatibilityRecord = VisibleWatchdogRecord & {
+  compiled?: boolean;
+  hostMajor?: number;
+  compilerCodes?: string[];
+  proof?: { beforeProtected: boolean; trustedAllowListOnly: boolean; daclUnchanged: boolean; logEntryCount: number };
+};
+
+function visibleWatchdogCompatibilityFixture(mode: 'whole-ps7' | 'proof-inheritance-enabled'): VisibleWatchdogCompatibilityRecord {
+  const metadata = visibleWatchdogMetadata;
+  const caseId = randomUUID();
+  const scriptPath = `${metadata.root}\\runtime-host-${caseId}.ps1`;
+  let nativeScript: string;
+  if (mode === 'whole-ps7') {
+    nativeScript = String.raw`
+param([string]$TaskRoot,[string]$CaseId,[string]$Candidate)
+$ErrorActionPreference='Stop'
+[Console]::OutputEncoding=[Text.UTF8Encoding]::new($false)
+$taskCase=Join-Path $TaskRoot $CaseId
+[IO.Directory]::CreateDirectory($taskCase)|Out-Null
+$taskResult=@{compiled=$false;hostMajor=$PSVersionTable.PSVersion.Major;compilerCodes=@()}
+try {
+  if(-not [IO.File]::Exists($Candidate)){throw 'MISSING_VISIBLE_COMPATIBILITY_CANDIDATE'}
+  $taskOpaque=[IO.File]::ReadAllText($Candidate)
+  $taskExtent=[regex]::Match($taskOpaque,'(?ms)^\s*\$launcherType\s*=\s*@([''"])\r?\n(?<code>.*?)\r?\n\1@')
+  if(-not $taskExtent.Success){throw 'MISSING_VISIBLE_COMPATIBILITY_BLOCK'}
+  try {
+    Add-Type -TypeDefinition $taskExtent.Groups['code'].Value -ErrorAction Stop | Out-Null
+    $taskResult.compiled=$true
+  } catch {
+    $taskResult.compilerCodes=@([regex]::Matches($_.Exception.Message,'\bCS\d+\b')|ForEach-Object {$_.Value})
+  }
+} catch {$taskResult.error=$_.Exception.Message}
+$taskJson=$taskResult|ConvertTo-Json -Depth 6 -Compress
+[IO.File]::WriteAllText((Join-Path $taskCase 'runtime-compiler.json'),$taskJson,[Text.UTF8Encoding]::new($false))
+[Console]::Out.Write($taskJson)
+`;
+  } else {
+    const setupPort = String.raw`    $taskExecutable=$Probe
+    if($Mode -eq 'proof-inheritance-enabled') {
+      $taskSections=[Security.AccessControl.AccessControlSections]::Access -bor [Security.AccessControl.AccessControlSections]::Owner -bor [Security.AccessControl.AccessControlSections]::Group
+      $taskDirectory=[IO.DirectoryInfo]::new($taskProof)
+      $taskAcl=$taskDirectory.GetAccessControl($taskSections)
+      $taskAcl.SetAccessRuleProtection($false,$true)
+      $taskDirectory.SetAccessControl($taskAcl)
+      $taskBeforeAcl=$taskDirectory.GetAccessControl($taskSections)
+      $taskOwnerSid=$taskBeforeAcl.GetOwner([Security.Principal.SecurityIdentifier]).Value
+      $taskTrusted=@($taskOwnerSid,'S-1-5-18','S-1-5-32-544')
+      $taskOnlyTrusted=$true
+      foreach($taskRule in $taskBeforeAcl.GetAccessRules($true,$true,[Security.Principal.SecurityIdentifier])) {
+        if($taskRule.AccessControlType -eq [Security.AccessControl.AccessControlType]::Allow -and $taskRule.IdentityReference.Value -notin $taskTrusted){$taskOnlyTrusted=$false}
+      }
+      Write-VisibleRecord (Join-Path $TaskCase 'runtime-proof-before.json') @{beforeProtected=$taskBeforeAcl.AreAccessRulesProtected;trustedAllowListOnly=$taskOnlyTrusted;daclB64=[Convert]::ToBase64String($taskBeforeAcl.GetSecurityDescriptorBinaryForm())}
+    }
+`;
+    const observationPort = String.raw`  if($Mode -eq 'proof-inheritance-enabled') {
+    $taskAfterAcl=[IO.DirectoryInfo]::new($taskProof).GetAccessControl($taskSections)
+    $taskLogCount=0
+    foreach($taskLog in @($taskStdout,$taskStderr)){if([IO.File]::Exists($taskLog) -or [IO.Directory]::Exists($taskLog)){$taskLogCount++}}
+    Write-VisibleRecord (Join-Path $TaskCase 'runtime-proof-after.json') @{daclB64=[Convert]::ToBase64String($taskAfterAcl.GetSecurityDescriptorBinaryForm());logEntryCount=$taskLogCount}
+  }
+  Write-VisibleRecord (Join-Path $TaskCase 'launcher.json') $taskResult`;
+    const setupBoundary = '    $taskExecutable=$Probe\n';
+    const observationBoundary = "  Write-VisibleRecord (Join-Path $TaskCase 'launcher.json') $taskResult";
+    if (visibleWatchdogNativeScript.split(setupBoundary).length !== 2 || visibleWatchdogNativeScript.split(observationBoundary).length !== 2) throw new Error('VISIBLE_COMPATIBILITY_FIXTURE_BOUNDARY_REFUSED');
+    nativeScript = visibleWatchdogNativeScript.replace(setupBoundary, setupPort).replace(observationBoundary, observationPort);
+  }
+  writeFileSync(scriptPath, nativeScript, 'utf8');
+  const args = ['-NoLogo', '-NoProfile', '-NonInteractive', '-File', scriptPath, '-TaskRoot', metadata.root, '-CaseId', caseId, '-Candidate', metadata.candidate];
+  if (mode === 'proof-inheritance-enabled') args.push('-Mode', mode, '-NativePowerShell', metadata.ps5, '-CanonicalModules', metadata.modules, '-LimitsPath', metadata.limits);
+  const result = spawnSync(metadata.ps7, args, {
+    windowsHide: true,
+    timeout: NATIVE_DB_VALIDATION.nativeCleanupReserveMs,
+    maxBuffer: NATIVE_DB_VALIDATION.maxProcessBytes,
+    encoding: 'utf8',
+  });
+  if (result.error) throw new Error(`VISIBLE_COMPATIBILITY_HOST_REFUSED:${result.error.name}`);
+  let record: VisibleWatchdogCompatibilityRecord;
+  try { record = JSON.parse(result.stdout.trim()) as VisibleWatchdogCompatibilityRecord; } catch { throw new Error('VISIBLE_COMPATIBILITY_REPORT_REFUSED'); }
+  if (record.error) throw new Error(record.error);
+  expect(result.status).toBe(0);
+  if (mode === 'proof-inheritance-enabled') {
+    const before = JSON.parse(readFileSync(`${metadata.root}\\${caseId}\\runtime-proof-before.json`, 'utf8')) as { beforeProtected: boolean; trustedAllowListOnly: boolean; daclB64: string };
+    const after = JSON.parse(readFileSync(`${metadata.root}\\${caseId}\\runtime-proof-after.json`, 'utf8')) as { daclB64: string; logEntryCount: number };
+    record.proof = { beforeProtected: before.beforeProtected, trustedAllowListOnly: before.trustedAllowListOnly, daclUnchanged: before.daclB64 === after.daclB64, logEntryCount: after.logEntryCount };
+  }
+  return record;
+}
+
+registerVisibleWatchdogHandleCase('preserved actual PS7 consumer compiles the whole opaque type block', () => {
+  const record = visibleWatchdogCompatibilityFixture('whole-ps7');
+  expect(record.hostMajor).toBe(7);
+  expect(record.compiled).toBe(true);
+});
+
+registerVisibleWatchdogHandleCase('inheritance-enabled trusted-only proof directory refuses before side effects', () => {
+  const record = visibleWatchdogCompatibilityFixture('proof-inheritance-enabled');
+  expect(record.proof?.beforeProtected).toBe(false);
+  expect(record.proof?.trustedAllowListOnly).toBe(true);
+  expect(record.proof?.daclUnchanged).toBe(true);
+  expect(record.launcher?.refused).toBe(true);
+  expect(record.proof?.logEntryCount).toBe(0);
+  expect(record.childAlive).toBe(false);
+  expect(record.survivorCount).toBe(0);
+});
