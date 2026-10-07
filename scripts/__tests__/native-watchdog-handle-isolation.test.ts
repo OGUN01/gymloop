@@ -35,6 +35,7 @@ let visibleWatchdogHostFile = '';
 const visibleWatchdogNativeScript = String.raw`
 param([string]$TaskRoot,[string]$CaseId,[string]$Mode,[string]$Candidate,[string]$NativePowerShell,[string]$CanonicalModules,[string]$LimitsPath)
 $ErrorActionPreference='Stop'
+[Console]::OutputEncoding=[Text.UTF8Encoding]::new($false)
 $taskLimits=Get-Content -LiteralPath $LimitsPath -Raw | ConvertFrom-Json
 $taskCase=Join-Path $TaskRoot $CaseId
 function New-VisibleProtectedDirectory([string]$Path) {
@@ -280,8 +281,16 @@ try {
   $taskLauncherFacts=[IO.File]::ReadAllText((Join-Path $taskCase 'launcher.json')) | ConvertFrom-Json
   $taskLogOut='';$taskLogErr='';$taskLogReadWhileAlive=$false;$taskLogWriteRefusedWhileAlive=$false
   if($null -ne $taskChild -and $Mode -ne 'control-leak') {
-    $taskLogOut=[IO.File]::ReadAllText((Join-Path $taskCase 'proof\watchdog.stdout.log'))
-    $taskLogErr=[IO.File]::ReadAllText((Join-Path $taskCase 'proof\watchdog.stderr.log'))
+    $taskLiveRead=[IO.File]::Open((Join-Path $taskCase 'proof\watchdog.stdout.log'),[IO.FileMode]::Open,[IO.FileAccess]::Read,[IO.FileShare]::ReadWrite)
+    try {
+      $taskLiveReader=[IO.StreamReader]::new($taskLiveRead)
+      try {$taskLogOut=$taskLiveReader.ReadToEnd()} finally {$taskLiveReader.Dispose()}
+    } finally {$taskLiveRead.Dispose()}
+    $taskLiveRead=[IO.File]::Open((Join-Path $taskCase 'proof\watchdog.stderr.log'),[IO.FileMode]::Open,[IO.FileAccess]::Read,[IO.FileShare]::ReadWrite)
+    try {
+      $taskLiveReader=[IO.StreamReader]::new($taskLiveRead)
+      try {$taskLogErr=$taskLiveReader.ReadToEnd()} finally {$taskLiveReader.Dispose()}
+    } finally {$taskLiveRead.Dispose()}
     $taskLogReadWhileAlive=$taskAlive
     $taskWriteDenials=0
     foreach($taskLog in @((Join-Path $taskCase 'proof\watchdog.stdout.log'),(Join-Path $taskCase 'proof\watchdog.stderr.log'))) {
