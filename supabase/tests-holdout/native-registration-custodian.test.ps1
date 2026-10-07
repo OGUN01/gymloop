@@ -381,6 +381,48 @@ function ExactReceiptKeys($record,[string[]]$expected) {
 function NewAckCase([string]$name) {
     $state=NewCase ('ack-'+$name)
     $state.requestRaw=$null; $state.handoffRaw=$null; $state.rejectAck=$false; $state.ackAttempts=0
+    $state.actualConfigKernelStopped=$false; $state.actualConfigOriginalExited=$false; $state.actualListenerKernelStopped=$false
+    $priorOwner=$state.ports.NewOwner
+    $state.ports.NewOwner={ param($admissionRecord)
+        $owner=& $priorOwner $admissionRecord
+        $owner | Add-Member -MemberType NoteProperty -Name HeldAckState -Value $state
+        $owner | Add-Member -MemberType NoteProperty -Name HeldAckStopMethod -Value ($owner.GetType().GetMethod('Stop'))
+        $owner | Add-Member -MemberType ScriptMethod -Name StartConfig -Force -Value {
+            param($arguments,$budgetMs)
+            $nativeBudget=[Convert]::ChangeType($budgetMs,$this.HeldFixtureStartMethod.GetParameters()[1].ParameterType,[Globalization.CultureInfo]::InvariantCulture)
+            $actual=$this.HeldFixtureStartMethod.Invoke($this,[object[]]@([string[]]$arguments,$nativeBudget))
+            $this.HeldFixtureState.configStarted=$true
+            $original=[Diagnostics.Process]::GetProcessById([int]$actual.pid); $null=$original.Handle
+            Require ($original.StartTime.ToUniversalTime().ToFileTimeUtc().ToString() -ceq $actual.creationFileTimeUtc.ToString()) 'Original configuration handle identity changed.'
+            $this.HeldAckState.actualConfigProcess=$original; $children.Add($original)
+            return $actual
+        }
+        $owner | Add-Member -MemberType ScriptMethod -Name Stop -Force -Value {
+            param($stopGraceMs)
+            $nativeGrace=[Convert]::ChangeType($stopGraceMs,$this.HeldAckStopMethod.GetParameters()[0].ParameterType,[Globalization.CultureInfo]::InvariantCulture)
+            $actual=$this.HeldAckStopMethod.Invoke($this,[object[]]@($nativeGrace))
+            $this.HeldAckState.actualConfigKernelStopped=($actual.processesStopped -ceq $true)
+            $this.HeldAckState.actualConfigOriginalExited=$this.HeldAckState.actualConfigProcess.HasExited
+            return $actual
+        }
+        return $owner
+    }.GetNewClosure()
+    $priorListenerStop=$state.ports.StopAdmittedListener
+    $state.ports.StopAdmittedListener={
+        if($null -ne $state.listenerOwner -and -not $state.ContainsKey('ackListenerInstrumented')){
+            $state.listenerOwner | Add-Member -MemberType NoteProperty -Name HeldAckState -Value $state
+            $state.listenerOwner | Add-Member -MemberType NoteProperty -Name HeldAckStopMethod -Value ($state.listenerOwner.GetType().GetMethod('Stop'))
+            $state.listenerOwner | Add-Member -MemberType ScriptMethod -Name Stop -Force -Value {
+                param($stopGraceMs)
+                $nativeGrace=[Convert]::ChangeType($stopGraceMs,$this.HeldAckStopMethod.GetParameters()[0].ParameterType,[Globalization.CultureInfo]::InvariantCulture)
+                $actual=$this.HeldAckStopMethod.Invoke($this,[object[]]@($nativeGrace))
+                $this.HeldAckState.actualListenerKernelStopped=($actual.processesStopped -ceq $true)
+                return $actual
+            }
+            $state.ackListenerInstrumented=$true
+        }
+        & $priorListenerStop
+    }.GetNewClosure()
     $priorRead=$state.ports.ReadConfigurationRequest
     $state.ports.ReadConfigurationRequest={
         $original=[byte[]](& $priorRead); $raw=[byte[]]($original + [Text.Encoding]::UTF8.GetBytes("`n  "))
@@ -438,7 +480,7 @@ Check 'unwritten handoff acknowledgment never releases failure custody' {
     $s=NewAckCase 'handoff-write-refusal'; $s.mode='exit-ok'; $s.rows=@((OwnRow $s)); InstallHandoff $s; $s.rejectAck=$true; $s.wrapperLostAt=700
     $f=RunCase $s
     Require ($s.ackAttempts -gt 0 -and -not $s.receipts.ContainsKey('handoff-accepted.json') -and $f.handoffAccepted -ceq $false -and $f.stopReason -ceq 'ACKNOWLEDGMENT_UNVERIFIED') 'Failed acknowledgment write released or hid failed custody.'
-    Require ($s.owner.Snapshot().activeProcessCount -eq 0 -and $s.listenerOwner.Snapshot().activeProcessCount -eq 0 -and $s.ms -ge 2000 -and $f.physicalTeardownVerified -ceq $false) 'Failed acknowledgment left owned execution or ended conservative backstop.'
+    Require ($s.actualConfigKernelStopped -ceq $true -and $s.actualConfigOriginalExited -ceq $true -and $s.actualListenerKernelStopped -ceq $true -and $s.ms -ge 2000 -and $f.physicalTeardownVerified -ceq $false) 'Failed acknowledgment left owned execution or ended conservative backstop.'
 }
 
 foreach($owner in $owners){StopOwner $owner}

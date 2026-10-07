@@ -512,7 +512,7 @@ $testGroups.Add('configuration-result-binds-real-completion', {
     Assert-Fixture ($s.Receipts.ContainsKey('configuration-result.json')) 'real-exit-result-is-published'
     $result = $s.Receipts['configuration-result.json']
     $expectedKeys = @('formatVersion','admissionSha256','configurationRequestSha256','sourceSha','runId','runAttempt','runnerName','runnerLabel','configProcessId','configCreationFileTimeUtc','configExecutablePath','configOwnerJobName','assignedBeforeResume','configKillOnClose','configExited','configExitCode','budgetExpired','configProcessesStopped','verifiedAt')
-    Assert-Fixture (($result.Keys | Sort-Object) -join ',' -ceq ($expectedKeys | Sort-Object) -join ',') 'configuration-result-exact-keys'
+    Assert-Fixture ((($result.Keys | Sort-Object) -join ',') -ceq (($expectedKeys | Sort-Object) -join ',')) 'configuration-result-exact-keys'
     Assert-Fixture ($result.configurationRequestSha256 -ceq (Get-FixtureHash (Convert-FixtureBytes $s.Request))) 'configuration-result-consumed-request-hash'
     Assert-Fixture ($result.admissionSha256 -ceq $s.AdmissionSha -and $result.sourceSha -ceq $s.Admission.sourceSha -and $result.runId -ceq $s.Admission.runId -and $result.runAttempt -ceq '1') 'configuration-result-exact-run-and-admission'
     Assert-Fixture ($result.configProcessId -ceq $s.ConfigIdentity.pid -and $result.configCreationFileTimeUtc -ceq $s.ConfigIdentity.creationFileTimeUtc -and $result.configOwnerJobName -ceq $s.Owner.OwnerJobName -and $result.configExecutablePath -ceq $s.Admission.listenerExecutablePath) 'configuration-result-original-native-identity'
@@ -535,7 +535,7 @@ $testGroups.Add('handoff-acknowledgment-binding-and-exit-order', {
         Assert-Fixture ($s.Receipts.ContainsKey('handoff-accepted.json')) 'genuine-handoff-ack-is-published'
         $ack = $s.Receipts['handoff-accepted.json']
         $expectedKeys = @('formatVersion','admissionSha256','handoffRequestSha256','sourceSha','runId','runAttempt','runnerId','runnerName','runnerLabel','configSha256','launchBindingSha256','deadlineUtc','handoffAccepted','verifiedAt')
-        Assert-Fixture (($ack.Keys | Sort-Object) -join ',' -ceq ($expectedKeys | Sort-Object) -join ',') 'handoff-ack-exact-keys'
+        Assert-Fixture ((($ack.Keys | Sort-Object) -join ',') -ceq (($expectedKeys | Sort-Object) -join ',')) 'handoff-ack-exact-keys'
         Assert-Fixture ($ack.handoffRequestSha256 -ceq (Get-FixtureHash $fixture.RequestBytes) -and $ack.admissionSha256 -ceq $s.AdmissionSha) 'handoff-ack-exact-consumed-byte-and-admission-binding'
         Assert-Fixture ($ack.sourceSha -ceq $s.Admission.sourceSha -and $ack.runId -ceq $s.Admission.runId -and $ack.runAttempt -ceq '1' -and $ack.runnerId -ceq '901' -and $ack.runnerName -ceq $s.Admission.runnerName -and $ack.runnerLabel -ceq $s.Admission.runnerLabel) 'handoff-ack-exact-live-owned-run-binding'
         Assert-Fixture ($ack.configSha256 -ceq $fixture.Request.configSha256 -and $ack.launchBindingSha256 -ceq $fixture.Request.launchBindingSha256 -and $ack.deadlineUtc -ceq '2026-10-07T00:00:04.000Z' -and $ack.handoffAccepted -ceq $true) 'handoff-ack-sealed-bytes-and-unextended-deadline'
