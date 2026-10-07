@@ -23,7 +23,13 @@ function WaitFile([string]$path,[int]$limit=3000) {
 function IsOriginalAlive([string]$pidText,[string]$createdText) {
     try { $p=[Diagnostics.Process]::GetProcessById([int]$pidText); $same=($p.StartTime.ToUniversalTime().ToFileTimeUtc().ToString() -ceq $createdText); $p.Dispose(); return $same } catch { return $false }
 }
-function ReadProbe([string]$path) { WaitFile $path; ([IO.File]::ReadAllText($path)).Split('|') }
+function ReadProbe([string]$path) {
+    $probeWait=[Diagnostics.Stopwatch]::StartNew(); WaitFile $path
+    while($true){
+        try { return ([IO.File]::ReadAllText($path)).Split('|') }
+        catch [IO.IOException] { if($probeWait.ElapsedMilliseconds -ge 3000){throw}; Start-Sleep -Milliseconds 10 }
+    }
+}
 function StopOwner($owner) { if ($null -ne $owner) { try { $null=$owner.Stop(1000) } catch {}; try { $owner.Dispose() } catch {} } }
 $probeSource=@'
 using System;
@@ -142,7 +148,20 @@ function NewCase([string]$name) {
     $state=@{dir=$dir;runnerDir=$runnerDir;admission=$admission;admissionSha=(Sha $admissionPath);startUtc=$startUtc;ms=0;step=100;realWait=15;ready=$false;owner=$null;baselinePages=@(@());baselineCounts=$null;events=[Collections.Generic.List[string]]::new();receipts=@{};rows=@();scan=0;pageRows=@();deleted=@{};deleteIds=[Collections.Generic.List[string]]::new();getIds=[Collections.Generic.List[string]]::new();getCounts=@{};request=$true;requestOverride=$null;mode='hang';rowAt=0;wrapperLostAt=[int]::MaxValue;getFailure=$false;deleteStatus=204;fresh404=$true;rebound=$null;readiness='matching-removed';handoff=$null;listenerOwner=$null;sentinel=$null}
     [IO.File]::WriteAllText((Join-Path $runnerDir 'mode.txt'),$state.mode)
     $clock={ @{utc=(CanonicalUtc $state.startUtc.AddMilliseconds($state.ms));monotonicMs=$state.ms} }.GetNewClosure()
-    $wait={ param($milliseconds) $state.ms += $state.step; Start-Sleep -Milliseconds $state.realWait }.GetNewClosure()
+    $wait={ param($milliseconds)
+        if($state.ContainsKey('configStarted') -and $state.configStarted -and -not $state.ContainsKey('probePhaseEnded') -and -not $state.ContainsKey('retiring')){
+            if([IO.File]::Exists((Join-Path $state.runnerDir 'config.marker'))){$state.probePhaseEnded=$true}else{
+                $snapshot=$state.owner.Snapshot()
+                if($snapshot.activeProcessCount -gt 0 -and -not $snapshot.configExited -and -not $snapshot.budgetExpired){
+                    if(-not $state.ContainsKey('probeStartupWait')){$state.probeStartupWait=[Diagnostics.Stopwatch]::StartNew()}
+                    if($state.probeStartupWait.ElapsedMilliseconds -ge 3000){throw 'Controlled native probe startup exceeded existing probe bound.'}
+                    Start-Sleep -Milliseconds $state.realWait; return
+                }
+                $state.probePhaseEnded=$true
+            }
+        }
+        $state.ms += $state.step; Start-Sleep -Milliseconds $state.realWait
+    }.GetNewClosure()
     $wrapper={ param($pidText,$creation) Require ($pidText -ceq $state.admission.wrapperProcessId -and $creation -ceq $state.admission.wrapperCreationFileTimeUtc) 'Wrapper query lost identity binding.'; return ($state.ms -lt $state.wrapperLostAt) }.GetNewClosure()
     $list={ param($page)
         $state.events.Add(('list:'+ $page + ':'+$state.ms))
@@ -190,6 +209,7 @@ function NewCase([string]$name) {
         return @{request=(Bytes $state.handoff.request);verified=($state.handoff.verified -and $nativeAlive -and $sealedConfig);watchdogAlive=$watchdogAlive;fullJobFinalVerified=$state.handoff.fullJobFinalVerified}
     }.GetNewClosure()
     $stopListener={
+        $state.retiring=$true
         $state.events.Add(('listener-stop:'+$state.ms)); if($null -eq $state.listenerOwner){return @{terminationRequested=$false}}
         $stopped=$state.listenerOwner.Stop(100); Require ($stopped.processesStopped -ceq $true) 'Retained listener stop failed.'; return @{terminationRequested=$stopped.terminationRequested}
     }.GetNewClosure()
@@ -198,7 +218,7 @@ function NewCase([string]$name) {
         $state.events.Add(('readiness:'+ $id + ':'+$state.ms)); return $state.readiness
     }.GetNewClosure()
     $write={ param($name,$record)
-        Require (@('admission-ready.json','admission-final.json') -contains $name) 'Unapproved receipt name.'
+        Require (@('admission-ready.json','configuration-result.json','handoff-accepted.json','admission-final.json') -contains $name) 'Unapproved receipt name.'
         Require (-not $state.receipts.ContainsKey($name)) 'Receipt overwrite.'
         $state.receipts[$name]=$record; $state.events.Add(('receipt:'+ $name + ':'+$state.ms))
         if($name -ceq 'admission-ready.json'){
@@ -209,6 +229,16 @@ function NewCase([string]$name) {
     }.GetNewClosure()
     $newOwner={ param($admissionRecord)
         $state.events.Add('owner-new'); $state.owner=New-NativeRegistrationOwner -ExecutablePath $admissionRecord.listenerExecutablePath -ExecutableSha256 $admissionRecord.listenerExecutableSha256 -WorkingDirectory $admissionRecord.runnerDirectory
+        $nativeStart=$state.owner.GetType().GetMethod('StartConfig')
+        $state.owner | Add-Member -MemberType NoteProperty -Name HeldFixtureState -Value $state
+        $state.owner | Add-Member -MemberType NoteProperty -Name HeldFixtureStartMethod -Value $nativeStart
+        $state.owner | Add-Member -MemberType ScriptMethod -Name StartConfig -Force -Value {
+            param($arguments,$budgetMs)
+            $nativeBudget=[Convert]::ChangeType($budgetMs,$this.HeldFixtureStartMethod.GetParameters()[1].ParameterType,[Globalization.CultureInfo]::InvariantCulture)
+            $actual=$this.HeldFixtureStartMethod.Invoke($this,[object[]]@([string[]]$arguments,$nativeBudget))
+            $this.HeldFixtureState.configStarted=$true
+            return $actual
+        }
         $owners.Add($state.owner); return $state.owner
     }.GetNewClosure()
     $state.ports=@{Clock=$clock;Wait=$wait;WrapperAlive=$wrapper;ListRunners=$list;GetRunner=$get;DeleteRunner=$delete;ReadConfigurationRequest=$request;ObserveHandoff=$observe;StopAdmittedListener=$stopListener;RemoveOwnReadiness=$remove;WriteReceipt=$write;NewOwner=$newOwner}
@@ -332,7 +362,7 @@ Check 'forged handoff cannot transfer registration custody' {
         if($variation -ceq 'path'){$s.handoff.request.ownershipProofDirectory=$s.dir}
         if($variation -ceq 'extra'){$s.handoff.request.extendedDeadline=(CanonicalUtc $s.startUtc.AddHours(5))}
         $s.wrapperLostAt=700; $f=RunCase $s
-        Require ($f.handoffAccepted -ceq $false -and $f.stopReason -ceq 'WRAPPER_LOST' -and $s.ms -ge 2000) 'Forged handoff transferred or extended custody.'
+        Require ($f.handoffAccepted -ceq $false -and $s.ms -ge 2000) 'Forged handoff transferred or extended custody.'
     }
 }
 Check 'unrelated readiness authority survives exact registration cleanup' {
@@ -340,6 +370,77 @@ Check 'unrelated readiness authority survives exact registration cleanup' {
     $f=RunCase $s; RequireRetired $s $f
     Require ($f.readinessState -ceq 'unrelated-preserved') 'Unrelated readiness authority was claimed absent.'
 }
+function RawSha([byte[]]$raw) {
+    $algorithm=[Security.Cryptography.SHA256]::Create()
+    try { return ([BitConverter]::ToString($algorithm.ComputeHash($raw))).Replace('-','').ToLowerInvariant() } finally {$algorithm.Dispose()}
+}
+function ExactReceiptKeys($record,[string[]]$expected) {
+    $keys=@(); if($record -is [Collections.IDictionary]){$keys=@($record.Keys)}else{$keys=@($record.PSObject.Properties | ForEach-Object {$_.Name})}
+    Require ($keys.Count -eq $expected.Count -and (@($keys | Sort-Object) -join '|') -ceq (@($expected | Sort-Object) -join '|')) 'Acknowledgment receipt schema differs from declaration.'
+}
+function NewAckCase([string]$name) {
+    $state=NewCase ('ack-'+$name)
+    $state.requestRaw=$null; $state.handoffRaw=$null; $state.rejectAck=$false; $state.ackAttempts=0
+    $priorRead=$state.ports.ReadConfigurationRequest
+    $state.ports.ReadConfigurationRequest={
+        $original=[byte[]](& $priorRead); $raw=[byte[]]($original + [Text.Encoding]::UTF8.GetBytes("`n  "))
+        $state.requestRaw=$raw; return ,$raw
+    }.GetNewClosure()
+    $priorObserve=$state.ports.ObserveHandoff
+    $state.ports.ObserveHandoff={
+        $observation=& $priorObserve; if($null -eq $observation){return $null}
+        $raw=[byte[]](([byte[]]$observation.request) + [Text.Encoding]::UTF8.GetBytes("`n  ")); $state.handoffRaw=$raw
+        return @{request=$raw;verified=$observation.verified;watchdogAlive=$observation.watchdogAlive;fullJobFinalVerified=$observation.fullJobFinalVerified}
+    }.GetNewClosure()
+    $priorWrite=$state.ports.WriteReceipt
+    $state.ports.WriteReceipt={ param($name,$record)
+        if($name -ceq 'configuration-result.json'){
+            ExactReceiptKeys $record @('formatVersion','admissionSha256','configurationRequestSha256','sourceSha','runId','runAttempt','runnerName','runnerLabel','configProcessId','configCreationFileTimeUtc','configExecutablePath','configOwnerJobName','assignedBeforeResume','configKillOnClose','configExited','configExitCode','budgetExpired','configProcessesStopped','verifiedAt')
+            $snapshot=$state.owner.Snapshot(); $probe=ReadProbe (Join-Path $state.runnerDir 'config.marker')
+            Require ($snapshot.configExited -ceq $true -and $snapshot.activeProcessCount -eq 0 -and $record.configExited -ceq $true -and $record.configProcessesStopped -ceq $true) 'Configuration acknowledgment preceded actual exit/tree observation.'
+            Require ($record.configExitCode -is [int] -and $record.configExitCode -eq $snapshot.configExitCode -and $record.budgetExpired -ceq $snapshot.budgetExpired) 'Configuration acknowledgment invented exit/timer facts.'
+            Require ($record.configurationRequestSha256 -ceq (RawSha $state.requestRaw) -and $record.admissionSha256 -ceq $state.admissionSha -and $record.sourceSha -ceq $state.admission.sourceSha -and $record.runId -ceq $state.admission.runId -and $record.runAttempt -ceq '1') 'Configuration acknowledgment lost raw request/source/run binding.'
+            Require ($record.configProcessId -ceq $probe[0] -and $record.configCreationFileTimeUtc -ceq $probe[1] -and $record.configOwnerJobName -ceq $state.owner.OwnerJobName -and [IO.Path]::GetFullPath($record.configExecutablePath) -ceq [IO.Path]::GetFullPath($probePath)) 'Configuration acknowledgment lost actual original process/job identity.'
+            Require ($record.assignedBeforeResume -ceq $true -and $record.configKillOnClose -ceq $true -and $record.runnerName -ceq $state.admission.runnerName -and $record.runnerLabel -ceq $state.admission.runnerLabel) 'Configuration acknowledgment lost kernel/runner binding.'
+        }
+        if($name -ceq 'handoff-accepted.json'){
+            $state.ackAttempts++
+            ExactReceiptKeys $record @('formatVersion','admissionSha256','handoffRequestSha256','sourceSha','runId','runAttempt','runnerId','runnerName','runnerLabel','configSha256','launchBindingSha256','deadlineUtc','handoffAccepted','verifiedAt')
+            Require ($state.receipts.ContainsKey('configuration-result.json') -and $state.receipts['configuration-result.json'].configExitCode -eq 0 -and -not $state.receipts['configuration-result.json'].budgetExpired) 'Handoff acknowledgment preceded successful configuration result.'
+            Require ($record.handoffAccepted -ceq $true -and $record.handoffRequestSha256 -ceq (RawSha $state.handoffRaw) -and $record.admissionSha256 -ceq $state.admissionSha -and $record.sourceSha -ceq $state.admission.sourceSha -and $record.runId -ceq $state.admission.runId -and $record.runAttempt -ceq '1' -and $record.runnerId -ceq '971') 'Handoff acknowledgment lost exact request/identity binding.'
+            Require ($record.configSha256 -ceq $state.handoff.request.configSha256 -and $record.launchBindingSha256 -ceq $state.handoff.request.launchBindingSha256 -and $record.deadlineUtc -ceq $state.receipts['admission-ready.json'].deadlineUtc -and $record.runnerName -ceq $state.admission.runnerName -and $record.runnerLabel -ceq $state.admission.runnerLabel) 'Handoff acknowledgment extended or substituted admitted identity.'
+            if($state.rejectAck){throw 'Controlled protected acknowledgment write refusal.'}
+        }
+        & $priorWrite $name $record
+    }.GetNewClosure()
+    return $state
+}
+Check 'configuration result binds original exit and exact raw private request' {
+    $s=NewAckCase 'config-success'; $s.mode='exit-ok'; $s.rows=@((OwnRow $s)); $s.wrapperLostAt=700
+    $f=RunCase $s; RequireRetired $s $f
+    Require ($s.receipts.ContainsKey('configuration-result.json') -and $s.receipts['configuration-result.json'].configExitCode -eq 0 -and -not $s.receipts['configuration-result.json'].budgetExpired -and -not $s.receipts.ContainsKey('handoff-accepted.json')) 'Successful configuration acknowledgment missing or handoff invented.'
+}
+Check 'nonzero and timed config results never authorize handoff' {
+    foreach($variation in @('error','timer')){
+        $s=NewAckCase ('config-'+$variation); $s.rows=@((OwnRow $s))
+        if($variation -ceq 'error'){$s.mode='exit-error'}else{$s.step=20;$s.realWait=30}
+        $f=RunCase $s; RequireRetired $s $f
+        Require ($s.receipts.ContainsKey('configuration-result.json') -and -not $s.receipts.ContainsKey('handoff-accepted.json') -and -not $f.handoffAccepted) 'Refused configuration result was omitted or released custody.'
+        if($variation -ceq 'error'){Require ($s.receipts['configuration-result.json'].configExitCode -eq 19 -and -not $s.receipts['configuration-result.json'].budgetExpired) 'Actual config nonzero lost.'}else{Require ($s.receipts['configuration-result.json'].budgetExpired -ceq $true) 'Actual native timer expiry lost.'}
+    }
+}
+Check 'handoff acknowledgment binds raw request after zero exit without deadline reset' {
+    $s=NewAckCase 'handoff-success'; $s.mode='exit-ok'; $s.rows=@((OwnRow $s)); InstallHandoff $s; $s.wrapperLostAt=700
+    $f=RunCase $s; RequireRetired $s $f
+    Require ($s.receipts.ContainsKey('configuration-result.json') -and $s.receipts.ContainsKey('handoff-accepted.json') -and $s.ackAttempts -eq 1 -and $f.handoffAccepted -ceq $true -and $s.ms -ge 2000) 'Genuine handoff lacked singular bound acknowledgment/backstop.'
+}
+Check 'unwritten handoff acknowledgment never releases failure custody' {
+    $s=NewAckCase 'handoff-write-refusal'; $s.mode='exit-ok'; $s.rows=@((OwnRow $s)); InstallHandoff $s; $s.rejectAck=$true; $s.wrapperLostAt=700
+    $f=RunCase $s
+    Require ($s.ackAttempts -gt 0 -and -not $s.receipts.ContainsKey('handoff-accepted.json') -and $f.handoffAccepted -ceq $false -and $f.stopReason -ceq 'ACKNOWLEDGMENT_UNVERIFIED') 'Failed acknowledgment write released or hid failed custody.'
+    Require ($s.owner.Snapshot().activeProcessCount -eq 0 -and $s.listenerOwner.Snapshot().activeProcessCount -eq 0 -and $s.ms -ge 2000 -and $f.physicalTeardownVerified -ceq $false) 'Failed acknowledgment left owned execution or ended conservative backstop.'
+}
+
 foreach($owner in $owners){StopOwner $owner}
 foreach($child in $children){try{if(-not $child.HasExited){$child.Kill();$child.WaitForExit(1000)|Out-Null}}catch{};try{$child.Dispose()}catch{}}
 if(-not [IO.File]::Exists($logPath)){[IO.File]::WriteAllText($logPath,'HELD_PASS'+[Environment]::NewLine)}

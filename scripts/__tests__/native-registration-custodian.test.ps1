@@ -1,7 +1,8 @@
 param(
     [string]$ModulePath = 'C:/fr-sealed-20261007/registration-custodian-core.psm1',
     [string]$FixtureRoot = 'C:/fr-sealed-20261007/registration-lease-fixtures',
-    [string]$LimitsPath = 'C:/fr-sealed-20261007/watchdog-limits.json'
+    [string]$LimitsPath = 'C:/fr-sealed-20261007/watchdog-limits.json',
+    [string[]]$GroupNames = @()
 )
 
 # Independent Windows operational fixtures, derived from DBV-008's frozen
@@ -16,26 +17,26 @@ $FixtureRoot = Join-Path $FixtureRoot ('run-' + [guid]::NewGuid().ToString('N'))
 $script:ProbePath = Join-Path $FixtureRoot 'RegistrationProbe.exe'
 $script:Serial = 0
 
-function Assert-Fixture([bool]$Condition, [string]$Code) {
+function global:Assert-Fixture([bool]$Condition, [string]$Code) {
     $script:Checks++
     if (-not $Condition) { throw ('Fixture assertion: ' + $Code) }
 }
 
-function Get-FixtureHash([byte[]]$Bytes) {
+function global:Get-FixtureHash([byte[]]$Bytes) {
     $algorithm = [System.Security.Cryptography.SHA256]::Create()
     try { return ([BitConverter]::ToString($algorithm.ComputeHash($Bytes))).Replace('-', '').ToLowerInvariant() }
     finally { $algorithm.Dispose() }
 }
 
-function Convert-FixtureBytes($Record) {
+function global:Convert-FixtureBytes($Record) {
     return ,$script:Utf8.GetBytes(($Record | ConvertTo-Json -Depth 20 -Compress))
 }
 
-function Write-FixtureBytes([string]$Path, [byte[]]$Bytes) {
+function global:Write-FixtureBytes([string]$Path, [byte[]]$Bytes) {
     [IO.File]::WriteAllBytes($Path, $Bytes)
 }
 
-function Get-OriginalProcess([string]$PidText, [string]$CreationText) {
+function global:Get-OriginalProcess([string]$PidText, [string]$CreationText) {
     try {
         $process = [Diagnostics.Process]::GetProcessById([int]::Parse($PidText))
         if ($process.StartTime.ToUniversalTime().ToFileTimeUtc().ToString() -cne $CreationText) { $process.Dispose(); return $null }
@@ -43,18 +44,18 @@ function Get-OriginalProcess([string]$PidText, [string]$CreationText) {
     } catch { return $null }
 }
 
-function Wait-FixtureFile([string]$Path, [int]$BudgetMs = 3000) {
+function global:Wait-FixtureFile([string]$Path, [int]$BudgetMs = 3000) {
     $watch = [Diagnostics.Stopwatch]::StartNew()
     while (-not [IO.File]::Exists($Path) -and $watch.ElapsedMilliseconds -lt $BudgetMs) { [Threading.Thread]::Sleep(20) }
     Assert-Fixture ([IO.File]::Exists($Path)) 'native-marker-present'
 }
 
-function Stop-FixtureProcess($Process) {
+function global:Stop-FixtureProcess($Process) {
     if ($null -eq $Process) { return }
     try { if (-not $Process.HasExited) { $Process.Kill(); $Process.WaitForExit(3000) | Out-Null } } finally { $Process.Dispose() }
 }
 
-function New-FixtureRunner($State, [string]$Id = '901') {
+function global:New-FixtureRunner($State, [string]$Id = '901') {
     return [ordered]@{
         id = $Id; name = $State.Admission.runnerName; os = 'Windows'; status = 'offline'; busy = $false
         labels = @(
@@ -66,29 +67,33 @@ function New-FixtureRunner($State, [string]$Id = '901') {
     }
 }
 
-function New-FixtureOwner($State) {
-    $owner = [pscustomobject]@{ OwnerJobName = ('fixture-imported-owner-' + $State.Serial) }
+function global:New-FixtureOwner($State) {
+    # Instrument the declared methods while retaining the actual native owner,
+    # original kernel handles and unmodified native method calls/results.
+    $owner = New-NativeRegistrationOwner -ExecutablePath $State.Admission.listenerExecutablePath -ExecutableSha256 $State.Admission.listenerExecutableSha256 -WorkingDirectory $State.Admission.workDirectory
+    [IO.File]::WriteAllText((Join-Path $State.Admission.workDirectory 'owner-job-name.txt'), $owner.OwnerJobName)
+    $behavior = if ($State.ConfigNeverExits) { 'hang' } elseif ($State.ConfigExit -ne 0) { 'fail' } else { 'exit' }
+    [IO.File]::WriteAllText((Join-Path $State.Admission.workDirectory 'behavior.txt'), $behavior)
+    $nativeType = $owner.GetType()
+    $nativeStart = $nativeType.GetMethod('StartConfig'); $nativeSnapshot = $nativeType.GetMethod('Snapshot')
+    $nativeStop = $nativeType.GetMethod('Stop'); $nativeDispose = $nativeType.GetMethod('Dispose')
     $owner | Add-Member ScriptMethod StartConfig ({ param($Arguments, $BudgetMs)
-        $State.Events.Add('config:start')
-        $State.StartArguments = @($Arguments)
-        $State.StartBudget = $BudgetMs
-        $State.ConfigStarted = $true
+        $result = $nativeStart.Invoke($this.PSObject.BaseObject, [object[]]@([string[]]$Arguments, [int]$BudgetMs))
+        $State.Events.Add('config:start'); $State.StartArguments = @($Arguments); $State.StartBudget = $BudgetMs; $State.ConfigStarted = $true
+        $State.ConfigIdentity = $result
         if ($State.RowOnStart) { $State.Rows = @($State.RowOnStart) }
-        return [ordered]@{ pid = '3001'; creationFileTimeUtc = '133700000000000001'; executablePath = $State.Admission.listenerExecutablePath; ownerJobName = $this.OwnerJobName; assignedBeforeResume = $true; killOnClose = $true }
-    }.GetNewClosure())
-    $owner | Add-Member ScriptMethod Snapshot ({
-        $expired = $State.ConfigStarted -and $State.ConfigNeverExits -and $State.MonotonicMs -ge $State.StartBudget
-        return [ordered]@{ activeProcessCount = $(if ($State.Stopped -or -not $State.ConfigNeverExits) { 0 } else { 1 }); processes = @(); configExited = ($State.Stopped -or -not $State.ConfigNeverExits); configExitCode = $(if ($State.ConfigNeverExits -and -not $State.Stopped) { $null } else { $State.ConfigExit }); budgetExpired = $expired }
-    }.GetNewClosure())
+        return $result
+    }.GetNewClosure()) -Force
+    $owner | Add-Member ScriptMethod Snapshot ({ return $nativeSnapshot.Invoke($this.PSObject.BaseObject, [object[]]@()) }.GetNewClosure()) -Force
     $owner | Add-Member ScriptMethod Stop ({ param($GraceMs)
-        $State.Events.Add('config:stop'); $State.Stopped = $true
-        return [ordered]@{ terminationRequested = $State.ConfigStarted; processesStopped = $true }
-    }.GetNewClosure())
-    $owner | Add-Member ScriptMethod Dispose ({ $State.Events.Add('config:dispose'); $State.Stopped = $true }.GetNewClosure())
+        $State.Events.Add('config:stop'); $result = $nativeStop.Invoke($this.PSObject.BaseObject, [object[]]@([int]$GraceMs)); $State.Stopped = $result.processesStopped
+        return $result
+    }.GetNewClosure()) -Force
+    $owner | Add-Member ScriptMethod Dispose ({ $State.Events.Add('config:dispose'); $nativeDispose.Invoke($this.PSObject.BaseObject, [object[]]@()) | Out-Null }.GetNewClosure()) -Force
     return $owner
 }
 
-function New-FixtureScenario {
+function global:New-FixtureScenario {
     $script:Serial++
     $directory = Join-Path $FixtureRoot ('case-' + $script:Serial)
     New-Item -ItemType Directory -Path $directory -Force | Out-Null
@@ -127,7 +132,7 @@ function New-FixtureScenario {
         ConfigStarted = $false; ConfigNeverExits = $false; ConfigExit = 0; RowOnStart = $null; Stopped = $false; StartBudget = 0; StartArguments = @()
         RequestMutation = $null; NoRequest = $false; ListError = $false; GetError = $false; DeleteStatus = 204; DeleteLeavesRow = $false
         LateRowAt = $null; LateRow = $null; ReboundOnGet = $false; Readiness = 'matching-removed'; Handoff = $null; HandoffObserver = $null
-        RealOwner = $false; Owner = $null; RealWait = $false; WaitHook = $null; ListenerStopped = $false
+        RealOwner = $false; Owner = $null; RealWait = $true; WaitHook = $null; ListenerStopped = $false; AckWriteFails = $false
     }
     $request = [ordered]@{ formatVersion = 1; admissionSha256 = $state.AdmissionSha; sourceSha = $source; runId = '88442'; runAttempt = '1'; runnerName = $admission.runnerName; runnerLabel = $admission.runnerLabel; registrationToken = 'fixture-token_safe+/='; registrationTokenExpiresAt = '2026-10-07T01:00:00.000Z' }
     $state.Request = $request
@@ -136,8 +141,13 @@ function New-FixtureScenario {
         Wait = { param($Milliseconds)
             Assert-Fixture ($Milliseconds -is [int] -or $Milliseconds -is [long]) 'wait-integer'
             Assert-Fixture ($Milliseconds -ge 0 -and $Milliseconds -le 4000) 'wait-bounded'
-            if ($state.RealWait) { [Threading.Thread]::Sleep([int]$Milliseconds) }
-            $state.MonotonicMs += $Milliseconds; $state.Utc = $state.Utc.AddMilliseconds($Milliseconds)
+            # Handoff fixture events can wake the controlled waiter early.
+            # Advance real waiting and both admitted clocks together; budgets
+            # and the original deadline are never reset or extended.
+            $elapsed = $Milliseconds
+            if ($null -ne $state.HandoffObserver) { $elapsed = [Math]::Min($Milliseconds, 100) }
+            if ($state.RealWait) { [Threading.Thread]::Sleep([int]$elapsed) }
+            $state.MonotonicMs += $elapsed; $state.Utc = $state.Utc.AddMilliseconds($elapsed)
             if ($null -ne $state.WaitHook) { & $state.WaitHook $state }
             if ($state.MonotonicMs -gt 20000) { throw 'Fixture bounded-loop stop.' }
         }.GetNewClosure()
@@ -154,7 +164,8 @@ function New-FixtureScenario {
                 return [ordered]@{ totalCount = $state.BaselineTotal; runners = $items }
             }
             if ($null -ne $state.LateRowAt -and $state.MonotonicMs -ge $state.LateRowAt -and $null -ne $state.LateRow) { $state.Rows = @($state.Rows) + @($state.LateRow); $state.LateRow = $null }
-            return [ordered]@{ totalCount = $state.Rows.Count; runners = $(if ($Page -eq 1) { @($state.Rows) } else { @() }) }
+            $pageRows = @(); if ($Page -eq 1) { $pageRows = @($state.Rows) }
+            return [ordered]@{ totalCount = $state.Rows.Count; runners = $pageRows }
         }.GetNewClosure()
         GetRunner = { param($Id)
             $state.Events.Add('get:' + $Id)
@@ -198,14 +209,28 @@ function New-FixtureScenario {
             $state.Owner = New-FixtureOwner $state; return $state.Owner
         }.GetNewClosure()
     }
+    # Extend the fixture transport for the separately frozen acknowledgment
+    # records, leaving the parent receipt assertions intact for parent names.
+    $parentWriteReceipt = $ports.WriteReceipt
+    $ports.WriteReceipt = { param($Name, $Record)
+        if ($Name -cin @('configuration-result.json', 'handoff-accepted.json')) {
+            Assert-Fixture (-not $state.Receipts.ContainsKey($Name)) 'ack-receipt-create-new'
+            if ($Name -ceq 'handoff-accepted.json' -and $state.AckWriteFails) { $state.Events.Add('ack:write-refused'); throw 'Fixture protected acknowledgment write error.' }
+            $state.Events.Add('receipt:' + $Name); $state.Receipts[$Name] = $Record
+            return
+        }
+        & $parentWriteReceipt $Name $Record
+    }.GetNewClosure()
     $state.Ports = $ports
     return $state
 }
 
-function Invoke-Fixture($State) {
+function global:Invoke-Fixture($State) {
     $result = Invoke-NativeRegistrationCustodian -Admission $State.Admission -AdmissionSha256 $State.AdmissionSha -Ports $State.Ports
     Assert-Fixture ($State.Receipts.ContainsKey('admission-final.json')) 'final-receipt-present'
     $final = $State.Receipts['admission-final.json']
+    $metadata = [ordered]@{ events = $State.Events.ToArray(); final = $final; configStarted = $State.ConfigStarted; startBudget = $State.StartBudget; receipts = $State.Receipts }
+    Write-FixtureBytes (Join-Path $State.Directory 'private-flow-metadata.json') (Convert-FixtureBytes $metadata)
     Assert-Fixture ((Convert-FixtureBytes $result).Length -eq (Convert-FixtureBytes $final).Length) 'returned-final-shape'
     Assert-Fixture ((Get-FixtureHash (Convert-FixtureBytes $result)) -ceq (Get-FixtureHash (Convert-FixtureBytes $final))) 'returned-exact-final'
     Assert-Fixture ($final.physicalTeardownVerified -ceq $false) 'no-invented-physical-proof'
@@ -214,7 +239,7 @@ function Invoke-Fixture($State) {
     return $final
 }
 
-function Assert-Retired($State, $Final, [string]$Reason) {
+function global:Assert-Retired($State, $Final, [string]$Reason) {
     Assert-Fixture ($Final.status -ceq 'RETIRED') 'retired-verdict'
     Assert-Fixture ($Final.stopReason -ceq $Reason) 'retirement-cause'
     Assert-Fixture ($Final.configProcessesStopped -ceq $true -and $Final.runnerDeregistered -ceq $true) 'verified-local-and-remote-retirement'
@@ -222,7 +247,7 @@ function Assert-Retired($State, $Final, [string]$Reason) {
     Assert-Fixture ($State.MonotonicMs -ge 4000) 'late-registration-backstop-retained'
 }
 
-function New-HandoffRequest($State, [string]$Id = '901') {
+function global:New-HandoffRequest($State, [string]$Id = '901') {
     return [ordered]@{ formatVersion = 1; admissionSha256 = $State.AdmissionSha; sourceSha = $State.Admission.sourceSha; runId = $State.Admission.runId; runAttempt = '1'; runnerId = $Id; runnerName = $State.Admission.runnerName; runnerLabel = $State.Admission.runnerLabel; configSha256 = ('a' * 64); launchBindingPath = $State.Admission.launchBindingPath; launchBindingSha256 = ('b' * 64); ownershipProofDirectory = $State.Admission.ownershipProofDirectory }
 }
 
@@ -252,20 +277,21 @@ public static class RegistrationFixtureProbe {
         if(!member) return 73;
         string behavior=File.ReadAllText(Path.Combine(work,"behavior.txt"));
         if(behavior=="fail") return 1;
+        if(behavior=="exit") return 0;
         if(!child && behavior=="tree") Process.Start(new ProcessStartInfo(Process.GetCurrentProcess().MainModule.FileName,"--child --work \""+work+"\"") { UseShellExecute=false,CreateNoWindow=true });
         Thread.Sleep(Timeout.Infinite); return 0;
     }
 }
 '@
 
-function Initialize-NativeProbe {
+function global:Initialize-NativeProbe {
     if ([Environment]::OSVersion.Platform -ne [PlatformID]::Win32NT) { throw 'Windows native fixtures required.' }
     if ($PSVersionTable.PSVersion.Major -ne 5) { throw 'Run this manual suite with Windows PowerShell 5.1.' }
     if (-not [IO.File]::Exists($script:ProbePath)) { Add-Type -TypeDefinition $probeSource -OutputAssembly $script:ProbePath -OutputType ConsoleApplication }
-    if ($null -eq ('RegistrationFixtureProbe' -as [type])) { Add-Type -Path $script:ProbePath }
+    if ($null -eq ('RegistrationFixtureProbe' -as [type])) { [Reflection.Assembly]::LoadFrom($script:ProbePath) | Out-Null }
 }
 
-function New-ProbeOwner([string]$Directory, [string]$Behavior = 'tree') {
+function global:New-ProbeOwner([string]$Directory, [string]$Behavior = 'tree') {
     New-Item -ItemType Directory -Path $Directory -Force | Out-Null
     $owner = New-NativeRegistrationOwner -ExecutablePath $script:ProbePath -ExecutableSha256 (Get-FixtureHash ([IO.File]::ReadAllBytes($script:ProbePath))) -WorkingDirectory $Directory
     Assert-Fixture (-not [string]::IsNullOrWhiteSpace($owner.OwnerJobName)) 'owner-name-before-first-start'
@@ -274,13 +300,47 @@ function New-ProbeOwner([string]$Directory, [string]$Behavior = 'tree') {
     return $owner
 }
 
-function Start-Sentinel([string]$Directory) {
+function global:Start-Sentinel([string]$Directory) {
     New-Item -ItemType Directory -Path $Directory -Force | Out-Null
     $info = New-Object Diagnostics.ProcessStartInfo
     $info.FileName = $script:ProbePath; $info.Arguments = ('--sentinel --work "' + $Directory + '"'); $info.UseShellExecute = $false; $info.CreateNoWindow = $true
     $sentinel = [Diagnostics.Process]::Start($info)
     Wait-FixtureFile (Join-Path $Directory 'sentinel.txt')
     return $sentinel
+}
+
+function global:New-AcknowledgmentHandoffScenario([bool]$WriteFails) {
+    $s = New-FixtureScenario
+    $s.RowOnStart = New-FixtureRunner $s
+    $s.AckWriteFails = $WriteFails
+    $listenerDir = Join-Path $s.Directory 'ack-listener'
+    $listener = New-ProbeOwner $listenerDir 'hang'
+    $identity = $listener.StartConfig(@('run', '--once', '--work', $listenerDir), 10000)
+    Wait-FixtureFile (Join-Path $listenerDir 'membership.txt')
+    $watchdog = Start-Sentinel (Join-Path $s.Directory 'ack-watchdog')
+    $request = New-HandoffRequest $s
+    $requestBytes = Convert-FixtureBytes $request
+    $watchdogPid = $watchdog.Id.ToString()
+    $watchdogCreation = $watchdog.StartTime.ToUniversalTime().ToFileTimeUtc().ToString()
+    $s.HandoffObserver = { param($State)
+        if (-not $State.ConfigStarted -or $State.MonotonicMs -lt 100) { return $null }
+        $originalListener = Get-OriginalProcess $identity.pid $identity.creationFileTimeUtc
+        $originalWatchdog = Get-OriginalProcess $watchdogPid $watchdogCreation
+        $liveWatchdog = $null -ne $originalWatchdog
+        $verified = $null -ne $originalListener -and $liveWatchdog -and [RegistrationFixtureProbe]::ExactMember([int]$identity.pid, $listener.OwnerJobName)
+        if ($null -ne $originalListener) { $originalListener.Dispose() }; if ($null -ne $originalWatchdog) { $originalWatchdog.Dispose() }
+        return [ordered]@{ request = $requestBytes; verified = $verified; watchdogAlive = $liveWatchdog; fullJobFinalVerified = $false }
+    }.GetNewClosure()
+    $s.Ports.WrapperAlive = { param($PidText, $CreationText)
+        Assert-Fixture ($PidText -ceq $s.Admission.wrapperProcessId -and $CreationText -ceq $s.Admission.wrapperCreationFileTimeUtc) 'ack-wrapper-original-identity'
+        return -not $s.Receipts.ContainsKey('handoff-accepted.json')
+    }.GetNewClosure()
+    $s.Ports.StopAdmittedListener = {
+        $s.Events.Add('listener:stop'); $s.ListenerStopped = $true
+        $stopped = $listener.Stop(1000)
+        return [ordered]@{ terminationRequested = $stopped.terminationRequested }
+    }.GetNewClosure()
+    return @{ State = $s; Listener = $listener; Watchdog = $watchdog; Request = $request; RequestBytes = $requestBytes }
 }
 
 $testGroups = [ordered]@{
@@ -442,10 +502,63 @@ while($true){[Threading.Thread]::Sleep(100)}
     }
 }
 
+# Mechanical acknowledgment regressions authored before the acknowledgment
+# producer/consumer implementation; no parent behavioral assertions changed.
+$testGroups.Add('configuration-result-binds-real-completion', {
+    $s = New-FixtureScenario; $s.RowOnStart = New-FixtureRunner $s
+    $f = Invoke-Fixture $s
+    Assert-Fixture ($s.Receipts.ContainsKey('configuration-result.json')) 'real-exit-result-is-published'
+    $result = $s.Receipts['configuration-result.json']
+    $expectedKeys = @('formatVersion','admissionSha256','configurationRequestSha256','sourceSha','runId','runAttempt','runnerName','runnerLabel','configProcessId','configCreationFileTimeUtc','configExecutablePath','configOwnerJobName','assignedBeforeResume','configKillOnClose','configExited','configExitCode','budgetExpired','configProcessesStopped','verifiedAt')
+    Assert-Fixture (($result.Keys | Sort-Object) -join ',' -ceq ($expectedKeys | Sort-Object) -join ',') 'configuration-result-exact-keys'
+    Assert-Fixture ($result.configurationRequestSha256 -ceq (Get-FixtureHash (Convert-FixtureBytes $s.Request))) 'configuration-result-consumed-request-hash'
+    Assert-Fixture ($result.admissionSha256 -ceq $s.AdmissionSha -and $result.sourceSha -ceq $s.Admission.sourceSha -and $result.runId -ceq $s.Admission.runId -and $result.runAttempt -ceq '1') 'configuration-result-exact-run-and-admission'
+    Assert-Fixture ($result.configProcessId -ceq $s.ConfigIdentity.pid -and $result.configCreationFileTimeUtc -ceq $s.ConfigIdentity.creationFileTimeUtc -and $result.configOwnerJobName -ceq $s.Owner.OwnerJobName -and $result.configExecutablePath -ceq $s.Admission.listenerExecutablePath) 'configuration-result-original-native-identity'
+    Assert-Fixture ($result.configExited -ceq $true -and $result.configExitCode -is [int] -and $result.configExitCode -eq 0 -and $result.budgetExpired -ceq $false -and $result.configProcessesStopped -ceq $true -and $result.assignedBeforeResume -ceq $true -and $result.configKillOnClose -ceq $true) 'configuration-result-actual-success-and-stopped-tree'
+    Assert-Fixture (-not [IO.File]::Exists((Join-Path $s.Admission.runnerDirectory '.runner'))) 'successful-result-independent-of-runner-file'
+    $s = New-FixtureScenario; $s.ConfigNeverExits = $true; $s.RowOnStart = New-FixtureRunner $s
+    Write-FixtureBytes (Join-Path $s.Admission.runnerDirectory '.runner') $script:Utf8.GetBytes('{"ephemeral":true}')
+    $f = Invoke-Fixture $s
+    if ($s.Receipts.ContainsKey('configuration-result.json')) {
+        $result = $s.Receipts['configuration-result.json']
+        Assert-Fixture (-not ($result.configExited -ceq $true -and $result.configExitCode -eq 0 -and $result.budgetExpired -ceq $false -and $result.configProcessesStopped -ceq $true)) 'runner-file-and-idle-api-cannot-invent-config-success'
+    }
+    Assert-Fixture ($f.stopReason -ceq 'CONFIG_TIMEOUT') 'live-config-with-runner-file-times-out'
+})
+$testGroups.Add('handoff-acknowledgment-binding-and-exit-order', {
+    $fixture = New-AcknowledgmentHandoffScenario $false
+    $s = $fixture.State
+    try {
+        $f = Invoke-Fixture $s
+        Assert-Fixture ($s.Receipts.ContainsKey('handoff-accepted.json')) 'genuine-handoff-ack-is-published'
+        $ack = $s.Receipts['handoff-accepted.json']
+        $expectedKeys = @('formatVersion','admissionSha256','handoffRequestSha256','sourceSha','runId','runAttempt','runnerId','runnerName','runnerLabel','configSha256','launchBindingSha256','deadlineUtc','handoffAccepted','verifiedAt')
+        Assert-Fixture (($ack.Keys | Sort-Object) -join ',' -ceq ($expectedKeys | Sort-Object) -join ',') 'handoff-ack-exact-keys'
+        Assert-Fixture ($ack.handoffRequestSha256 -ceq (Get-FixtureHash $fixture.RequestBytes) -and $ack.admissionSha256 -ceq $s.AdmissionSha) 'handoff-ack-exact-consumed-byte-and-admission-binding'
+        Assert-Fixture ($ack.sourceSha -ceq $s.Admission.sourceSha -and $ack.runId -ceq $s.Admission.runId -and $ack.runAttempt -ceq '1' -and $ack.runnerId -ceq '901' -and $ack.runnerName -ceq $s.Admission.runnerName -and $ack.runnerLabel -ceq $s.Admission.runnerLabel) 'handoff-ack-exact-live-owned-run-binding'
+        Assert-Fixture ($ack.configSha256 -ceq $fixture.Request.configSha256 -and $ack.launchBindingSha256 -ceq $fixture.Request.launchBindingSha256 -and $ack.deadlineUtc -ceq '2026-10-07T00:00:04.000Z' -and $ack.handoffAccepted -ceq $true) 'handoff-ack-sealed-bytes-and-unextended-deadline'
+        Assert-Fixture ($f.handoffAccepted -ceq $true -and $f.stopReason -ceq 'DEADLINE') 'normal-wrapper-exit-only-after-successful-ack'
+        $events = $s.Events.ToArray()
+        Assert-Fixture ([Array]::IndexOf($events, 'receipt:configuration-result.json') -lt [Array]::IndexOf($events, 'receipt:handoff-accepted.json')) 'actual-config-result-before-handoff-ack'
+        Assert-Fixture ($fixture.Listener.Snapshot().activeProcessCount -eq 0 -and $s.MonotonicMs -ge 4000) 'ack-keeps-independent-original-deadline-backstop'
+    } finally { $fixture.Listener.Dispose(); Stop-FixtureProcess $fixture.Watchdog }
+})
+$testGroups.Add('acknowledgment-write-failure-keeps-custody', {
+    $fixture = New-AcknowledgmentHandoffScenario $true
+    $s = $fixture.State
+    try {
+        $f = Invoke-Fixture $s
+        Assert-Fixture ($s.Events.Contains('ack:write-refused')) 'actual-ack-write-attempt-observed'
+        Assert-Fixture (-not $s.Receipts.ContainsKey('handoff-accepted.json') -and $f.handoffAccepted -ceq $false -and $f.stopReason -ceq 'ACKNOWLEDGMENT_UNVERIFIED') 'unwritten-ack-never-releases-setup-custody'
+        Assert-Fixture ($s.ListenerStopped -and $fixture.Listener.Snapshot().activeProcessCount -eq 0 -and $f.configProcessesStopped -ceq $true) 'ack-write-error-stops-original-listener-and-config'
+    } finally { $fixture.Listener.Dispose(); Stop-FixtureProcess $fixture.Watchdog }
+})
+
 New-Item -ItemType Directory -Path $FixtureRoot -Force | Out-Null
 $moduleError = $null
 try { Import-Module -Name $ModulePath -Force; Initialize-NativeProbe } catch { $moduleError = $_.Exception.Message }
 foreach ($entry in $testGroups.GetEnumerator()) {
+    if ($GroupNames.Count -gt 0 -and $entry.Key -cnotin $GroupNames) { continue }
     $before = $script:Checks
     try {
         if ($null -ne $moduleError) { throw $moduleError }
