@@ -594,3 +594,176 @@ for (const variant of ['directory-log', 'broad-explicit', 'broad-inherited', 'pr
     expect(receipt.stdoutEof && receipt.stderrEof).toBe(true);
   });
 }
+
+
+interface HeldHandleRuntimeCompileReceipt {
+  runtimeMajor: number;
+  runtimeVersion: string;
+  controlCompiled: boolean;
+  candidateCompiled: boolean;
+  compilerErrorKind: string | null;
+  compilerErrorId: string | null;
+  fragmentHash: string;
+  rootProtected: boolean;
+  constructorInvocations: number;
+}
+
+interface HeldTrustedProofAcl {
+  owner: string;
+  currentOwner: string;
+  protected: boolean;
+  rules: { sid: string; rights: string; inheritance: string; propagation: string; type: string; inherited: boolean }[];
+}
+
+const heldHandleRuntimeCompilerScript = String.raw`
+param([string]$RequestPath)
+$ErrorActionPreference='Stop'
+$request=Get-Content -LiteralPath $RequestPath -Raw -Encoding UTF8 | ConvertFrom-Json
+` + heldHandleDriverScript.slice(heldHandleDriverScript.indexOf('function HeldFixtureProtect'), heldHandleDriverScript.indexOf('function HeldFixtureRead')) + String.raw`
+HeldFixtureOrdinary $request.Ps7
+HeldFixtureOrdinary $request.Candidate
+HeldFixtureProtect $request.Root
+if($PSVersionTable.PSVersion.Major -ne 7){ throw 'held compatibility host is not bundled PowerShell7' }
+$answer=@{runtimeMajor=$PSVersionTable.PSVersion.Major;runtimeVersion=$PSVersionTable.PSVersion.ToString();controlCompiled=$false;candidateCompiled=$false;compilerErrorKind=$null;compilerErrorId=$null;fragmentHash='';rootProtected=$false;constructorInvocations=0}
+Add-Type -TypeDefinition 'public sealed class HeldRuntimeCompilerControl { public int Value { get { return 1; } } }' -ErrorAction Stop
+$answer.controlCompiled=$true
+$tokens=$null; $parseErrors=$null
+$ast=[Management.Automation.Language.Parser]::ParseFile($request.Candidate,[ref]$tokens,[ref]$parseErrors)
+if($parseErrors.Count -ne 0){ throw 'held opaque source parse refused' }
+$bindings=@($ast.FindAll({param($node) $node -is [Management.Automation.Language.AssignmentStatementAst] -and $node.Left -is [Management.Automation.Language.VariableExpressionAst] -and $node.Left.VariablePath.UserPath -eq 'launcherType'},$true))
+if($bindings.Count -ne 1){ throw 'held whole opaque binding count refused' }
+$opaque=$bindings[0].Right.Expression.SafeGetValue()
+if($opaque -isnot [string]){ throw 'held whole opaque binding is not literal text' }
+$sha=[Security.Cryptography.SHA256]::Create()
+try { $answer.fragmentHash=([BitConverter]::ToString($sha.ComputeHash([Text.Encoding]::UTF8.GetBytes($opaque)))).Replace('-','').ToLowerInvariant() } finally { $sha.Dispose() }
+try { Add-Type -TypeDefinition $opaque -ErrorAction Stop; $answer.candidateCompiled=$true } catch { $answer.compilerErrorKind=$_.Exception.GetType().FullName; $answer.compilerErrorId=$_.FullyQualifiedErrorId }
+$answer.rootProtected=([IO.FileSystemAclExtensions]::GetAccessControl([IO.DirectoryInfo]::new($request.Root),[Security.AccessControl.AccessControlSections]::Access)).AreAccessRulesProtected
+[IO.File]::WriteAllText($request.Receipt,($answer | ConvertTo-Json -Depth 8),(New-Object Text.UTF8Encoding($false)))
+`;
+
+const heldHandleTrustedDriverScript = heldHandleDriverScript
+  .replace('HeldFixtureProtect $request.Root; HeldFixtureProtect $request.Proof; HeldFixtureProtect $request.Directory', String.raw`
+HeldFixtureProtect $request.Root; HeldFixtureProtect $request.Proof; HeldFixtureProtect $request.Directory
+function HeldFixtureTrustedSnapshot([string]$Path) {
+ $acl=[IO.FileSystemAclExtensions]::GetAccessControl([IO.DirectoryInfo]::new($Path),([Security.AccessControl.AccessControlSections]::Access -bor [Security.AccessControl.AccessControlSections]::Owner))
+ $rules=@($acl.GetAccessRules($true,$true,[Security.Principal.SecurityIdentifier]) | ForEach-Object { @{sid=$_.IdentityReference.Value;rights=$_.FileSystemRights.ToString();inheritance=$_.InheritanceFlags.ToString();propagation=$_.PropagationFlags.ToString();type=$_.AccessControlType.ToString();inherited=$_.IsInherited} } | Sort-Object @{Expression={$_.sid}},@{Expression={$_.inherited}})
+ @{owner=$acl.GetOwner([Security.Principal.SecurityIdentifier]).Value;currentOwner=[Security.Principal.WindowsIdentity]::GetCurrent().User.Value;protected=$acl.AreAccessRulesProtected;rules=$rules}
+}
+$trustedAcl=[IO.FileSystemAclExtensions]::GetAccessControl([IO.DirectoryInfo]::new($request.Proof),[Security.AccessControl.AccessControlSections]::Access)
+$trustedAcl.SetAccessRuleProtection($false,$true)
+[IO.FileSystemAclExtensions]::SetAccessControl([IO.DirectoryInfo]::new($request.Proof),$trustedAcl)
+[IO.File]::WriteAllText($request.TrustedBefore,((HeldFixtureTrustedSnapshot $request.Proof) | ConvertTo-Json -Depth 8),(New-Object Text.UTF8Encoding($false)))
+`)
+  .replace(' [IO.File]::WriteAllText($request.Receipt,($receipt | ConvertTo-Json -Depth 20),(New-Object Text.UTF8Encoding($false)))', String.raw`
+ [IO.File]::WriteAllText($request.TrustedAfter,((HeldFixtureTrustedSnapshot $request.Proof) | ConvertTo-Json -Depth 8),(New-Object Text.UTF8Encoding($false)))
+ $presence=@{stdout=Test-Path -LiteralPath (Join-Path $request.Proof 'watchdog.stdout.log');stderr=Test-Path -LiteralPath (Join-Path $request.Proof 'watchdog.stderr.log')}
+ [IO.File]::WriteAllText($request.TrustedLogPresence,($presence | ConvertTo-Json),(New-Object Text.UTF8Encoding($false)))
+ [IO.File]::WriteAllText($request.Receipt,($receipt | ConvertTo-Json -Depth 20),(New-Object Text.UTF8Encoding($false)))
+`)
+  .replace(' if($null -ne $heldAclChallenge){ HeldFixtureProtect $heldAclChallenge }', String.raw`
+ if($null -ne $heldAclChallenge){ HeldFixtureProtect $heldAclChallenge }
+ HeldFixtureProtect $request.Proof
+ [IO.File]::WriteAllText($request.TrustedRestored,((HeldFixtureTrustedSnapshot $request.Proof) | ConvertTo-Json -Depth 8),(New-Object Text.UTF8Encoding($false)))
+`);
+
+async function executeHeldRuntimeCompatibilityCompile() {
+  const candidate = await readFile(heldHandleCandidate);
+  const limitsBytes = await readFile(heldHandleLimitsPath);
+  expect(createHash('sha256').update(limitsBytes).digest('hex')).toBe(heldHandleLimitsHash);
+  const limits = JSON.parse(limitsBytes.toString('utf8')) as HeldHandleLimits;
+  const root = join(heldHandleOutput, randomUUID());
+  await mkdir(root, { recursive: true });
+  const requestPath = join(root, 'request.json');
+  const scriptPath = join(root, 'held-runtime-compiler.ps1');
+  const metadata = { Root: root, Ps7: heldHandlePs7, Candidate: heldHandleCandidate, Receipt: join(root, 'receipt.json'), CandidateHash: createHash('sha256').update(candidate).digest('hex'), Variant: 'whole-opaque-ps7' };
+  await Promise.all([writeFile(requestPath, JSON.stringify(metadata)), writeFile(scriptPath, heldHandleRuntimeCompilerScript)]);
+  const result = await heldHandleExec(heldHandlePs7, ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', scriptPath, requestPath], { windowsHide: true, timeout: limits.nativeCleanupReserveMs, maxBuffer: limits.maxProcessBytes });
+  await writeFile(join(root, 'driver-output.json'), JSON.stringify(result));
+  return JSON.parse(await readFile(metadata.Receipt, 'utf8')) as HeldHandleRuntimeCompileReceipt;
+}
+
+async function executeHeldTrustedInheritance() {
+  const candidate = await readFile(heldHandleCandidate);
+  const limitsBytes = await readFile(heldHandleLimitsPath);
+  expect(createHash('sha256').update(limitsBytes).digest('hex')).toBe(heldHandleLimitsHash);
+  const limits = JSON.parse(limitsBytes.toString('utf8')) as HeldHandleLimits;
+  const marker = randomUUID();
+  const root = join(heldHandleOutput, marker);
+  await mkdir(root, { recursive: true });
+  const proof = join(root, 'proof');
+  const work = join(root, 'work');
+  const requestPath = join(root, 'request.json');
+  const nativeSource = join(root, 'held-native.cs');
+  const childMainSource = join(root, 'held-child-main.cs');
+  const launcherScript = join(root, 'held-launcher.ps1');
+  const driverScript = join(root, 'held-driver.ps1');
+  const compileScript = join(root, 'held-compiler.ps1');
+  const nativeChildScript = join(root, 'held-native-child.ps1');
+  const executable = join(root, 'held-child.exe');
+  const childArguments = [requestPath, marker, 'हिंदी Δ gym 🏋', 'before "quoted token" after', '', 'C:\\held path\\ending\\', `Local\\HeldReady-${marker}`, `Local\\HeldRelease-${marker}`, join(root, 'seed-objects.json')];
+  const metadata = {
+    Root: root, Proof: proof, Directory: work, Candidate: heldHandleCandidate,
+    Ps7: heldHandlePs7, NativePs5: 'C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe', NativeModules: 'C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\Modules',
+    NativeSource: nativeSource, ChildMainSource: childMainSource, LauncherScript: launcherScript, CompileScript: compileScript, NativeChildScript: nativeChildScript,
+    Executable: executable, ChildArguments: childArguments, Marker: marker, Limits: limits, Variant: 'trusted-inheritance', Mode: 'dispose',
+    SeedPath: childArguments[8], ReadyName: childArguments[6], ReleaseName: childArguments[7], AllowName: `Local\\HeldAllow-${marker}`,
+    SentinelPath: join(root, 'sentinel.txt'), LauncherReceipt: join(root, 'launcher.json'), ChildReceipt: join(root, 'child.json'), Receipt: join(root, 'receipt.json'),
+    StdoutText: 'held stdout हिंदी Δ', StderrText: 'held stderr नमस्ते Ω', CandidateHash: createHash('sha256').update(candidate).digest('hex'),
+    TrustedBefore: join(root, 'trusted-before.json'), TrustedAfter: join(root, 'trusted-after.json'), TrustedRestored: join(root, 'trusted-restored.json'), TrustedLogPresence: join(root, 'trusted-log-presence.json'),
+  };
+  await Promise.all([
+    writeFile(nativeSource, heldHandleNativeSource), writeFile(childMainSource, heldHandleChildMain),
+    writeFile(launcherScript, heldHandleLauncherScript), writeFile(driverScript, heldHandleTrustedDriverScript),
+    writeFile(compileScript, heldHandleCompilerScript), writeFile(nativeChildScript, heldHandleNativeChildScript),
+    writeFile(requestPath, JSON.stringify(metadata)),
+  ]);
+  try {
+    const result = await heldHandleExec(heldHandlePs7, ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', driverScript, requestPath], { windowsHide: true, timeout: limits.nativeCleanupReserveMs + limits.processStopGraceMs, maxBuffer: limits.maxProcessBytes });
+    await writeFile(join(root, 'driver-output.json'), JSON.stringify(result));
+  } catch (error) {
+    await writeFile(join(root, 'driver-error.txt'), String(error));
+    throw error;
+  }
+  const [receipt, before, after, restored, logs] = await Promise.all([
+    readFile(metadata.Receipt, 'utf8'), readFile(metadata.TrustedBefore, 'utf8'), readFile(metadata.TrustedAfter, 'utf8'), readFile(metadata.TrustedRestored, 'utf8'), readFile(metadata.TrustedLogPresence, 'utf8'),
+  ]);
+  return { receipt: JSON.parse(receipt) as HeldHandleReceipt, before: JSON.parse(before) as HeldTrustedProofAcl, after: JSON.parse(after) as HeldTrustedProofAcl, restored: JSON.parse(restored) as HeldTrustedProofAcl, logs: JSON.parse(logs) as { stdout: boolean; stderr: boolean } };
+}
+
+registerHeldHandleIsolation('held preserved bundled PowerShell7 compiles the whole opaque launcher type block', async () => {
+  const receipt = await executeHeldRuntimeCompatibilityCompile();
+  expect(receipt.runtimeMajor).toBe(7);
+  expect(receipt.controlCompiled).toBe(true);
+  expect(receipt.rootProtected).toBe(true);
+  expect(receipt.fragmentHash).toMatch(/^[a-f0-9]{64}$/);
+  expect(receipt.constructorInvocations).toBe(0);
+  expect(receipt.candidateCompiled).toBe(true);
+});
+
+registerHeldHandleIsolation('held inheritance-enabled trusted-only proof directory refuses without caller mutation', async () => {
+  const { receipt, before, after, restored, logs } = await executeHeldTrustedInheritance();
+  expect(before.protected).toBe(false);
+  expect(before.owner).toBe(before.currentOwner);
+  expect(before.rules.length).toBeGreaterThan(0);
+  expect(before.rules.some(rule => rule.inherited)).toBe(true);
+  for (const rule of before.rules) {
+    expect([before.currentOwner, 'S-1-5-18', 'S-1-5-32-544']).toContain(rule.sid);
+    expect(rule.rights).toBe('FullControl');
+    expect(rule.inheritance).toBe('ContainerInherit, ObjectInherit');
+    expect(rule.propagation).toBe('None');
+    expect(rule.type).toBe('Allow');
+  }
+  expect(after).toEqual(before);
+  expect(restored.owner).toBe(before.owner);
+  expect(restored.protected).toBe(true);
+  expect(restored.rules).toHaveLength(3);
+  expect(restored.rules.every(rule => !rule.inherited)).toBe(true);
+  expect(receipt.outerExitCode).toBe(0);
+  expect(receipt.launcher.signature).toBe(true);
+  expect(receipt.launcher.refused).toBe(true);
+  expect(receipt.launcher.id).toBe(0);
+  expect(receipt.failedChildrenRemaining).toBe(0);
+  expect(receipt.child).toBeNull();
+  expect(logs).toEqual({ stdout: false, stderr: false });
+  expect(receipt.stdoutEof && receipt.stderrEof).toBe(true);
+});
