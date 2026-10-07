@@ -238,3 +238,56 @@ describe('DBV-002/004/011 ordinary native query-result reporting', () => {
     },
   );
 });
+
+describe('DBV-002/004/011 standalone uppercase SQL status collision', () => {
+  it.each(['before plan', 'between assertions', 'after assertions'])(
+    'accepts an uppercase SQL status %s with unchanged native facts', position => {
+      const baseline = queryResultVisibleFixture();
+      let stdout = baseline.evidence.native.stdout;
+      if (position === 'before plan') stdout = stdout.replace('1..2', 'OK\n1..2');
+      if (position === 'between assertions') stdout = stdout.replace('ok 2 - synthetic beta', 'OK\nok 2 - synthetic beta');
+      if (position === 'after assertions') stdout = stdout.replace('ok 12 ms', 'OK\nok 12 ms');
+      const { manifest, evidence } = queryResultVisibleFixture(stdout);
+      const before = JSON.stringify({ manifest, evidence });
+      const receipt = verifyNativePgtapRun(manifest, evidence);
+      expect(receipt.accepted).toBe(true);
+      expect(receipt).toEqual(verifyNativePgtapRun(baseline.manifest, baseline.evidence));
+      expect(JSON.stringify({ manifest, evidence })).toBe(before);
+    },
+  );
+
+  it.each([
+    ['lowercase bare test control', 'ok 2 - synthetic beta', 'ok'],
+    ['lowercase bare failed test control', 'ok 2 - synthetic beta', 'not ok'],
+    ['malformed lowercase numbered control', 'ok 2 - synthetic beta', 'ok 2x - synthetic malformed'],
+    ['malformed uppercase numbered control', 'ok 2 - synthetic beta', 'OK 2x - synthetic malformed'],
+    ['uppercase numbered control', 'ok 2 - synthetic beta', 'OK 2 - synthetic beta'],
+    ['mixed-case numbered control', 'ok 2 - synthetic beta', 'Ok 2 - synthetic beta'],
+    ['uppercase failed numbered control', 'ok 2 - synthetic beta', 'NOT OK 2 - synthetic beta'],
+    ['mixed-case failed numbered control', 'ok 2 - synthetic beta', 'Not Ok 2 - synthetic beta'],
+    ['uppercase timer control', 'ok 12 ms', 'OK 12 ms'],
+    ['malformed lowercase timer control', 'ok 12 ms', 'ok twelve ms'],
+  ])('uppercase status cannot conceal %s', (_name, from, to) => {
+    const baseline = queryResultVisibleFixture();
+    const malformedStdout = baseline.evidence.native.stdout.replace(from, to);
+    expect(malformedStdout).not.toBe(baseline.evidence.native.stdout);
+    const control = queryResultVisibleFixture(malformedStdout);
+    expect(verifyNativePgtapRun(control.manifest, control.evidence).accepted).toBe(false);
+    const { manifest, evidence } = queryResultVisibleFixture(malformedStdout.replace('1..2', 'OK\n1..2'));
+    const receipt = verifyNativePgtapRun(manifest, evidence);
+    expect(receipt.accepted).toBe(false);
+    expect(receipt.failureCodes.length).toBeGreaterThan(0);
+  });
+
+  it.each(['ERROR', 'error', 'ErRoR', 'FATAL', 'fatal', 'Fatal', 'PANIC', 'panic', 'PaNiC'])(
+    'uppercase status cannot conceal standalone SQL severity %s', severity => {
+      const baseline = queryResultVisibleFixture();
+      const control = queryResultVisibleFixture(baseline.evidence.native.stdout.replace('ok 12 ms', `${severity}\nok 12 ms`));
+      expect(verifyNativePgtapRun(control.manifest, control.evidence).accepted).toBe(false);
+      const { manifest, evidence } = queryResultVisibleFixture(control.evidence.native.stdout.replace('1..2', 'OK\n1..2'));
+      const receipt = verifyNativePgtapRun(manifest, evidence);
+      expect(receipt.accepted).toBe(false);
+      expect(receipt.failureCodes.length).toBeGreaterThan(0);
+    },
+  );
+});
