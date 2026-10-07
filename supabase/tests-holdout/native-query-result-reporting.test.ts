@@ -295,3 +295,114 @@ describe('DBV-002/004/011 held native result-row compatibility', () => {
     expect(receipt.failureCodes).toContain('REPORTING_NOT_RESTORED');
   });
 });
+
+describe('DBV-002/004/011 held standalone uppercase status collision', () => {
+  it.each([
+    { position: 'before plans', change: (stdout: string) => stdout.replace('1..3\n', 'OK\n1..3\n').replace('1..2\n', 'OK\n1..2\n') },
+    { position: 'between points', change: (stdout: string) => stdout.replace('ok 1 - synthetic early first point\n', 'ok 1 - synthetic early first point\nOK\n').replace('ok 1 - synthetic late first point\n', 'ok 1 - synthetic late first point\nOK\n') },
+    { position: 'after points', change: (stdout: string) => stdout.replace('ok 3 - synthetic early third point\n', 'ok 3 - synthetic early third point\nOK\n').replace('ok 2 - synthetic late second point\n', 'ok 2 - synthetic late second point\nOK\n') },
+  ])('accepts a standalone uppercase status $position with exact native facts', ({ change }) => {
+    const { manifest, evidence } = queryResultHeldFixture([], change);
+    const unchanged = JSON.stringify({ manifest, evidence });
+    const receipt = verifyNativePgtapRun(manifest, evidence);
+    expect(receipt.accepted).toBe(true);
+    expect(receipt.failureCodes).toEqual([]);
+    expect(receipt.files).toEqual([
+      { path: 'supabase/tests-holdout/late.pg', plan: 2, executed: 2, failed: 0, verdict: 'PASS', durationMs: 6 },
+      { path: 'supabase/tests/early.pg', plan: 3, executed: 3, failed: 0, verdict: 'PASS', durationMs: 29 },
+    ]);
+    expect(receipt.aggregate).toEqual({ files: 2, tests: 5, failed: 0, verdict: 'PASS' });
+    expect(receipt.timings).toEqual({ setupMs: 39, linkMs: 12, nativeMs: 64, jobMs: 135 });
+    expect(JSON.stringify({ manifest, evidence })).toBe(unchanged);
+  });
+
+  it('accepts repeated uppercase statuses at all three positions without creating test points', () => {
+    const { manifest, evidence } = queryResultHeldFixture(['OK', 'OK']);
+    const receipt = verifyNativePgtapRun(manifest, evidence);
+    expect(receipt.accepted).toBe(true);
+    expect(receipt.failureCodes).toEqual([]);
+    expect(receipt.files).toEqual([
+      { path: 'supabase/tests-holdout/late.pg', plan: 2, executed: 2, failed: 0, verdict: 'PASS', durationMs: 6 },
+      { path: 'supabase/tests/early.pg', plan: 3, executed: 3, failed: 0, verdict: 'PASS', durationMs: 29 },
+    ]);
+    expect(receipt.aggregate).toEqual({ files: 2, tests: 5, failed: 0, verdict: 'PASS' });
+    expect(receipt.timings).toEqual(evidence.timings);
+  });
+
+  it.each([
+    'ok',
+    'not ok',
+    'ok 1.5 - synthetic malformed point',
+    'ok -1 - synthetic malformed point',
+    'OK 1 - synthetic case-varied point',
+    'Ok 1 - synthetic case-varied point',
+    'NOT OK 1 - synthetic case-varied point',
+    'not OK 1 - synthetic case-varied point',
+    'OK 29 ms ( 0.01 usr  0.01 sys +  0.00 cusr  0.00 csys =  0.02 CPU)',
+  ])('keeps native control %s refused beside an uppercase status row', record => {
+    const { manifest, evidence } = queryResultHeldFixture(['OK', record, 'OK']);
+    expect(verifyNativePgtapRun(manifest, evidence).accepted).toBe(false);
+  });
+
+  it.each([
+    'ERROR',
+    'error',
+    'Error',
+    'FATAL',
+    'fatal',
+    'Fatal',
+    'PANIC',
+    'panic',
+    'Panic',
+  ])('keeps standalone SQL severity %s refused beside uppercase statuses', record => {
+    const { manifest, evidence } = queryResultHeldFixture(['OK', record, 'OK']);
+    expect(verifyNativePgtapRun(manifest, evidence).accepted).toBe(false);
+  });
+
+  it.each([
+    { boundary: 'missing file', change: (stdout: string) => stdout.replace(/\[07:20:01\] supabase\/tests-holdout\/late\.pg \.\.[\s\S]*?(?=\[07:20:02\])/, '') },
+    { boundary: 'missing plan', change: (stdout: string) => stdout.replace('1..3\n', '') },
+    { boundary: 'no native points', change: (stdout: string) => stdout.replace(/^ok \d+ -[^\n]*\n/gm, '') },
+    { boundary: 'missing timer', change: (stdout: string) => stdout.replace('ok 29 ms ( 0.01 usr  0.01 sys +  0.00 cusr  0.00 csys =  0.02 CPU)\n', '') },
+    { boundary: 'wrong aggregate', change: (stdout: string) => stdout.replace('Tests=5,', 'Tests=6,') },
+    { boundary: 'missing native success', change: (stdout: string) => stdout.replace('All tests successful.\n', '') },
+    { boundary: 'missing final verdict', change: (stdout: string) => stdout.replace('Result: PASS\n', '') },
+    { boundary: 'malformed final verdict', change: (stdout: string) => stdout.replace('Result: PASS\n', 'Result: PASS synthetic suffix\n') },
+    { boundary: 'status outside a file before execution', change: (stdout: string) => 'OK\n' + stdout },
+    { boundary: 'status outside a file after completion', change: (stdout: string) => stdout + 'OK\n' },
+  ])('ordinary uppercase statuses cannot supply $boundary', ({ change }) => {
+    const { manifest, evidence } = queryResultHeldFixture(['OK'], change);
+    expect(verifyNativePgtapRun(manifest, evidence).accepted).toBe(false);
+  });
+
+  it.each([
+    { completed: true, exitCode: 1, signal: null },
+    { completed: false, exitCode: null, signal: null },
+    { completed: false, exitCode: null, signal: 'SIGTERM' },
+  ])('requires successful completed native execution with uppercase statuses: $completed/$exitCode/$signal', status => {
+    const { manifest, evidence } = queryResultHeldFixture(['OK']);
+    const receipt = verifyNativePgtapRun(manifest, { ...evidence, native: { ...evidence.native, ...status } });
+    expect(receipt.accepted).toBe(false);
+  });
+
+  it('cannot let uppercase statuses replace unchanged input custody', () => {
+    const { manifest, evidence } = queryResultHeldFixture(['OK']);
+    const receipt = verifyNativePgtapRun(manifest, {
+      ...evidence,
+      afterFiles: evidence.afterFiles.map(file => ({ ...file, sha256: createHash('sha256').update('synthetic status input drift').digest('hex') })),
+    });
+    expect(receipt.accepted).toBe(false);
+  });
+
+  it('cannot let uppercase statuses replace timeout restoration proof', () => {
+    const { manifest, evidence } = queryResultHeldFixture(['OK']);
+    const receipt = verifyNativePgtapRun(manifest, { ...evidence, timeout: { ...evidence.timeout, verified: false } });
+    expect(receipt.accepted).toBe(false);
+  });
+
+  it('cannot let uppercase statuses replace reporting restoration proof', () => {
+    const { manifest, evidence } = queryResultHeldFixture(['OK']);
+    const receipt = verifyNativePgtapRun(manifest, { ...evidence, reporting: { restored: false, verified: false } });
+    expect(receipt.accepted).toBe(false);
+  });
+});
