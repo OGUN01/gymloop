@@ -1,0 +1,40 @@
+{
+  "contractCommit": "a9a5da9e",
+  "testOnlyRedCommit": "b69dd822",
+  "sourceBeforeAcknowledgmentConstruction": {
+    "coreSha256": "d8e24a6803d78053ec053c359af378537274becaba87c53f8876ee444297c142",
+    "cliSha256": "0e31b7351d18d9e9694bcc86dde26432489ab1f90ad9c236ee133b76fff229d7",
+    "wrapperSha256": "7037b0739ef9309ded1fa84b15e7b7584fea56e8e46920f1debab198e49c1abd"
+  },
+  "visible": {
+    "sha256": "240a31c300f0630d0d483ded98e8845940846f6864a214c9f73178e30c2e833d",
+    "parentGroups": 6,
+    "parentPassed": 5,
+    "parentFailed": 1,
+    "acknowledgmentGroups": 3,
+    "acknowledgmentPassed": 0,
+    "acknowledgmentFailed": 3,
+    "executedAssertions": 1027,
+    "exitCode": 1,
+    "privateLogSha256": "95961be4802b13a2eaa524d1660d73b42a3425186c80c48d7f1a7405f5379abe"
+  },
+  "held": {
+    "sha256": "a33321b5de6248ce9216f284afc8db2d68bc8983dbe96f49e4856d7f4d86d8f3",
+    "parentChecks": 23,
+    "parentPassed": 20,
+    "parentFailed": 3,
+    "acknowledgmentChecks": 4,
+    "acknowledgmentPassed": 0,
+    "acknowledgmentFailed": 4,
+    "exitCode": 1,
+    "parseErrors": 0,
+    "privateLogSha256": "bf1699241e372345a0a8efacd070e87513258d86f07f329c3f9031844d739d96"
+  },
+  "originalAuthorCorrections": "Harmless probe loading/scope, actual native owner instrumentation, provider-array transport and bounded synchronization only. Parent assertions, real native budgets and original deadlines retained; held unsupported causal-priority restriction removed without changing rejection or exact retirement obligations. Prior failed receipts retained.",
+  "remainingParentFailures": "Visible watchdog-loss retirement classification and held native Snapshot/retirement paths remain unresolved. Narrow successful observations do not upgrade the complete failed runs.",
+  "testBodiesReadByRootOrImplementer": false,
+  "operationalApproval": "NO-GO until genuine complete green controlled checks and final source review",
+  "productionRunnerConfigured": false,
+  "cloudWorkloadStarted": false,
+  "playUploaded": false
+}
