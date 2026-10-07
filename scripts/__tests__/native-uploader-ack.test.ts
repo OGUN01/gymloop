@@ -160,7 +160,7 @@ describe("DBV-006/007 official uploader output-file acknowledgment", () => {
     expect(command).toBe(process.execPath);
     expect(args).toHaveLength(1);
     expect(args[0]).toBe(scenario.stat.mock.calls[0][0]);
-    expect(args[0].replaceAll("\\", "/")).toMatch(/\/actions\/upload-artifact\/v5\/dist\/index\.js$/);
+    expect(args[0].replaceAll("\\", "/")).toMatch(/\/actions\/upload-artifact\/v5\/dist\/upload\/index\.js$/);
     expect(inputs.cwd).toBe(scenario.directory);
     expect(inputs.timeoutMs).toBe(NATIVE_DB_VALIDATION.nativeCleanupReserveMs);
     expect(inputs.maxBytes).toBe(NATIVE_DB_VALIDATION.timeoutQueryMaxBytes);
