@@ -127,3 +127,15 @@ IF the free existing-environment trial cannot satisfy native prerequisites and a
 #### Scenario: Paid account is unavailable
 - **WHEN** no authorized account/access/spending decision exists
 - **THEN** no paid resource is created and the hosted native gate remains available
+
+### Requirement: DBV-014 Exact unallocated cancellation
+
+WHEN an original trusted main database attempt is cancelled before its native job and independent guardian are assigned a worker, THE SYSTEM SHALL classify that pair only from complete authenticated original run/job/artifact metadata and a unique independently reviewed kind-tagged proof. THE SYSTEM SHALL require exact source/repository/head repository/run/attempt/job bindings, explicit null worker identities, dense empty steps, compatible unallocated hosted labels, original zero-duration provider cancellation clocks and no conflicting same-attempt custody. IF any worker assignment, executed step, identity ambiguity, missing pair, conflicting custody or incomplete evidence exists, THE SYSTEM SHALL refuse this classification and retain the existing allocated-worker and armed-recovery checks.
+
+#### Scenario: Cancellation materializes jobs with no worker
+- **WHEN** the provider completes a reviewed exact never-assigned native/guardian pair after cancellation
+- **THEN** preflight records only that absence of execution and permits that exact pair through the worker/no-recovery branches without asserting restoration, physical deletion or native success
+
+#### Scenario: A cancellation follows partial execution
+- **WHEN** either job has an assigned worker, an executed step or same-attempt native/recovery custody
+- **THEN** the unallocated classifier refuses and the existing teardown/restoration requirements remain in force

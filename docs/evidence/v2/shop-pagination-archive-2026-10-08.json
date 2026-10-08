@@ -1,0 +1,56 @@
+{
+  "formatVersion": 1,
+  "kind": "SHOP_PAGINATION_ACTUALLY_ARCHIVED",
+  "observedAt": "2026-10-08T04:57:33.424Z",
+  "acceptedMainSourceSha": "c477758882bed3d4cb6c22f5168d9734f792fed4",
+  "canonicalSpec": "openspec/specs/shop-reservation-pagination/spec.md",
+  "archive": "openspec/changes/archive/2026-10-08-shop-reservation-pagination",
+  "canonicalSha256": "05357cf66ba8279753e64561343c5abf3ef800f1a9896314228d6295664c47be",
+  "archivedDeltaSha256": "4ca4b29139576f60bf2b4ecde7a386d010fc49aa9efd479b53683c3ec8f502ec",
+  "canonicalInverseExact": true,
+  "requirements": 9,
+  "scenarios": 14,
+  "tasksComplete": 9,
+  "liveChangeAbsent": true,
+  "scopeStrictValidation": true,
+  "requiredDefaultAllSpecs": {
+    "passed": 35,
+    "failed": 0
+  },
+  "extraStrictAllSpecs": {
+    "finding": "Pre-existing normative SHALL/MUST wording warning; no change or waiver",
+    "failed": 1,
+    "unrelatedUnchangedSpec": "tenancy",
+    "passed": 34
+  },
+  "archiveReadinessReviewSha256": "596dbb12cacf6636fbee91d00bc0a6617203efad37ed2305e65be44b2b892b7c",
+  "currentCi": {
+    "immutabilityRunId": "37727415863",
+    "sourceSha": "c477758882bed3d4cb6c22f5168d9734f792fed4",
+    "holdoutRunId": "37727415854",
+    "runId": "37727415821",
+    "conclusion": "success"
+  },
+  "acceptedCompleteNative": {
+    "failed": 0,
+    "files": 163,
+    "attempt": 1,
+    "unchangedNativeGitInputs": 12,
+    "newHeadFullNativePassClaim": false,
+    "unchangedSqlMetadataRows": 269,
+    "runId": "37680115612",
+    "assertions": 16329,
+    "sourceSha": "bd2efe323d15714e8a5cf457c55081e28eebaff3",
+    "restorationDriftAndSerialSeedAccepted": true
+  },
+  "deviceEvidence": "docs/evidence/v2/shop-pagination-device-release-2026-10-07.json",
+  "deviceSmokeScope": "Initial3, first continued disclosure, refresh and contextual navigation on isolated OnePlus package; complete traversal/edge cases use independent automated evidence",
+  "releaseBundleSha256": "89f3acebe9197502fcebecfd7df2c9dcbed6c276cdaf193d7b05daa5e59c5d61",
+  "playUploaded": false,
+  "regionalPerformanceAccepted": false,
+  "databaseRegionalArchiveReady": false,
+  "unallocatedCancellationFixPending": true,
+  "runnerFirstOrderRetained": true,
+  "globalGoalComplete": false,
+  "skipForceOrAcceptanceExceptionUsed": false
+}
