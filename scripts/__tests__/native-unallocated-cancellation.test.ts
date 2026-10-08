@@ -293,7 +293,7 @@ function executeVisibleUnallocatedSelector(options: {paths?: string[]; computabl
     `    diff) printf '%s\\n' ${paths.length > 0 ? paths.map((path) => `'${path}'`).join(' ') : "''"} ;;`,
     '    *) return 1 ;;', '  esac', '}',
   ].join('\n');
-  return execFileSync('C:/Program Files/Git/bin/bash.exe', ['-c', `${prelude}\n${executable}`], {
+  return execFileSync(process.platform === 'win32' ? 'C:/Program Files/Git/bin/bash.exe' : 'bash', ['-c', `${prelude}\n${executable}`], {
     cwd: fileURLToPath(new URL('../../', import.meta.url)), encoding: 'utf8',
   });
 }

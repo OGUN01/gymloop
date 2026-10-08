@@ -1,6 +1,8 @@
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { execFile } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { describe, expect, test } from 'vitest';
 import { NATIVE_DB_VALIDATION } from '../../packages/shared/src/config/constants';
@@ -579,7 +581,7 @@ async function executeHeldUnallocatedClassification(changed: string, diffAvailab
   const lines = block.slice(scalar).split(/\r?\n/).slice(1);
   const finish = lines.findIndex(line => line.trim() !== '' && !line.startsWith('          '));
   const body = (finish < 0 ? lines : lines.slice(0, finish)).map(line => line.slice('          '.length)).join('\n');
-  const directory = `C:/fr-sealed-20261007/held-unallocated-classification-${randomUUID()}`;
+  const directory = join(tmpdir(), `held-unallocated-classification-${randomUUID()}`).replaceAll('\\', '/');
   const output = `${directory}/github-output.txt`;
   await mkdir(directory);
   await writeFile(output, '', { flag: 'wx' });
@@ -597,7 +599,7 @@ async function executeHeldUnallocatedClassification(changed: string, diffAvailab
   });
   const prefix = `git() { case "$1" in cat-file) return 0 ;; diff) ${diffAvailable ? `printf '%s\\n' '${changed.replaceAll("'", "'\\''")}'` : 'return 1'} ;; *) return 1 ;; esac; }; export GITHUB_OUTPUT='${output}';\n`;
   const result = await new Promise<{ error: unknown; stdout: string; stderr: string }>(resolve => {
-    execFile('C:/Program Files/Git/bin/bash.exe', ['--noprofile', '--norc', '-c', prefix + compiled], { windowsHide: true, cwd: directory }, (error, stdout, stderr) => resolve({ error, stdout, stderr }));
+    execFile(process.platform === 'win32' ? 'C:/Program Files/Git/bin/bash.exe' : 'bash', ['--noprofile', '--norc', '-c', prefix + compiled], { windowsHide: true, cwd: directory }, (error, stdout, stderr) => resolve({ error, stdout, stderr }));
   });
   return { ...result, output: await readFile(output, 'utf8') };
 }

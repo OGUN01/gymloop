@@ -1,0 +1,68 @@
+{
+  "formatVersion": 1,
+  "kind": "unallocated-cancellation-ci-test-portability-correction",
+  "implementationSourceSha": "5f8f94296c3f7fa3834710084d6fc06ecf8967ea",
+  "frozenDeclarationSha256": "22c7234f11f4e9aac02860e9dc5c81b6bba13e8fadbde0e6097730014848c5e8",
+  "originalCloud": {
+    "runId": "37732308986",
+    "conclusion": "failure",
+    "tooling": {
+      "total": 9202,
+      "passed": 9104,
+      "failed": 4,
+      "existingPlatformSkipped": 94
+    },
+    "failedStep": "test:scripts",
+    "failure": "Windows-only test executable and temporary-directory paths on Ubuntu",
+    "protectedLogSha256": "22351a48a375a4cb8ceeb878975d2cba3483208449302dd02e54062096c833d4"
+  },
+  "visible": {
+    "total": 683,
+    "passed": 683,
+    "failed": 0,
+    "skipped": 0,
+    "exitCode": 0,
+    "originalSha256": "11db273abd3d7f91bad7a73a5552706fced7d0995045ef3d093a24f66c1982e7",
+    "correctedSha256": "8790369f5f8622139d9ba770499af1b63c912a7599b41faea29c5102f113ddcd",
+    "transportProofSha256": "1896728d4237646dc7458c04284049e1de273e5477cef9362dc9cbfc4ea2c993",
+    "rawReportSha256": "e98b8a9b93689b856e7e0d4de9909b414f40647560481fd77a33b04e553b131a",
+    "inverseAndOutsideSpanEquality": true
+  },
+  "held": {
+    "total": 301,
+    "passed": 301,
+    "failed": 0,
+    "skipped": 0,
+    "exitCode": 0,
+    "originalSha256": "573a7dd025a1fdf80650eaa23a131817647a051e474fec13050d1af24b71e105",
+    "correctedSha256": "8a6b586b36c5bca5f6cc2b60ff7c86c1027b9b975ccc565cbacffa8bf82a694c",
+    "transportProofSha256": "6eda430e4ed37143f203233b48ba1f7284393546422347b3451ce513db04dead",
+    "rawReportSha256": "9f761e6a658b71217edd4be1b1a1a6330da9d7ecd0ad1030aa30eb618b6d9841",
+    "inverseAndOutsideSpanEquality": true,
+    "rootReadOrEditedBody": false
+  },
+  "invariants": {
+    "allAssertionsCasesFixtureMeaningsOrderUnchanged": true,
+    "productionSourceUnchanged": true,
+    "productAndSignedBundleUnchanged": true,
+    "newSkips": false,
+    "privateAuthorOnlyEdits": true,
+    "cloudGreen": false,
+    "newPredecessorPublication": false,
+    "newRunnerAdmission": false,
+    "regionalPerformanceAcceptance": false,
+    "playUpload": false
+  },
+  "independentReview": {
+    "verdict": "GO_TEST_TRANSPORT",
+    "scope": "frozen declaration and sealed sanitized proof metadata",
+    "testAssertionBodiesAndImplementationRead": false,
+    "linuxSuccessClaimed": false
+  },
+  "localGates": {
+    "lintRoot": "pass",
+    "registry": "pass",
+    "escapeHatches": "pass",
+    "selectedOpenSpecStrict": "pass"
+  }
+}
