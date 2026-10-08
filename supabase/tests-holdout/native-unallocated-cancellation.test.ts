@@ -447,10 +447,10 @@ async function executeHeldUnallocatedPreflight(input = heldUnallocatedFixture(),
     async *iterator(method: unknown, request: Record<string, unknown>) {
       if (method === actions.listWorkflowRuns) {
         events.push('runs');
-        yield { data: { workflow_runs: options.olderArmed === true ? [prior, extraRun, baseline] : [prior, baseline] } };
+        yield { data: options.olderArmed === true ? [prior, extraRun, baseline] : [prior, baseline] };
       } else {
-        const response = await (method as (request: Record<string, unknown>) => Promise<unknown>)(request);
-        yield response;
+        const response = await (method as (request: Record<string, unknown>) => Promise<{ data: Record<string, unknown> }>)(request);
+        yield { ...response, data: Object.assign((response.data.jobs ?? response.data.artifacts) as object, { total_count: response.data.total_count }) };
       }
     },
   });
