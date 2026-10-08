@@ -271,3 +271,15 @@ describe.skipIf(process.platform !== 'win32')('native Windows Supabase executabl
     await windowsCliRefuse(windowsCliInput(aliasDir));
   });
 });
+
+describe.skipIf(process.platform !== 'win32')('native Windows npm layout restriction', () => {
+  it('refuses an arbitrary .bin parent with a valid adjacent package and nested native binary', async () => {
+    const fixture = await windowsCliFixture('local', 'nested');
+    const unsupportedParent = join(fixture.root, 'arbitrary');
+    const unsupportedShimDir = join(unsupportedParent, '.bin');
+    await mkdir(unsupportedParent);
+    await rename(fixture.shimDir, unsupportedShimDir);
+    await rename(fixture.packageRoot, join(unsupportedParent, NATIVE_DB_VALIDATION.nativeCommand));
+    await windowsCliRefuse(windowsCliInput(unsupportedShimDir));
+  });
+});
