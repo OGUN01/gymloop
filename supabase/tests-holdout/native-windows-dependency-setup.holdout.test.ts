@@ -1,6 +1,6 @@
 import { spawnSync } from 'node:child_process';
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, symlinkSync, unlinkSync, writeFileSync } from 'node:fs';
-import { tmpdir, userInfo } from 'node:os';
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, statSync, symlinkSync, unlinkSync, writeFileSync } from 'node:fs';
+import { platform, tmpdir, userInfo } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
@@ -186,8 +186,13 @@ function heldDependencyInstallProbe(mode: string): number {
   const moduleLink = join(owned, 'node_modules', '@gymloop', 'shared');
   const directLink = join(owned, 'packages', 'shared');
   try {
-    const acl = spawnSync('icacls.exe', [owned, '/inheritance:r', '/grant:r', `${userInfo().username}:(OI)(CI)F`], { encoding: 'utf8' });
-    expect(acl.status).toBe(0);
+    if (platform() === 'win32') {
+      const acl = spawnSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', "$ErrorActionPreference = 'Stop'; $metadata = [Console]::In.ReadToEnd() | ConvertFrom-Json; & icacls.exe $metadata.path /inheritance:r /grant:r ($metadata.trustee + ':(OI)(CI)F'); exit $LASTEXITCODE"], { encoding: 'utf8', input: JSON.stringify({ path: owned, trustee: userInfo().username }) });
+      expect(acl.status).toBe(0);
+    } else {
+      chmodSync(owned, NATIVE_DB_VALIDATION.privateDirectoryMode);
+      expect(statSync(owned).mode & NATIVE_DB_VALIDATION.permissionMask).toBe(NATIVE_DB_VALIDATION.privateDirectoryMode);
+    }
     mkdirSync(dirname(moduleLink), { recursive: true });
     mkdirSync(dirname(directLink), { recursive: true });
     const shared = fileURLToPath(new URL('../../packages/shared/', import.meta.url));
@@ -199,7 +204,7 @@ function heldDependencyInstallProbe(mode: string): number {
     }
     if (mode !== 'missingStore') mkdirSync(join(owned, '.p'));
     const prelude = `$ErrorActionPreference = 'Stop'\nfunction global:pnpm { $global:LASTEXITCODE = ${mode === 'failedInstall' ? 29 : 0} }\n`;
-    const outcome = spawnSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', `${prelude}${body}\nif ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }\nexit 0`], { cwd: owned, encoding: 'utf8' });
+    const outcome = spawnSync(platform() === 'win32' ? 'powershell.exe' : 'pwsh', ['-NoProfile', '-NonInteractive', '-Command', `${prelude}${body}\nif ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }\nexit 0`], { cwd: owned, encoding: 'utf8' });
     return outcome.status ?? -1;
   } finally {
     if (existsSync(moduleLink)) unlinkSync(moduleLink);
