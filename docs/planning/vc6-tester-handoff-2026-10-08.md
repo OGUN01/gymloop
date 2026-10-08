@@ -6,6 +6,8 @@ Tester join link, read from the existing Alpha track: https://play.google.com/ap
 
 Use the Google account already approved for the closed test, join through that link, and install or update FitCruxx through Google Play. Check the app version after updating: **1.0.0, version code 6**. The separately installed device-check app is not the Play release.
 
+Latest verification: the actual Alpha track still shows version 6 available to selected testers. Main `8f2da477155307345c3e022bea61bbc06580250d` has successful CI `37811282611`, Holdout `37811282565` and test-immutability `37811282293`. The separate work to make full database validation faster remains open and does not block this published release.
+
 ## What to check
 
 1. **Navigation:** Classes enabled gives Home, Classes, Shop, You and Activity. Classes disabled gives Home, Shop, You and Activity. Buy, Freeze requests and desk Training should not become extra bottom tabs. An empty timetable day should not hide an enabled Classes tab.
