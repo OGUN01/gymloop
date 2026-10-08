@@ -1,0 +1,59 @@
+{
+  "formatVersion": 1,
+  "scope": "Authentic full native failure, verified cleanup and pending correction",
+  "runId": "37743638617-1",
+  "sourceSha": "fbc697a220569584653e733836a3feb8a8822324",
+  "nativeJobId": "113200914638",
+  "runnerEnvironment": "github-hosted",
+  "native": { "completed": true, "exitCode": 1, "signal": null },
+  "accepted": false,
+  "aggregate": { "files": 163, "tests": 16329, "failed": 1, "verdict": "FAIL" },
+  "failureCodes": ["NATIVE_FAILED", "REPORTING_UNVERIFIED", "TAP_FAILED", "TAP_INCOMPLETE"],
+  "failedFile": {
+    "path": "supabase/tests-holdout/h202_pt_front_contract_repairs_holdout.sql",
+    "plan": 91,
+    "executed": 91,
+    "failed": 1,
+    "durationMs": null,
+    "authenticatedOrdinal": 63,
+    "headerClock": "09:05:45",
+    "headerIsNotAnAuthenticatedStatementTimestamp": true
+  },
+  "timings": { "setupMs": 53665, "linkMs": 6645, "nativeMs": 8549098, "jobMs": 8608460 },
+  "cleanup": {
+    "mandatoryHostedStepsSuccessful": true,
+    "guardianJobId": "113253680263",
+    "guardianConclusion": "success",
+    "originalPresent": true,
+    "originalValue": "2min",
+    "observedValue": "2min",
+    "restorationVerifiedAt": "2026-10-08T09:56:14.927Z",
+    "hostedDecommissionIsProviderLifecycleInference": true,
+    "individualVmDeletionObserved": false,
+    "failureClosureIndexCount": 8,
+    "failureClosureIndexValueSha256": "2eff3c27d6f1c9a54dfb55678cd9f4f17abcd3e1bd1f13ece868ad861a1ebc02",
+    "onePublicationWithExactReadbackAndOldRawPrefixPreserved": true
+  },
+  "seed": { "jobId": "113254145125", "conclusion": "skipped", "assigned": false, "executed": false },
+  "evidenceSha256": {
+    "canonicalMemoryVerification": "77735cc51499d5dfabb9bd62706fa1f0d09512d8bc622ff70338043355b9f038",
+    "independentCustodyCleanupRecovery": "4f6ab7320ed9db002d52e9b99a1c46ee54a811a039dbdc8e454640115154dc09",
+    "authenticatedOrdinalDiagnostic": "4728353613482c9f7fea644cd86749ec0148989541eb3faf3d94bf6b658c3708",
+    "independentHostedClosureCandidateReview": "91a79e67e8fb09404d4e56743468d78d7f79fbb4bc7528e187a94612b1b77c12",
+    "rootActualClosurePublication": "1da310ee4be2da049109390f3ef9af3d128faa9ce7df736fdd99f99be988542c",
+    "independentTestSideDiagnosis": "5e4c35798accb317b96f640e77687e066d6bcae2b2ea181b51d25886bd6d6c26",
+    "reviewedOutsideCheckoutTestProposal": "bf6f89f4c8f0e131b5089e5552b3ce77bb95be8396153c0b43236ca8842fdf31",
+    "independentProposalReview": "0281e73ce2da3828f481929e799da4bc69ebff95354ece7035a01d317ae42a57"
+  },
+  "diagnosis": {
+    "staticExpectedGridOmissionOfPublicMinimumLeadVerified": true,
+    "exactHistoricalTriggerEstablished": false,
+    "productionDefectEstablished": false,
+    "testCorrectionApplied": false,
+    "originalTestBytesRetained": true,
+    "freshCorrectedByteCompleteValidationRequiredBeforeRelease": true
+  },
+  "privacy": { "testBodyOrTapOrExpectedActualOrKeyIncluded": false },
+  "regionalPerformanceAccepted": false,
+  "playUploadPerformed": false
+}

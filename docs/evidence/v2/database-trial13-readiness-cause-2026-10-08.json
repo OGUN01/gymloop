@@ -1,0 +1,67 @@
+{
+  "kind": "readiness-cause-and-hosted-fallback-checkpoint",
+  "sourceSha": "fbc697a220569584653e733836a3feb8a8822324",
+  "runId": "37743638617",
+  "runAttempt": "1",
+  "runUrl": "https://github.com/OGUN01/gymloop/actions/runs/37743638617",
+  "localRunnerId": 34,
+  "wrapper": {
+    "registered": true,
+    "owned": true,
+    "readinessPending": true,
+    "stdoutSha256": "268ae37a355a75e902fe21e6f8da39066d364c24195552cdc1bd402745f33585"
+  },
+  "officialListener": {
+    "version": "2.338.0",
+    "sessionCreatedAndListeningUtc": "2026-10-08T07:30:18Z",
+    "diagnosticSha256": "ec309a88eacf6c160db091c1f93eccbbe39123030d46cbfedabd63e42987053f",
+    "laterRestOnlineStatusCaptured": false
+  },
+  "actualApiPlatformMetadata": {
+    "runnerId": 34,
+    "registeredRunnerObservedUtc": "2026-10-08T07:30:13.408Z",
+    "beforeDeleteObservedUtc": "2026-10-08T07:31:41.145Z",
+    "osInBothRecords": "Windows",
+    "matchesExistingPublisherPlatformGuard": true,
+    "privateProofSha256": "1abfa28085a9e7b2eef5b23ce898974faef7fd3b9a700640bc2f143ca4d6cb01",
+    "platformGuardChangeRequiredByTheseRecords": false,
+    "onlineStatusClaimedFromOsField": false
+  },
+  "cause": {
+    "observed": "The wrapper returned from its offline/pending branch before its sole publication call; the once-only operator waited for a readiness file that was never produced.",
+    "inference": "Deferred initial publication was missing after successful listener connection. The later watchdog rejection followed hosted assignment and was subsequent to this gap.",
+    "independentReviewSha256": "7c135248249196ed3d21df71e66b8d9148faf7c81084ff7075e04c672daea9af",
+    "guardOrDeadlineRelaxation": false,
+    "implementationOrTestEdit": false
+  },
+  "localRetirement": {
+    "watchdogVerifiedUtc": "2026-10-08T07:31:44.156Z",
+    "watchdogStatusSha256": "6ddac82cedb1c2c5bbf4a326f6605ca35a15f0b37fa9f6063543df06322de09a",
+    "operatorOutcome": "REFUSED_BEFORE_DISPATCH",
+    "operatorFailureCode": "OWNED_CUSTODY_RETIRED",
+    "operatorDispatchAttempted": false,
+    "operatorResultSha256": "4d511ebfec4f14b30e515b12c9b9df6766acc00624006fe980b960d251cfbcb3",
+    "freshRootObservationUtc": "2026-10-08T07:41:53.4764259Z",
+    "freshRootObservationSha256": "ce29d13703e2a6b8fa1f3ed68fa1c484d9f03dfea1f01beed97fa74fb75a75dc",
+    "providerRunnerHttp": 404,
+    "wrapperOperatorListenerWatchdogPidsPresent": false,
+    "originalCustodianPresent": true,
+    "originalCustodyDeadlineUtc": "2026-10-08T11:29:50.302Z",
+    "canonicalWorkloadTeardownAccepted": false
+  },
+  "hostedFallback": {
+    "selectorJobId": "113200494484",
+    "nativeJobId": "113200914638",
+    "nativeRunnerId": 1000015045,
+    "nativeStepStartedUtc": "2026-10-08T07:31:59Z",
+    "checkpointUtc": "2026-10-08T07:47:10.2347931Z",
+    "nativeStepStatus": "in_progress",
+    "failedStepCountAtCheckpoint": 0,
+    "fullNativeAcceptance": false,
+    "regionalPerformanceAcceptance": false,
+    "runCancelled": false
+  },
+  "futureProcedure": "Complete the existing sealed initial-publication primitive once in a future genuine live pending attempt, under its unchanged ownership/API/source/lifetime checks; its existing once-only operator forwards only genuine readiness. Never revive this retired attempt or overlap database runs.",
+  "privateOutputOrCredentialsPublished": false,
+  "playUploadPerformed": false
+}

@@ -2,6 +2,10 @@
 
 Planning only, 7 October 2026. This public file contains instructions/metadata, not credentials or an authorization to provision paid infrastructure. Actual runner tokens, raw TAP and operator receipts belong in an owner-protected directory outside the checkout, proposed `C:/Users/Harsh/.gymloop/db-validation/<run-id>/`. Root chooses/verifies its ACL and retention before use. The already approved work remains on main; no PR or unrelated feature is included.
 
+## Current status, 8 October
+
+Regional optimization is an unfinished follow-up and no longer blocks the tester release. Trial14's genuine readiness failure and ordinarily cancelled hosted fallback are retained; independently accepted cleanup/recovery and one exact closure-index append are complete. Reviewed h202v2 was applied by its independent author in test-only main bcdf2723495c88ef34c3b6a861d9c979cbe45ead. Ordinary full hosted DB37775385597 is running uninterrupted, and app/held/immutability gates on that source are green. Follow docs/planning/v2-database-and-vc6-release-2026-10-07.md for current release execution. The historical regional procedure below is not a reason to dispatch another trial or postpone the approved vc6 Alpha upload after normal release validation succeeds.
+
 ## Preferred existing Windows route
 
 1. Use the full hosted native DB run already required after Shop/main migration as the fresh baseline; finish it, bind the exact migration/schema/test/source manifest and native pins, and verify no competing DB/seed/local sweep. Do not dispatch a duplicate hosted baseline. Document later wrapper/version/reporting deltas and never attribute new raw/per-file reporting to the old baseline.
@@ -14,6 +18,14 @@ Planning only, 7 October 2026. This public file contains instructions/metadata, 
 8. After one job or at four hours from registration, verify runner deregistration and process stop. Retain required logs before removing only the resolved dedicated runner/checkout paths. Never delete the interactive repo, shut down Docker Desktop, alter WSL, or stop unrelated containers. Verify no registered runner/process for this run remains.
 
 No cloud hosting fee is introduced by this route; existing desktop/network costs and measured readiness remain distinct. GitHub does not charge a self-hosted runner fee. [GitHub self-hosted pricing model](https://docs.github.com/en/actions/concepts/runners/self-hosted-runners).
+
+### Deferred initial readiness publication
+
+Actual trial13 returned `readinessPending: true` after its single post-handoff runner observation was still offline. The official listener subsequently connected, but the wrapper had exited and the once-only operator was waiting for `readiness-latest.json`. Neither actor completes that deferred initial publication. Registration and a listening log line do not establish genuine API readiness.
+
+For a future already-authorized attempt, root must complete this missing operational step using the existing sealed `publish-bound-readiness.ps1`, with that attempt's genuine registration and launch-binding paths, only while its operator, custody and selector are still live. Observe the exact runner as Windows, online and idle first; the unchanged primitive then independently verifies the actual listener, watchdog, kernel/source/configuration bindings and remaining original lifetime before generating the real readiness file. Invoke it once only if the wrapper has returned pending and neither a readiness file nor publication attempt exists. The existing operator alone forwards that file to the dedicated publisher workflow using its original exclusive claim and timing bounds. This introduces no helper, polling service, source edit, fabricated readiness record, guard relaxation or deadline extension. If the primitive refuses, ownership retires, selection has finished or the original window expires, retain the failure and let hosted fallback finish.
+
+Do not apply this step retrospectively to trial13: its selector already chose hosted execution and its local ownership retired. Let DB37743638617 finish uninterrupted. The next regional attempt still requires accepted completion/recovery, absent competing database work and all existing fresh admission checks; this note authorizes no dispatch or duplicate baseline by itself.
 
 ## Paid Mumbai alternative, only after a separate decision
 
