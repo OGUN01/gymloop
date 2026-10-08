@@ -1,0 +1,101 @@
+{
+  "kind": "REGIONAL_TRIAL_PRE_NATIVE_DEPENDENCY_FAILURE",
+  "sourceSha": "aa671256fec55299f5aeb28cae4f17468f16a4f7",
+  "runId": "37850045697",
+  "runAttempt": "1",
+  "event": "push",
+  "conclusion": "failure",
+  "nativeJobId": "113561160570",
+  "runnerId": 38,
+  "regionalSelected": true,
+  "recoveryPreflight": {
+    "conclusion": "success",
+    "jobId": "113560431232"
+  },
+  "setup": {
+    "supportedHook": "success",
+    "nodeSetup": "success",
+    "pnpmVersion": "12.3.4",
+    "checkout": "success",
+    "pnpmSetup": "success",
+    "constantVirtualStoreDirMaxLength": 24,
+    "dependencyInstall": "failure",
+    "diagnosticCode": "PNPM_CLI_ARGUMENT_REJECTED"
+  },
+  "manifestGenerated": false,
+  "nativeSuiteExecuted": false,
+  "timeoutArmed": false,
+  "guardian": {
+    "databaseLink": "skipped",
+    "failureStage": "Find the exact armed receipt, including an earlier attempt of this run",
+    "jobId": "113561710501",
+    "conclusion": "failure",
+    "restore": "skipped"
+  },
+  "seed": "skipped",
+  "companionChecks": {
+    "ci": {
+      "runId": "37850045683",
+      "conclusion": "success"
+    },
+    "holdout": {
+      "runId": "37850045714",
+      "conclusion": "success"
+    },
+    "testImmutability": {
+      "runId": "37850045716",
+      "conclusion": "success"
+    }
+  },
+  "ownStartup": {
+    "failures": 0,
+    "capMs": 10000,
+    "assertions": 205,
+    "elapsedMs": 3194.3706,
+    "finalCriticSha256": "6b032bc631b88b17830a1b7306fa60900bbba7effaf4445c463a6d4a6881c34d",
+    "receiptSha256": "c5b129fbed974dfb9d5a7eeab4c10a1f0c9dd0a4df9ba1c7bdcdf93fe5c353a9",
+    "groups": 58
+  },
+  "physicalClosure": {
+    "canonicalAccepted": true,
+    "runnerDeregistered": true,
+    "originalFourHourDeadline": "2026-10-09T01:55:09.836Z",
+    "privateProofSha256": "fee042d46237449a06a184f53f87913c095769f2b567dee12101d54019d71984",
+    "independentCriticSha256": "9adad342ccc425ce92059b3191bb0025f5a5c4a4b8cf1c63df50dc747337ce1c",
+    "ownedContainersStopped": true,
+    "verifiedAt": "2026-10-08T21:58:28.972Z",
+    "custodianSeparatePhysicalVerifiedFlag": false,
+    "nativeProcessesStopped": true,
+    "deadlineChanged": false
+  },
+  "outsideIndex": {
+    "beforeSha256": "1a803e14f893acd19cd4b1cdbe6bca685bad67d357829048243bba509b66e9ba",
+    "publishedAt": "2026-10-08T22:14:10.1036204+00:00",
+    "afterCount": 12,
+    "afterSha256": "968bf8509ff66a2d1fc2b2ae86d7700360ffe611769fc1548718354baa66dfeb",
+    "beforeCount": 11,
+    "allPriorRawPrefixPreserved": true,
+    "publishedOnce": true,
+    "exactReadback": true
+  },
+  "evidence": {
+    "terminalProviderSha256": "e911dc7edc15f382372b8246b8d30b57c78f50a7799c46ee1a32f6767c3dce01",
+    "artifactTransportSha256": "3ab2216d65162e488c8cc0e9bada8c3f503515b1ee5e90d66c6a04e4288a382a",
+    "actualNoManifestAuditSha256": "3e79304e15e43f2368a12d5f866b8fd8319eef7f20c5bd01d49c143628b2626e",
+    "protectedRoot": "C:/fr-sealed-20261007/trial18-terminal-teardown-critic-20261009",
+    "artifactZips": 2,
+    "installLogSha256": "66e7cd84c1f118ab22d5fbd5541712a874e482b48f1b36bee7f4bcba3d2d648c"
+  },
+  "boundaryIncident": {
+    "temporaryRegistrationTokenRenderedInCriticPrivateToolOutput": true,
+    "runnerRemoved": true,
+    "tokenRevocationClaimed": false,
+    "originalRetained": true,
+    "tokenValueIncludedInPublicEvidence": false
+  },
+  "performanceAccepted": false,
+  "nativeSuccessClaimed": false,
+  "timeoutRestorationClaimed": false,
+  "testerRelease": "Version6 remains Available to selected testers",
+  "nextStep": "Independently prove effective pinned-client option form, add the exact unarmed dependency vector from frozen contract, commit red tests before production and admit a fresh serialized benchmark only after all proofs."
+}
