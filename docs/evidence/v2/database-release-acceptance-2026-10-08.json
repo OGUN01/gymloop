@@ -1,0 +1,226 @@
+{
+  "formatVersion": 1,
+  "scope": "Corrected-input normal hosted database release acceptance; regional performance experiment remains deferred",
+  "repository": "OGUN01/gymloop",
+  "sourceSha": "bcdf2723495c88ef34c3b6a861d9c979cbe45ead",
+  "runId": "37775385597",
+  "attempt": 1,
+  "url": "https://github.com/OGUN01/gymloop/actions/runs/37775385597",
+  "status": "completed",
+  "conclusion": "success",
+  "nativeCompletedAtUtc": "2026-10-08T14:30:49Z",
+  "guardianCompletedAtUtc": "2026-10-08T14:31:38Z",
+  "seedCompletedAtUtc": "2026-10-08T14:32:23Z",
+  "jobs": [
+    {
+      "name": "database-recovery-preflight",
+      "id": 113304798157,
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "name": "pgtap-rollback",
+      "id": 113304798411,
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "name": "migrate",
+      "id": 113305025398,
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "name": "schema-drift",
+      "id": 113305243797,
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "name": "native-selector",
+      "id": 113305486767,
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "name": "pgtap",
+      "id": 113305943101,
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "name": "native-job-metadata",
+      "id": 113365306341,
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "name": "timeout-guardian",
+      "id": 113365306503,
+      "status": "completed",
+      "conclusion": "success"
+    },
+    {
+      "name": "seed-dry-run",
+      "id": 113365687218,
+      "status": "completed",
+      "conclusion": "success"
+    }
+  ],
+  "canonicalVerification": {
+    "formatVersion": 1,
+    "verificationCompleted": true,
+    "retainedFinalExactByteMatch": true,
+    "ciphertextSha256": "d1933483628d79a30ac8472c4a46d71545f3d47a52094ff81459818d7937e4d7",
+    "plaintextSha256": "c1c2254262f8997f7b47838a7a043dc728b95368f89bbebe96096c6b4b1c7b8f",
+    "sourceHashes": {
+      "scripts/pgtap/native.mjs": {
+        "gitSourceSha256": "ec69370f213697daa74bd9abde99b55307362b51e7a8a7b6a67d8440393c0dc7",
+        "workingBytesSha256": "ec69370f213697daa74bd9abde99b55307362b51e7a8a7b6a67d8440393c0dc7",
+        "exactBytes": true,
+        "equivalentAfterWorkingSourceCrLfOnly": true
+      },
+      "scripts/pgtap/private-output.mjs": {
+        "gitSourceSha256": "6682ce2f5affcdcfb0e2d85b8082f20ab8c7ce53ab97069c52edc9e65380816a",
+        "workingBytesSha256": "6682ce2f5affcdcfb0e2d85b8082f20ab8c7ce53ab97069c52edc9e65380816a",
+        "exactBytes": true,
+        "equivalentAfterWorkingSourceCrLfOnly": true
+      },
+      "packages/shared/src/config/constants.ts": {
+        "gitSourceSha256": "325a3aa004e78a371b08eb3c7820e61a7346f6d0fa7886dbc74f020d3951c24d",
+        "workingBytesSha256": "2c04ecf499e3d3211983afd0ce72ac20b352e18cbd021a97b253218c18faa9d4",
+        "exactBytes": false,
+        "equivalentAfterWorkingSourceCrLfOnly": true
+      },
+      "packages/shared/src/config/env.ts": {
+        "gitSourceSha256": "b82dbd65584b903205daa23b76016e426e393273ad4d63a482be9c4f622b4464",
+        "workingBytesSha256": "2149e7f98e74850c5d3301470b51b1e4b7a514520f43c3fd5d413d562087fea3",
+        "exactBytes": false,
+        "equivalentAfterWorkingSourceCrLfOnly": true
+      }
+    },
+    "runId": "37775385597-1",
+    "sourceSha": "bcdf2723495c88ef34c3b6a861d9c979cbe45ead",
+    "manifestSha256": "f3ec8f7c7165363d88483f57afa6a41a4a5b15e2e61d38c5f98d48369165cbea",
+    "manifestFilesFingerprintSha256": "550b0d9e9183992d1d57099ae9652c6569f915b606909d5f6fb0f4041af8a306",
+    "unchangedAfterFileFingerprintSha256": "a269dc8a6c0b946d6a9797472529d3c087695ae64ef67da40ce7cc5cb097e8fd",
+    "inputHashesUnchanged": true,
+    "outputHashes": {
+      "stdout": {
+        "sha256": "b3d8f784d2eae70022c37fe323f9a00191876eff20045da0db82ecd675cdd1c6",
+        "byteLength": 1732246
+      },
+      "stderr": {
+        "sha256": "29d48e722de50e5a8cea705aee8c282c54c9336db070331d0811e96dee92dd5c",
+        "byteLength": 3657
+      }
+    },
+    "accepted": true,
+    "native": {
+      "completed": true,
+      "exitCode": 0,
+      "signal": null
+    },
+    "aggregate": {
+      "files": 163,
+      "tests": 16329,
+      "failed": 0,
+      "verdict": "PASS"
+    },
+    "timings": {
+      "setupMs": 65246,
+      "linkMs": 6616,
+      "nativeMs": 7956936,
+      "jobMs": 8029243
+    },
+    "timeout": {
+      "original": {
+        "originalPresent": true,
+        "originalValue": "2min"
+      },
+      "observed": {
+        "originalPresent": true,
+        "originalValue": "2min"
+      },
+      "verified": true
+    },
+    "reporting": {
+      "restored": true,
+      "verified": true
+    },
+    "failureCodes": [],
+    "perFileCount": 163,
+    "failedFileCount": 0,
+    "incompleteFileCount": 0,
+    "missingTimerCount": 0,
+    "exactPerFilePlansAndCounts": true,
+    "descriptionsOrPlaintextWrittenOrRendered": false,
+    "keyWrittenOrRendered": false,
+    "databaseCalls": false
+  },
+  "canonicalSafeReceipt": {
+    "path": "C:/fr-sealed-20261007/release-native-37775385597-memory-review-20261008/root-canonical-memory-verification.json",
+    "sha256": "142bc65c48c4a629d8224c3edb817329d577059080c5af8a704a71d69ce12436"
+  },
+  "transportCustody": {
+    "root": "C:/fr-sealed-20261007/release-normal-terminal-provider-3acc57eed0d74742a0d9cfcb5675ff62",
+    "safeTerminalProjectionSha256": "3998ed8d501b60f6347236bc0903a504a3dabd91e7c1ad94f37da0e1e8726096",
+    "custodyManifestSha256": "09f3f57cbb6657eddeaea600ce88ad36217e759337d79e48412d1b94b8a3961e",
+    "completeJobsPagination": true,
+    "completeArtifactsPagination": true,
+    "artifactCount": 10,
+    "retainedProtectedReadOnlyFiles": 90,
+    "providerSizeDigestCrcAndSingleMemberVerified": true,
+    "exactFiveMemoryInputCopies": true
+  },
+  "timeoutRestoration": {
+    "capturedOriginalPresent": true,
+    "capturedOriginalValue": "2min",
+    "capturedAtUtc": "2026-10-08T12:17:48.579Z",
+    "observedPresent": true,
+    "observedValue": "2min",
+    "verifiedAtUtc": "2026-10-08T14:31:34.343Z",
+    "verifiedAfterNativeCompletion": true
+  },
+  "seed": {
+    "ordinaryTransactionRollbackStep": "success",
+    "independentBatch2VerificationStep": "success",
+    "startedAfterGuardianCompleted": true,
+    "stepsSeriallyOrdered": true,
+    "directTapNotRead": true
+  },
+  "signedBundle": {
+    "path": "dist/releases/fitcruxx-1.0.0-vc6-shop-pagination.aab",
+    "bytes": 93727171,
+    "sha256": "89f3acebe9197502fcebecfd7df2c9dcbed6c276cdaf193d7b05daa5e59c5d61",
+    "applicationId": "in.fitcruxx.app",
+    "versionName": "1.0.0",
+    "versionCode": 6,
+    "deviceEvidence": "docs/evidence/v2/shop-pagination-device-release-2026-10-07.json",
+    "runtimeInputsUnchangedSinceSignedDeviceTestedBuild": true
+  },
+  "preUploadMainGates": {
+    "headSha": "0ba23f2617378a231bb408b67eb13c33f5707335",
+    "CI": {
+      "runId": 37777516521,
+      "conclusion": "success"
+    },
+    "Holdout": {
+      "runId": 37777516466,
+      "conclusion": "success"
+    },
+    "testImmutability": {
+      "runId": 37777516511,
+      "conclusion": "success"
+    }
+  },
+  "noRegionalOrPerformanceAcceptance": true,
+  "noSuccessTeardownIndexAppend": true,
+  "privateTestsDescriptionsPlaintextAndKeyExcluded": true,
+  "independentFinalCustodyReview": {
+    "verdict": "GO_NORMAL_RELEASE_CUSTODY",
+    "path": "C:/fr-sealed-20261007/release-full-custody-critic-2597f3bb17ca4ad881fc9b72064de7ab/safe-normal-release-custody-review.json",
+    "sha256": "ee9a02cfd2730dfeba8c8eb0f28b9b6255eface29f2e020e9d90a58a8d8237f4",
+    "seedCountsAreConfiguredContractNotDirectlyObservedTapCounts": true
+  }
+}

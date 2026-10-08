@@ -1,12 +1,24 @@
 # Database follow-ups and next closed-test release
 
+## Current release checkpoint (8 October, 14:45 UTC)
+
+The required normal DB37775385597/attempt1/source bcdf2723495c88ef34c3b6a861d9c979cbe45ead is genuinely SUCCESS: all nine jobs finished successfully. Root executed the exact independently reviewed memory-only canonical verifier once against five protected original provider inputs. Its safe receipt142bc65c48c4a629d8224c3edb817329d577059080c5af8a704a71d69ce12436 accepts 163 files / 16,329 assertions / zero failures, exact per-file plans and counts, zero incomplete files or missing timers, unchanged input hashes and exact retained final bytes. Native completed14:30:49UTC; guardian freshly verified the captured original present2min at14:31:34.343UTC, then the serial seed's transaction/rollback and independent batch-2 steps succeeded. Public acceptance record: docs/evidence/v2/database-release-acceptance-2026-10-08.json. The prior main0ba23f2617378a231bb408b67eb13c33f5707335 CI, Holdout and immutability runs are all green.
+
+Original provider custody retains all nine jobs and ten artifacts with exact sizes/digests/CRC/single members. Its90files are protected/read-only with exactly three trusted explicit access rules. Safe projection3998ed8d501b60f6347236bc0903a504a3dabd91e7c1ad94f37da0e1e8726096 and custody manifest09f3f57cbb6657eddeaea600ce88ad36217e759337d79e48412d1b94b8a3961e are sealed under C:/fr-sealed-20261007/release-normal-terminal-provider-3acc57eed0d74742a0d9cfcb5675ff62. Root never displayed a key or private TAP/body. This successful native run needs no failure-teardown index append. All earlier genuine failures and cancellation receipts remain intact.
+
+Independent final custody critic ee9a02cfd2730dfeba8c8eb0f28b9b6255eface29f2e020e9d90a58a8d8237f4 gives GO_NORMAL_RELEASE_CUSTODY, verifying all90terminal seals, all10provider transports, actual canonical acceptance, timeout recovery, serial seed and companion gates. Seed34visible/26held is explicitly the configured frozen verification contract; root and critic did not read raw TAP to count those assertions.
+
+The unchanged signed vc6 bundle is now submitted to the existing closed Alpha track, release3. Google Play finished distribution preparation and recognized6(1.0.0), API24+, target36, with no removed supported devices. Root saved the reviewed release and confirmed Send changes for review for exactly one pending change, Alpha6(1.0.0)/Start full rollout100%. Publishing overview actually shows Changes in review, with Google's quick checks and subsequent approval still pending. Managed publishing is off. Existing tester selections and production track are unchanged. The only nonblocking warning concerns a missing deobfuscation file. Submission evidence is docs/evidence/v2/play-vc6-alpha-submission-2026-10-08.json; proof screenshot docs/evidence/screens/2026-10-08-play-vc6-alpha-submitted.jpg (SHAa4971de588a741b5afa6752c65abd63b4f5a80c4e8a5e88ab890c37b68b174cc). Version5 remains the last observed available release; do not claim testers have6 before approval. The tester join link and six-point checklist are saved in docs/planning/vc6-tester-handoff-2026-10-08.md. No pilot installation occurred.
+
+The regional speed experiment remains explicitly deferred and unaccepted. The saved automatic goal remains paused; this directly authorized release turn is active. The closed navigation and Shop units were already archived; do not reopen them or falsely archive the unfinished performance experiment as a win.
+
 ## Release priority after the owner's two-day delay concern (8 October)
 
 The UI, Shop pagination, device evidence and signed vc6 are complete. Root kept the regional database-speed experiment on the release path too long and delayed trial14's manual initial publication. This experiment must now remain a separate unfinished follow-up; no regional performance acceptance is claimed. The release path is: finish actual trial14 cancellation cleanup/recovery and required closure, apply the exact independently reviewed h202v2 correction through its independent author, push the test-only change on main, let the normal genuinely required full hosted CI validation finish uninterrupted, verify all required release gates, then upload vc6 to the already authorized existing closed Alpha track. No further regional setup or matched benchmark blocks this product release.
 
 The owner explicitly resumed delivery: "yup do things so that i can pass this to the testers". The saved app goal still reports paused; this user-authorized turn is executing the direct release path without pretending the automatic goal has resumed. The actual normal DB37775385597/attempt1 is now running from test-only main bcdf2723495c88ef34c3b6a861d9c979cbe45ead, created12:13:43UTC. The reviewed h202v2 is applied and pushed; vc6 has not been uploaded. Preserve all actual failed/cancelled evidence and original custodian backstops. Previous full hosted native validation took about2h20; its actual completion, rather than an invented short ETA, governs upload.
 
-## Current release execution (8 October, 12:29 UTC)
+## Historical release execution (8 October, 12:50 UTC)
 
 Actual trial14 is closed as a cancellation, with no regional/native/seed pass claimed. Independent final review acc9ed4c6a2441381ed2fb2180aa7bcadad4a27443f850fe193496d636e356e6 accepts official metadata, six archive transports, four successful cleanup steps and guardian restoration to the original captured 2min timeout. Root mechanically reused the existing trial12 guard at ten literal sites, verified its complete inverse and reran the unchanged canonical verifier against fresh provider metadata. The required outside completion index was appended exactly once, eight to nine, with exact readback and all prior raw entries preserved: 1fa91eacd86776a9bb60866f1aba23470e2748c835c319c3df71845574c2bd50. Protected publication root: C:/fr-sealed-20261007/trial14-root-index-publication-9de4b0fb55aa499386c69bf1531c4772. Do not repeat this publication.
 
@@ -17,6 +29,8 @@ No further regional experiment is required. The signed vc6 hash remains 89f3aceb
 Normal hosted pgtap113305943101 is in full native step14. Root's exact existing memory-only verifier pair is prepared inertly at C:/fr-sealed-20261007/release-native-37775385597-memory-review-20261008, after the public contract freeze. MJS343d37ddd00a6d8ed7229d446bb032aa71e6e382881390e2e77c4d97f164edfa and PSba10928c7e08beca1ef9fa43b6a80a9bc46c4457ac1946fceeb34d06022f99fa change exactly four source/run/root literal sites with full original-byte inverses. Independent mechanical-only review844109f572fc0de36b6b76473f4771822b3b0bd34d2f06d9cee4f02cf0cec64b is GO; no execution, key access or decryption yet. Require actual terminal custody and captured original timeout/guardian before use. Root status watcher is local exec session27469; it reads GitHub status only and never runs SQL. The terminal custody author waits for the actual terminal event. Tester checklist is saved in docs/planning/vc6-tester-handoff-2026-10-08.md, explicitly marked pending release.
 
 At12:29UTC, exact bcdf CI37775385573, Holdout37775385639 and test-immutability37775385640 are genuinely SUCCESS. Only required DB37775385597 remains live. Root may push this coherent documentation-only progress/evidence unit while the native job continues; it does not change any database validation or signed application input and must not dispatch/cancel DB. Required relevant gates on that documentation head still need actual green acceptance. The existing source-bound DB result will continue to represent bcdf's corrected test bytes, not an assumed pass.
+
+That documentation-only unit is pushed as main0ba23f2617378a231bb408b67eb13c33f5707335. At12:50UTC its CI37777516521, Holdout37777516466 and immutability37777516511 are genuinely SUCCESS. Required DB37775385597/sourcebcdf remains running on hosted native113305943101, started12:16:42UTC. This is the sole remaining release validation, not a completed database verdict. Preserve this exact run and wait for actual terminal/canonical/recovery/seed acceptance before uploading vc6. No new DB run was triggered by the documentation-only push.
 
 ## Historical checkpoint (8 October; authenticated hosted failure, cleanup verified, correction reviewed)
 
@@ -568,11 +582,13 @@ Next: push the coherent green Shop unit to let CI apply its migration and run th
 - [x] Confirm authenticated correct Play app, published vc5 and candidate vc6.
 - [x] Freeze and commit Shop pagination contract.
 - [x] Commit independent tests red; implement without altering tests.
-- [ ] Green focused/local gates, CI-applied migration, generated types and complete CI.
-- [ ] Prepared safe regional harness, hosting/access decision, independent failure-equivalence checks and measured complete run.
+- [x] Green focused/local gates, CI-applied migration, generated types and complete normal CI.
+- [ ] Deferred regional performance follow-up: prepared harness and reviewed failures do not establish a faster complete run.
 - [x] Fresh isolated-device pagination/navigation smoke and screenshots.
 - [x] Verified signed AAB; application bytes remain equivalent through later validation-only source.
-- [ ] Closed Alpha upload/promote and actual Console evidence.
-- [ ] Archive completed units, final evidence and goal completion.
+- [x] Closed Alpha upload and review submission with actual Console evidence.
+- [ ] Google approval and observed version6 availability to selected testers (external pending).
+- [x] Completed navigation and Shop units archived; final database and release evidence saved.
+- [ ] Deferred regional outcome and paused goal completion remain open; no performance win is claimed.
 
-The active persistent goal tracks these three outcomes. Neither a running suite, an unmeasured regional proposal nor a prepared/uploaded draft is completion. Resume from the latest checkpoint above; the initial discovery boundary is historical.
+The saved persistent goal is paused and retains the deferred regional outcome. Current explicit owner authorization drives the normal release turn. Neither an unmeasured regional proposal nor a prepared/uploaded draft is completion. Resume from the latest checkpoint above; the initial discovery boundary is historical.
