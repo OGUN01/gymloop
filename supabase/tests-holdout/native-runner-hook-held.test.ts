@@ -210,7 +210,7 @@ describe('DBV-008 held exact bounded hook CLI', () => {
       const result = await captureHook([created.guardPath, created.bindingPath]);
       const receipt = await childReceipt(created, result.launcherPid);
       genericFailure(result);
-      expect(result.elapsedMs).toBeGreaterThanOrEqual(deadlineMs - 250);
+      expect(result.elapsedMs).toBeGreaterThanOrEqual(NATIVE_DB_VALIDATION.runnerHookActiveTimeoutMs - 250);
       expect(result.elapsedMs).toBeLessThan(deadlineMs + 5000);
       expect(await stopped(receipt.pid)).toBe(true);
       expect(alive(sentinel.pid!)).toBe(true);
