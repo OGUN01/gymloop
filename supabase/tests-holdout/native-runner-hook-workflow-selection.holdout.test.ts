@@ -58,3 +58,89 @@ describe.each(['push', 'pull_request'])('held pre-job workflow selection: %s', (
     ))).toBe(true);
   });
 });
+
+describe('held complete native-input classification', () => {
+  let grepRunner: typeof import('node:child_process').spawnSync;
+  let grepExecutable = '';
+  let nativeExpression = '';
+  let exclusionExpression = '';
+  let exclusionOptions: string[] = [];
+  let runBound = 0;
+
+  beforeAll(async () => {
+    ({ spawnSync: grepRunner } = await import('node:child_process'));
+    const { NATIVE_DB_VALIDATION } = await import('../../packages/shared/src/config/constants');
+    runBound = NATIVE_DB_VALIDATION.processStopGraceMs;
+    grepExecutable = process.platform === 'win32' ? 'C:/Program Files/Git/usr/bin/grep.exe' : 'grep';
+    const opaqueWorkflow = readFileSync(new URL('../../.github/workflows/db.yml', import.meta.url), 'utf8');
+    const nativeCandidates = Array.from(
+      opaqueWorkflow.matchAll(/\bgrep[\t ]+-(?:qE|Eq)[\t ]+(['"])([^\r\n]*?)\1/gu),
+      (match) => match[2],
+    );
+    const selectedNative = nativeCandidates.filter((candidate) => [
+      'scripts/native-runner-hook.mjs',
+      'scripts/native-runner-guard.mjs',
+      'scripts/native-database-validation.mjs',
+      'packages/shared/src/config/constants.ts',
+      '.github/workflows/db.yml',
+    ].every((input) => grepRunner(grepExecutable, ['-qE', candidate], {
+      input: input + '\n', encoding: 'utf8', timeout: runBound,
+    }).status === 0));
+    expect(selectedNative.length === 1).toBe(true);
+    nativeExpression = selectedNative[0];
+
+    const exclusionCandidates = Array.from(
+      opaqueWorkflow.matchAll(/\bgrep[\t ]+(-vE|-Ev|-v(?:[\t ]+-E)?)[\t ]+(['"])([^\r\n]*?)\2/gu),
+      (match) => ({ options: match[1].split(/\s+/u), expression: match[3] }),
+    );
+    const selectedExclusion = exclusionCandidates.filter((candidate) => {
+      const removed = grepRunner(grepExecutable, [...candidate.options, candidate.expression], {
+        input: 'packages/db/types/database.ts\n', encoding: 'utf8', timeout: runBound,
+      });
+      const retained = grepRunner(grepExecutable, [...candidate.options, candidate.expression], {
+        input: 'scripts/native-runner-hook.mjs\n', encoding: 'utf8', timeout: runBound,
+      });
+      return removed.status === 1 && removed.stdout.length === 0
+        && retained.status === 0 && retained.stdout.trim() === 'scripts/native-runner-hook.mjs';
+    });
+    expect(selectedExclusion.length === 1).toBe(true);
+    exclusionExpression = selectedExclusion[0].expression;
+    exclusionOptions = selectedExclusion[0].options;
+  });
+
+  it.each([
+    ['scripts/native-runner-hook.ps1', true],
+    ['scripts/native-runner-hook.mjs', true],
+    ['scripts/native-runner-guard.mjs', true],
+    ['scripts/native-database-validation.mjs', true],
+    ['scripts/pgtap/native.mjs', true],
+    ['packages/shared/src/config/constants.ts', true],
+    ['.github/workflows/db.yml', true],
+    ['apps/web/app/page.tsx', false],
+    ['apps/mobile/app/index.tsx', false],
+    ['docs/domain-rules.md', false],
+    ['README.md', false],
+    ['packages/db/types/database.ts', false],
+    ['scripts/unrelated-prejob.ps1', false],
+    ['scripts/native-runner-hook.ps1.bak', false],
+    ['scripts/native-runner-hooker.ps1', false],
+    ['packages/db/types/database.ts\napps/web/app/page.tsx', false],
+    ['packages/db/types/database.ts\nscripts/native-runner-hook.ps1', true],
+  ] as const)('classifies controlled changed input %s', (changedPaths, shouldValidate) => {
+    const filtered = grepRunner(grepExecutable, [...exclusionOptions, exclusionExpression], {
+      input: changedPaths + '\n', encoding: 'utf8', timeout: runBound,
+    });
+    expect(filtered.error === undefined).toBe(true);
+    expect(filtered.status === 0 || filtered.status === 1).toBe(true);
+    let requiresNative = false;
+    if (filtered.stdout.length > 0) {
+      const classified = grepRunner(grepExecutable, ['-qE', nativeExpression], {
+        input: filtered.stdout, encoding: 'utf8', timeout: runBound,
+      });
+      expect(classified.error === undefined).toBe(true);
+      expect(classified.status === 0 || classified.status === 1).toBe(true);
+      requiresNative = classified.status === 0;
+    }
+    expect(requiresNative).toBe(shouldValidate);
+  });
+});

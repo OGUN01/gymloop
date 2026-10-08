@@ -50,3 +50,69 @@ describe.each(['push', 'pull_request'])('[DBV-012] Windows pre-job workflow sele
     });
   }
 });
+
+import { spawnSync } from 'node:child_process';
+import { platform } from 'node:os';
+
+// Append-only independent cases from the frozen internal-classification clause.
+// Execute the actual opaque grep pipeline; do not translate or display its source.
+describe('[DBV-012] Windows pre-job internal native-input classification', () => {
+  const workflow = readFileSync(new URL('../../.github/workflows/db.yml', import.meta.url), 'utf8');
+  const nativeCommands = workflow.split(/\r?\n/).filter((line) => (
+    /\bgrep[ \t]+-qE[ \t]+/.test(line) && line.includes('native-runner')
+  ));
+  const nativeExpressions = Array.from(nativeCommands.join('\n').matchAll(
+    /\bgrep[ \t]+-qE[ \t]+(['"])([^\r\n]*?)\1/g,
+  ), (match) => match[2]).filter((expression) => expression.includes('native-runner'));
+  const generatedTypesExclusions = Array.from(nativeCommands.join('\n').matchAll(
+    /\bgrep[ \t]+-vE[ \t]+(['"])([^\r\n]*?)\1/g,
+  ), (match) => match[2]).filter((expression) => expression.includes('packages/db/types'));
+
+  it('probes one existing native-input grep pipeline with its generated-types exclusion', () => {
+    expect(nativeCommands.length).toBe(1);
+    expect(nativeExpressions.length).toBe(1);
+    expect(generatedTypesExclusions.length).toBe(1);
+  });
+
+  it.each([
+    { changedPath: 'scripts/native-runner-hook.ps1', requiresNative: true },
+    { changedPath: 'scripts/native-runner-hook.mjs', requiresNative: true },
+    { changedPath: 'scripts/native-runner-guard.mjs', requiresNative: true },
+    { changedPath: 'scripts/native-database-validation.mjs', requiresNative: true },
+    { changedPath: 'scripts/pgtap/native.mjs', requiresNative: true },
+    { changedPath: 'packages/shared/src/config/constants.ts', requiresNative: true },
+    { changedPath: '.github/workflows/db.yml', requiresNative: true },
+    { changedPath: 'apps/web/app/page.tsx', requiresNative: false },
+    { changedPath: 'apps/mobile/app/(member)/index.tsx', requiresNative: false },
+    { changedPath: 'packages/ui/button.tsx', requiresNative: false },
+    { changedPath: 'docs/architecture.md', requiresNative: false },
+    { changedPath: 'packages/db/types/database.ts', requiresNative: false },
+    { changedPath: 'scripts/unrelated-hook.ps1', requiresNative: false },
+    { changedPath: 'scripts/nested/native-runner-hook.ps1', requiresNative: false },
+    { changedPath: 'scripts/native-runner-hookXps1', requiresNative: false },
+    { changedPath: 'scripts/native-runner-hook.ps10', requiresNative: false },
+    { changedPath: 'scripts/native-runner-hook.ps1.bak', requiresNative: false },
+  ])('classifies $changedPath with requiresNative=$requiresNative', ({ changedPath, requiresNative }) => {
+    expect(nativeCommands.length).toBe(1);
+    expect(nativeExpressions.length).toBe(1);
+    expect(generatedTypesExclusions.length).toBe(1);
+    const retainedInputs = spawnSync(
+      platform() === 'win32' ? 'C:/Program Files/Git/usr/bin/grep.exe' : 'grep',
+      ['-vE', '--', generatedTypesExclusions[0] ?? '^$'],
+      { input: `${changedPath}\n`, encoding: 'utf8' },
+    );
+    expect(retainedInputs.error === undefined).toBe(true);
+    expect(retainedInputs.signal === null).toBe(true);
+    expect(retainedInputs.status === 0 || retainedInputs.status === 1).toBe(true);
+
+    const classification = spawnSync(
+      platform() === 'win32' ? 'C:/Program Files/Git/usr/bin/grep.exe' : 'grep',
+      ['-qE', '--', nativeExpressions[0] ?? '^$'],
+      { input: retainedInputs.stdout, encoding: 'utf8' },
+    );
+
+    expect(classification.error === undefined).toBe(true);
+    expect(classification.signal === null).toBe(true);
+    expect(classification.status).toBe(requiresNative ? 0 : 1);
+  });
+});
