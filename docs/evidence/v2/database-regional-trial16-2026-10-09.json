@@ -1,0 +1,43 @@
+{
+  "runId": "37822050096",
+  "runAttempt": 1,
+  "sourceSha": "db8715c0f5e20b34f753652cc01b0b4d94566872",
+  "status": "failed-before-checkout",
+  "nativeJobId": "113466344205",
+  "runnerId": 37,
+  "runnerEnvironment": "self-hosted",
+  "failure": "GitHub rejected hook.cmd as an unsupported pre-job script extension.",
+  "initialReadinessPublication": "genuine wrapper publication; operator made one HTTP204 claim; publisher37822269111 succeeded",
+  "checkoutExecuted": false,
+  "fullNativeSuiteExecuted": false,
+  "databaseArmedReceiptPresent": false,
+  "guardianJobId": "113466555344",
+  "guardian": "failed while finding an armed receipt; database link and restoration skipped",
+  "seedJobId": "113466890898",
+  "seed": "skipped",
+  "performanceAccepted": false,
+  "physicalCleanup": {
+    "nativeProcessesStopped": true,
+    "ownedContainersStopped": true,
+    "runnerDeregistered": true,
+    "originalProofSha256": "3dc1251bf17ce08394d1617d94beeac07e86f2a968bcbb8b54e6d6459a2af637",
+    "independentReviewSha256": "0964cb1a3cab336ef64884a79af2abb0afef2ded747860037ff21cccd729c637",
+    "originalCustodianDeadlinesPreserved": true
+  },
+  "canonicalAllocatedTeardownAccepted": true,
+  "completionIndex": {
+    "logicalPatchCalls": 1,
+    "entries": 11,
+    "priorTenRawEntriesPreserved": true,
+    "exactReadbackVerified": true,
+    "valueSha256": "1a803e14f893acd19cd4b1cdbe6bca685bad67d357829048243bba509b66e9ba"
+  },
+  "custodyLimits": [
+    "The first immediate wrapper executable observation is null; its actual PID and birth match admission.",
+    "Two redirected wrapper logs remain locked and their hashes are explicitly unavailable.",
+    "All26 retained terminal originals are protected and readonly;24 available hashes were independently verified."
+  ],
+  "nativeSuccessOrRestorationInferred": false,
+  "privateTestOutputOrKeyRead": false,
+  "testerRelease": "version6 remains published; this performance failure does not change its accepted normal validation"
+}

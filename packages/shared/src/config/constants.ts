@@ -691,6 +691,7 @@ export const NATIVE_DB_VALIDATION = {
   runnerOs: 'Windows',
   job: 'pgtap',
   processStopGraceMs: 10_000,
+  runnerHookActiveTimeoutMs: 9_000,
   nativeCleanupReserveMs: 60_000,
   artifactRetentionDays: 7,
   privateDirectoryMode: 0o700,

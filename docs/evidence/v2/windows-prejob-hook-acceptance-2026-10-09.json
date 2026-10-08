@@ -1,0 +1,29 @@
+{
+  "scope": "Local Windows pre-job correction; full regional performance pending",
+  "bridgeSha256": "f4a97dee50e0c5ad573926eb975818485ed4191cfd7479c2a3ab849edf14ab4f",
+  "hookSourceSha256": "983a362467c9bd4ae42286168753ef3c2db9c6f4bbc40b05355686fce5ebdb00",
+  "constantsSourceSha256": "cfb46ec209f8e5ddc330bef75c94fb04520de31c5b36b61154033c79256f5591",
+  "correctedOpaqueHookSha256": "8c278352e810d39aca6d4ed2940117d3efa7f6149cdcb3ea60f86ab1f7671a2b",
+  "activeDeadlineMs": 9000,
+  "unchangedPhysicalMaximumMs": 10000,
+  "visibleDeadlineCases": {"passed": 13, "failed": 0, "suiteSha256": "5e5a06c35aedf1dfe61902cc172854cb367fcae5066cd2315aa7ec70bc3d4b9e"},
+  "heldDeadlineCases": {"passed": 12, "failed": 0, "suiteSha256": "d251b1e43a317156dc786b1637c74117624cf29fe1fbe7ad0d4505595de95947"},
+  "visibleWorkflowCases": {"passed": 25, "failed": 0, "suiteSha256": "df81b5d145712850798fd18b73f7e0e89232db34b7daada98b277a3940424205"},
+  "heldWorkflowCases": {"passed": 23, "failed": 0, "suiteSha256": "e920ea13698471c88a01af9d4a8738198351a2d3dc4d10dbd6321ae99683da37"},
+  "visiblePhysicalCases": {
+    "passed": 13, "failed": 0, "checks": 305,
+    "suiteSha256": "7f6853a70d4726afed26129b3322bb652602fa27b0eb23431662989fc4268312",
+    "receiptSha256": "c758c603c3b1ee7e9bb5bd9575a61829fe386f371e81743042c06dd16a465ade",
+    "guardKernelDurationMs": 9010.6336, "exactOwnedSurvivors": 0
+  },
+  "heldPhysicalCases": {
+    "passed": 14, "failed": 0,
+    "suiteSha256": "8c8d8a0c109d82fc05d91422ae2775d89ca439d5825a0cb92a038a310c762842",
+    "guardStartToKernelExitDurationsMs": [8925, 8916], "ownedCleanup": true
+  },
+  "physicalHosts": ["WindowsPowerShell5", "PowerShell7"],
+  "localGates": {"targetedLint": "PASS", "sharedTypecheck": "PASS", "registry": "PASS", "escapeHatches": "PASS", "rollback163Files": "PASS", "diffWhitespace": "PASS"},
+  "freshSourceCritic": "GO for bridge, monotonic deadline correction and construction recipe; no integration/performance claim",
+  "priorFailuresPreserved": true,
+  "scopeLimits": "No application, migration, SQL assertion, guard identity predicate, native command, existing constant value or Play change. Actual full CI, matching-input benchmark, restoration and physical cleanup are still required."
+}

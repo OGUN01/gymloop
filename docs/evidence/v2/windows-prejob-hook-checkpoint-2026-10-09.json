@@ -1,0 +1,34 @@
+{
+  "scope": "Windows pre-job compatibility and bounded admission follow-up",
+  "testerRelease": "version6 already available; no release action pending",
+  "bridgeSha256": "f4a97dee50e0c5ad573926eb975818485ed4191cfd7479c2a3ab849edf14ab4f",
+  "originalOpaqueHookSha256": "438d84b0dc988549babd31da23ee5e5e4fdd1f6591b58c2e68d4ab33385942a8",
+  "held": {
+    "suiteSha256": "4674ddc57642cca9b5a59a2cf91cb33cbd98df05f2f628d6f3a2b4a9cb2b2d0e",
+    "executed": 14,
+    "passed": 14,
+    "failed": 0,
+    "hostsPassed": ["WindowsPowerShell5", "PowerShell7"],
+    "ownedGuardKernelDurationsMs": [9549, 9772],
+    "maximumMs": 10000,
+    "ownedCleanup": true
+  },
+  "visible": {
+    "suiteSha256": "80d81fb81a1da42a9bd8b73601092a12340ccd5f98d58bf9ae91d18ed1fc94e0",
+    "receiptSha256": "d6588318cc0ce6da99b8fc7bd76808a689df378222c7cdaf2e560e0d79301fc0",
+    "groups": 13,
+    "checks": 303,
+    "passed": 12,
+    "failed": 1,
+    "failureCode": "VISIBLE_ASSERTION_ORIGINAL_TEN_SECOND_CHILD_CAP",
+    "guardKernelDurationMs": 10011.2781,
+    "maximumMs": 10000,
+    "exactOwnedSurvivors": 0,
+    "exitCode": 1
+  },
+  "admissionAccepted": false,
+  "fullRegionalSuiteStarted": false,
+  "performanceAccepted": false,
+  "nextFrozenCorrection": "windows-prejob-termination-headroom.md",
+  "interpretation": "The overrun is an actual red observation. Earlier termination and monotonic late-success refusal require independent tests and both physical PowerShell contracts before a full trial. Prior red and interrupted receipts remain retained."
+}

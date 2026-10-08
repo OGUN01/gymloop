@@ -33,6 +33,7 @@ on:
       - 'scripts/native-database-validation.mjs'
       - 'scripts/native-runner-guard.mjs'
       - 'scripts/native-runner-hook.mjs'
+      - 'scripts/native-runner-hook.ps1'
       - 'packages/shared/src/config/env.ts'
       - 'packages/shared/src/config/constants.ts'
       - '.github/actions/native-database-validation/**'
@@ -59,6 +60,7 @@ on:
       - 'scripts/native-database-validation.mjs'
       - 'scripts/native-runner-guard.mjs'
       - 'scripts/native-runner-hook.mjs'
+      - 'scripts/native-runner-hook.ps1'
       - 'packages/shared/src/config/env.ts'
       - 'packages/shared/src/config/constants.ts'
       - '.github/actions/native-database-validation/**'
@@ -727,7 +729,7 @@ jobs:
           # schema-drift (its own job, always run on a types push) is their gate.
           # A push that changes ONLY packages/db/types/ therefore skips the suite
           # (ADR-177). Any other file under supabase/ or packages/db/ still runs it.
-          if echo "$changed" | grep -vE '^packages/db/types/' | grep -qE '^(supabase/|packages/db/|scripts/check-pgtap-rollback|scripts/pgtap/|scripts/native-(database-validation|runner-guard|runner-hook)\.mjs$|packages/shared/src/config/(env|constants)\.ts$|pnpm-lock\.yaml$|\.github/actions/native-database-validation/|\.github/workflows/(db|native-database-preflight|native-runner-readiness)\.yml$)'; then
+          if echo "$changed" | grep -vE '^packages/db/types/' | grep -qE '^(supabase/|packages/db/|scripts/check-pgtap-rollback|scripts/pgtap/|scripts/native-(database-validation|runner-guard|runner-hook)\.mjs$|packages/shared/src/config/(env|constants)\.ts$|pnpm-lock\.yaml$|\.github/actions/native-database-validation/|\.github/workflows/(db|native-database-preflight|native-runner-readiness)\.yml$|scripts/native-runner-hook\.ps1$)'; then
             echo "run=true" >> "$GITHUB_OUTPUT"
           else
             echo "::notice::This push touches no migration, no pgTAP file, no non-type packages/db file and not this workflow. Skipping the suite; schema-drift still verifies any generated types."
