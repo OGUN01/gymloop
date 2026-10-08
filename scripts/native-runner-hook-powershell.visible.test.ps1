@@ -105,6 +105,7 @@ function Invoke-VisiblePrejobHost($HostRecord, [string]$BridgePath, [string]$Gua
     $process = [Diagnostics.Process]::new()
     $process.StartInfo = $start
     $guard = $null
+    $guardBirthUtc = $null
     $startedUtc = [DateTime]::UtcNow
     $clock = [Diagnostics.Stopwatch]::StartNew()
     try {
@@ -120,8 +121,10 @@ function Invoke-VisiblePrejobHost($HostRecord, [string]$BridgePath, [string]$Gua
                 $identity = [IO.File]::ReadAllText($GuardMarker) | ConvertFrom-Json
                 $guard = [Diagnostics.Process]::GetProcessById([int]$identity.pid)
                 $script:Owned.Add($guard)
+                $null = $guard.Handle
+                $guardBirthUtc = $guard.StartTime.ToUniversalTime()
                 Assert-VisiblePrejob (-not $guard.HasExited) 'STALL_GUARD_ACTUALLY_LIVE'
-                Assert-VisiblePrejob ($guard.StartTime.ToUniversalTime() -ge $startedUtc) 'STALL_GUARD_CREATED_THIS_CALL'
+                Assert-VisiblePrejob ($guardBirthUtc -ge $startedUtc) 'STALL_GUARD_CREATED_THIS_CALL'
                 Assert-VisiblePrejob ([IO.Path]::GetFullPath($guard.MainModule.FileName) -ieq [IO.Path]::GetFullPath($script:NativeNode)) 'STALL_GUARD_NATIVE_NODE'
             }
         }
@@ -138,7 +141,7 @@ function Invoke-VisiblePrejobHost($HostRecord, [string]$BridgePath, [string]$Gua
         if ($null -ne $guard) {
             Assert-VisiblePrejob ($guard.WaitForExit($script:Limits.processStopGraceMs)) 'STALL_GUARD_TERMINATED'
             $result.guardExited = $guard.HasExited
-            $result.guardLifetimeMs = ($guard.ExitTime.ToUniversalTime() - $guard.StartTime.ToUniversalTime()).TotalMilliseconds
+            $result.guardLifetimeMs = ($guard.ExitTime.ToUniversalTime() - $guardBirthUtc).TotalMilliseconds
         }
         return $result
     } finally {
