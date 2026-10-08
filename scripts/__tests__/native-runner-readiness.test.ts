@@ -56,6 +56,7 @@ function executeNativeRunnerReadinessPublisher() {
   };
   const publisherJob = {
     id: 801003, run_id: publisher.id, run_attempt: 1,
+    head_sha: job.sourceSha,
     name: 'Publish verified readiness', status: 'completed', conclusion: 'success',
     started_at: '2026-10-08T12:00:01Z', completed_at: '2026-10-08T12:00:04Z',
     steps: [
@@ -86,6 +87,7 @@ function executeNativeRunnerReadinessPublisher() {
   const artifact = {
     id: 601001, name, size_in_bytes: archive.length, expired: false,
     digest: `sha256:${createHash('sha256').update(archive).digest('hex')}`,
+    expires_at: '2026-10-15T12:00:03Z',
     created_at: '2026-10-08T12:00:02Z', updated_at: '2026-10-08T12:00:03Z',
     workflow_run: { id: publisher.id, repository_id: repository.id, head_repository_id: repository.id, head_branch: 'main', head_sha: job.sourceSha },
   };
@@ -275,6 +277,10 @@ function executeNativeRunnerReadinessPublisher() {
       const spec = String(specifier);
       if (spec.includes('runner-readiness.mjs')) return { resolveNativeRunnerReadiness: async (input: unknown, concretePorts: typeof ports) => { selector.input = input; selector.captured = concretePorts; return null; } };
       if (spec.includes('runner-job.mjs')) { const moduleUrl = new URL('../pgtap/runner-job.mjs', import.meta.url).href; return import(/* @vite-ignore */ moduleUrl); }
+      if (spec.endsWith('/scripts/pgtap/data-record.mjs') || spec.endsWith('\\scripts\\pgtap\\data-record.mjs')) {
+        const moduleUrl = new URL('../pgtap/data-record.mjs', import.meta.url).href;
+        return import(/* @vite-ignore */ moduleUrl);
+      }
       if (spec.includes('config/constants')) return { NATIVE_DB_VALIDATION };
       if (spec === 'node:fs/promises' || spec === 'fs/promises') return { readFile: async () => { throw new Error('undeclared file'); } };
       if (spec.startsWith('node:') && spec !== 'node:fs' && spec !== 'node:child_process') return import(/* @vite-ignore */ spec);
