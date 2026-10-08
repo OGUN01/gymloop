@@ -3,13 +3,15 @@ import { Buffer } from 'node:buffer';
 import { execFileSync, spawn } from 'node:child_process';
 import { createHash, randomBytes } from 'node:crypto';
 import { chmod, lstat, mkdir, readFile, readdir, realpath, rm, stat, writeFile } from 'node:fs/promises';
-import { isAbsolute, join, relative, resolve } from 'node:path';
+import { createRequire } from 'node:module';
+import { basename, dirname, isAbsolute, join, relative, resolve } from 'node:path';
 import { pathToFileURL, URL } from 'node:url';
 import { nativeDatabaseValidationEnv, nativeDatabaseProcessEnv, backupKeyEnv } from '../packages/shared/src/config/env.ts';
 import { NATIVE_DB_VALIDATION, PHASE8_BACKUP_LIMITS } from '../packages/shared/src/config/constants.ts';
 import { findNonRolledBackTests } from './check-pgtap-rollback.mjs';
 import { buildNativePgtapManifest, runNativePgtapValidation, verifyNativePgtapRun } from './pgtap/native.mjs';
 import { protectNativePgtapOutput, recoverNativePgtapOutput } from './pgtap/private-output.mjs';
+import { exactNativeDataRecord } from './pgtap/data-record.mjs';
 
 const target = Object.freeze({ projectRef: NATIVE_DB_VALIDATION.projectRef, role: NATIVE_DB_VALIDATION.role,
   parameter: NATIVE_DB_VALIDATION.parameter });
@@ -67,10 +69,77 @@ async function privateWrite(path, bytes) {
   return { path, sha256: hash(back), byteLength: back.length };
 }
 
+/** Resolve the pinned Windows npm distribution without executing its shell shim. */
+export async function resolveNativeSupabaseExecutable(input) {
+  try {
+    const data = exactNativeDataRecord(input, ['platform', 'arch', 'path']);
+    if (!data || typeof data.platform !== 'string' || data.platform.length === 0 ||
+        typeof data.arch !== 'string' || data.arch.length === 0 || typeof data.path !== 'string') throw refuse('RUNNER_UNTRUSTED');
+    if (data.platform !== 'win32') return NATIVE_DB_VALIDATION.nativeCommand;
+    if (data.arch !== 'x64') throw refuse('RUNNER_UNTRUSTED');
+    const directories = data.path.split(';').filter(directory => directory.length > 0);
+    if (directories.some(directory => !isAbsolute(directory))) throw refuse('RUNNER_UNTRUSTED');
+    for (const directory of directories) {
+      const executable = resolve(directory, `${NATIVE_DB_VALIDATION.nativeCommand}.exe`);
+      let metadata;
+      try { metadata = await lstat(executable); }
+      catch (error) { if (error.code === 'ENOENT') continue; throw error; }
+      if (!metadata.isFile() || metadata.isSymbolicLink() || await realpath(executable) !== executable) throw refuse('RUNNER_UNTRUSTED');
+      return executable;
+    }
+    for (const directory of directories) {
+      const shim = resolve(directory, `${NATIVE_DB_VALIDATION.nativeCommand}.cmd`);
+      let metadata;
+      try { metadata = await lstat(shim); }
+      catch (error) { if (error.code === 'ENOENT') continue; throw error; }
+      if (!metadata.isFile() || metadata.isSymbolicLink() || await realpath(shim) !== shim) throw refuse('RUNNER_UNTRUSTED');
+      if (basename(directory) === '.bin' && basename(dirname(directory)) !== 'node_modules') throw refuse('RUNNER_UNTRUSTED');
+      const packageJson = basename(directory) === '.bin'
+        ? resolve(dirname(directory), 'supabase/package.json')
+        : resolve(directory, 'node_modules/supabase/package.json');
+      metadata = await lstat(packageJson);
+      if (!metadata.isFile() || metadata.isSymbolicLink() || await realpath(packageJson) !== packageJson) throw refuse('RUNNER_UNTRUSTED');
+      const packageMetadata = JSON.parse(await readFile(packageJson, 'utf8'));
+      const packageName = '@supabase/cli-windows-x64';
+      if (packageMetadata.name !== NATIVE_DB_VALIDATION.nativeCommand || packageMetadata.version !== NATIVE_DB_VALIDATION.cliVersion ||
+          !exact(packageMetadata.bin, ['supabase']) || packageMetadata.bin.supabase !== 'dist/supabase.js' ||
+          packageMetadata.optionalDependencies?.[packageName] !== NATIVE_DB_VALIDATION.cliVersion) throw refuse('RUNNER_UNTRUSTED');
+      const declaredBin = resolve(dirname(packageJson), packageMetadata.bin.supabase);
+      metadata = await lstat(declaredBin);
+      if (!metadata.isFile() || metadata.isSymbolicLink() || await realpath(declaredBin) !== declaredBin) throw refuse('RUNNER_UNTRUSTED');
+      const optionalCandidates = [resolve(dirname(packageJson), 'node_modules', packageName, 'package.json'),
+        resolve(dirname(dirname(packageJson)), packageName, 'package.json')];
+      let optionalPackageJson = null;
+      for (const candidate of optionalCandidates) {
+        try { metadata = await lstat(candidate); }
+        catch (error) { if (error.code === 'ENOENT') continue; throw error; }
+        if (!metadata.isFile() || metadata.isSymbolicLink() || await realpath(candidate) !== candidate) throw refuse('RUNNER_UNTRUSTED');
+        optionalPackageJson = candidate;
+        break;
+      }
+      if (optionalPackageJson === null || createRequire(packageJson).resolve(`${packageName}/package.json`) !== optionalPackageJson) throw refuse('RUNNER_UNTRUSTED');
+      const optionalMetadata = JSON.parse(await readFile(optionalPackageJson, 'utf8'));
+      if (optionalMetadata.name !== packageName || optionalMetadata.version !== NATIVE_DB_VALIDATION.cliVersion) throw refuse('RUNNER_UNTRUSTED');
+      const executable = resolve(dirname(optionalPackageJson), 'bin/supabase.exe');
+      metadata = await lstat(executable);
+      if (!metadata.isFile() || metadata.isSymbolicLink() || await realpath(executable) !== executable) throw refuse('RUNNER_UNTRUSTED');
+      return executable;
+    }
+    throw refuse('RUNNER_UNTRUSTED');
+  } catch { throw refuse('RUNNER_UNTRUSTED'); }
+}
+
 // Retain bytes internally; errors never include a child stream or command arguments.
 async function capture(command, args, options = {}) {
   const started = Date.now();
-  const child = spawn(command, args, { cwd: options.cwd, env: options.env ?? nativeDatabaseProcessEnv(), windowsHide: true,
+  const inherited = options.env ?? nativeDatabaseProcessEnv();
+  let executable = command;
+  if (process.platform === 'win32' && command === NATIVE_DB_VALIDATION.nativeCommand) {
+    const paths = Object.entries(inherited).filter(([name]) => name.toLowerCase() === 'path');
+    if (paths.length !== 1) throw refuse('RUNNER_UNTRUSTED');
+    executable = await resolveNativeSupabaseExecutable({ platform: process.platform, arch: process.arch, path: paths[0][1] });
+  }
+  const child = spawn(executable, args, { cwd: options.cwd, env: inherited, windowsHide: true,
     stdio: ['ignore', 'pipe', 'pipe'], shell: false });
   const streams = { stdout: [], stderr: [] };
   let length = 0;

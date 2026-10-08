@@ -1,0 +1,84 @@
+{
+  "scope": "Windows pinned CLI executable transport and exact classifier vector reuse",
+  "originalRedCommit": "f17561be",
+  "layoutRegressionRedCommit": "6120e9ab",
+  "sourceSha256": "c6478e2e7728885fab179d2a7f2123e18c05261231ba56c3fe58fee2c9a3e51b",
+  "classifierSha256": "df3237723b4bad2e4828eac7952abbab2bb99af3a5753123e41368857343ef43",
+  "tests": {
+    "visibleOriginalRed": { "total": 37, "failed": 37, "pending": 0 },
+    "heldOriginalRed": { "total": 33, "failed": 33, "pending": 0 },
+    "firstImplementation": { "total": 70, "passed": 69, "failed": 1, "pending": 0 },
+    "declaredBinGuardGreen": { "total": 70, "passed": 70, "failed": 0, "pending": 0 },
+    "layoutRegressionRed": { "total": 38, "passed": 37, "failed": 1, "pending": 0 },
+    "final": { "total": 71, "passed": 71, "failed": 0, "pending": 0, "exitCode": 0 },
+    "finalPrivateReportSha256": "25dc8f8780ed8417d9b3b7a9dc9ac004155ed6444d3c578ab5eb7d74c8a299de",
+    "visibleSuiteSha256": "49f11534b1e84fbb250d7af7fed5e4a45debf7b9d6ae1a6c6cd979fe6dd4b6e0",
+    "heldSuiteSha256": "4ca97514035247919d4117f98be8922658b6bd34872578365dc1c18b4d8a3fbc",
+    "originalVisiblePrefixSha256": "d99975eef9b16372d8f150c9ee40e37ce2b25836241a47b7d8d0743d9195790c",
+    "originalCasesAndOraclesUnchanged": true,
+    "implementerReadOrEditedTestBodies": false,
+    "allOriginalFailuresAndFirstInvalidRegressionPreconditionsPreserved": true
+  },
+  "priorContracts": {
+    "total": 2210, "passed": 2210, "failed": 0, "pending": 0, "exitCode": 0,
+    "privateReportSha256": "747b9fc702e1f1b63c23d5149f6f472831840cdfaaab2a0028d955f8b32a0a49"
+  },
+  "heldFixturePlatformPort": {
+    "wholeSuiteSha256": "8dd3ba1acdfd5a36a61fa60213fbf47999202e59aa890c855d4c60c55148c2fc",
+    "oracleSha256": "e26dd1ad39909e50fe1d9f75a464fa957095deb2210e53a875de652fd1f8ec24",
+    "mechanicalReverseMatchesOriginal": true,
+    "actualWindowsPassed": 789,
+    "lintErrors": 0,
+    "knipUnlistedBinaryIssues": 0,
+    "safeReceiptSha256": "752c8d0e8e10fd0aab662d335e3a493b2380d0efb76a1a99c6944cb321cc17ea",
+    "actualLinuxAcceptance": "Pending CI"
+  },
+  "vectorReuse": {
+    "oldSetupDefinitionUnchanged": true,
+    "oldGuardianDefinitionUnchanged": true,
+    "allThreeCompleteVectorsSerializeIdentically": true,
+    "serializedSha256": "994e275fb69a160f17525c635fc70150e24409957b4e534b4ccceb118a457cff",
+    "lengths": [20, 23, 17],
+    "duplicateGate": "Passed with zero clones"
+  },
+  "sourceReview": {
+    "initial": "NO_GO unsupported local .bin parent",
+    "final": "SOURCE_ONLY_GO after tests-first guard",
+    "remainingSourceFindings": 0,
+    "safeReceiptSha256": "f8787644aa61ae6f2b3d70cd147c640aef4e6488331381b3761bd74aafa11a86",
+    "shellOrNativeArgumentsChanged": false,
+    "databaseAuthorityOrTimeoutGuardsChanged": false
+  },
+  "finalHarmlessWindowsVersionProbe": {
+    "sourceSha256": "c6478e2e7728885fab179d2a7f2123e18c05261231ba56c3fe58fee2c9a3e51b",
+    "executableSha256": "14814afa6fe59081eb9f24709fc077226bf89bc25cf77ee3bcb19565f3ef8899",
+    "pinnedVersion": "2.110.0",
+    "exitCode": 0,
+    "versionMatches": true,
+    "stdoutBytes": 8,
+    "stderrBytes": 0,
+    "shell": false,
+    "databaseCommandInvoked": false,
+    "safeReceiptSha256": "efeec550a1eda17d802cc3e11ffd4b62dc3b8c80191c9aaefed9e20e19c3d078"
+  },
+  "finalLocalGates": {
+    "sharedTypes": "Passed",
+    "targetedSourceLint": "Passed",
+    "registry": "Passed",
+    "escapeHatches": "Passed 1042 files",
+    "rollback": "Passed 163 files",
+    "duplication": "Passed zero clones",
+    "whitespace": "Passed",
+    "independentLinuxCI": "Pending",
+    "fullLocalKnip": "Not certified; local config-load warning retained"
+  },
+  "historicalTrial19": {
+    "armingOrRestorationAccepted": false,
+    "recoveryClearanceAccepted": false,
+    "readOnlyJournalAttempt": "Current rights refused Access is denied; one hidden child exited1, no elevation or retry",
+    "journalReadAccepted": false,
+    "remaining": "Positive historical custody evidence is still required before another native admission"
+  },
+  "release": "Version 6 is already available to testers; this tooling unit changes no app or Play release",
+  "performanceAcceptance": false
+}
