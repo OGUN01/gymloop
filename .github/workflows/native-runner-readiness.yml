@@ -1,0 +1,70 @@
+name: Native runner readiness
+
+on:
+  workflow_dispatch:
+    inputs:
+      readiness:
+        description: Exact operator-verified nonsecret readiness JSON
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  publish:
+    name: Publish verified readiness
+    if: github.repository == 'OGUN01/gymloop' && github.ref == 'refs/heads/main' && github.actor == 'OGUN01' && github.triggering_actor == 'OGUN01' && github.run_attempt == 1
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Produce bound readiness
+        id: produce
+        uses: actions/github-script@v8
+        with:
+          script: |
+            const {createNativeRunnerReadinessPublication} = await import(`${process.cwd()}/scripts/pgtap/runner-readiness.mjs`);
+            const {NATIVE_DB_VALIDATION: limits} = await import(`${process.cwd()}/packages/shared/src/config/constants.ts`);
+            const {mkdir,writeFile} = await import('node:fs/promises');
+            const readiness = context.payload.inputs.readiness;
+            if (typeof readiness !== 'string' || Buffer.byteLength(readiness,'utf8') > limits.timeoutQueryMaxBytes ||
+                `${context.repo.owner}/${context.repo.repo}` !== limits.repository || context.ref !== limits.mainRef ||
+                context.eventName !== 'workflow_dispatch' || context.actor !== 'OGUN01') throw new Error('Readiness publication refused.');
+            const own = (await github.rest.actions.getWorkflowRun({...context.repo,run_id:context.runId})).data;
+            if (!own || String(own.id) !== String(context.runId) || own.run_attempt !== 1 || own.event !== 'workflow_dispatch' ||
+                own.path !== '.github/workflows/native-runner-readiness.yml' || own.head_branch !== 'main' || own.head_sha !== context.sha ||
+                own.repository?.full_name !== limits.repository || own.head_repository?.full_name !== limits.repository ||
+                !Number.isSafeInteger(own.repository.id) || own.repository.id <= 0 || own.head_repository.id !== own.repository.id ||
+                own.actor?.login !== 'OGUN01' || own.triggering_actor?.login !== 'OGUN01') throw new Error('Readiness publisher identity refused.');
+            const value = JSON.parse(readiness);
+            const job = {repository:limits.repository,eventName:'workflow_dispatch',ref:limits.mainRef,sourceSha:context.sha,
+              runId:value.runner?.runId,runAttempt:value.runner?.runAttempt,workflowRef:limits.workflowRef};
+            let publication = createNativeRunnerReadinessPublication({job,readiness,now:Date.now()});
+            if (!publication) throw new Error('Readiness publication refused.');
+            const targetRunId=Number(job.runId),targetAttempt=Number(job.runAttempt);
+            if (!Number.isSafeInteger(targetRunId) || targetRunId<=0 || !Number.isSafeInteger(targetAttempt) || targetAttempt<=0) throw new Error('Readiness target identity refused.');
+            const target = (await github.rest.actions.getWorkflowRunAttempt({...context.repo,run_id:targetRunId,attempt_number:targetAttempt})).data;
+            if (!target || String(target.id) !== job.runId || String(target.run_attempt) !== job.runAttempt ||
+                !['push','workflow_dispatch'].includes(target.event) || target.path !== '.github/workflows/db.yml' ||
+                target.head_sha !== job.sourceSha || target.head_branch !== 'main' || target.status !== 'in_progress' ||
+                target.conclusion !== null || target.repository?.id !== own.repository.id || target.head_repository?.id !== own.repository.id ||
+                target.repository?.full_name !== limits.repository || target.head_repository?.full_name !== limits.repository) throw new Error('Readiness target identity refused.');
+            job.eventName = target.event;
+            publication = createNativeRunnerReadinessPublication({job,readiness,now:Date.now()});
+            if (!publication) throw new Error('Readiness publication refused.');
+            await mkdir('.native-db-readiness',{mode:limits.privateDirectoryMode});
+            await writeFile('.native-db-readiness/readiness.json',publication.body,{flag:'wx',mode:limits.privateFileMode});
+            core.setOutput('artifact_name',publication.artifactName);
+            core.setOutput('retention_days',limits.artifactRetentionDays);
+      - name: Retain bound readiness
+        uses: actions/upload-artifact@v5
+        with:
+          name: ${{ steps.produce.outputs.artifact_name }}
+          path: .native-db-readiness/readiness.json
+          if-no-files-found: error
+          overwrite: false
+          retention-days: ${{ steps.produce.outputs.retention_days }}

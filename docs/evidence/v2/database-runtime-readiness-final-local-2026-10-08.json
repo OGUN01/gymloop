@@ -1,0 +1,110 @@
+{
+  "kind": "EXACT_COMPLETE_LOCAL_ACCEPTANCE_REGIONAL_TRIAL_AND_PLAY_PENDING",
+  "verifiedAt": "2026-10-08T02:01:08.9174142+00:00",
+  "preImplementationHead": "373a9498c1ce28d545cc72ddf8e1b3572fe2a925",
+  "actualFullTooling": {
+    "startedAt": "2026-10-08T01:44:00.2007697+00:00",
+    "finishedAt": "2026-10-08T01:57:21.9728357+00:00",
+    "files": 168,
+    "total": 8218,
+    "passed": 8218,
+    "failed": 0,
+    "pending": 0,
+    "exitCode": 0,
+    "reportSha256": "aac8a7130b95b66cea854ec18dc7484117b4c2cf0cbde43888959228134a8c3d",
+    "aggregateSha256": "0e8e4c5493bd73a204aa1e1d2a7d4e5e9d549184dba5baa7148f7c10824aa7c5",
+    "allElevenBoundSourceTestConstantLockSealsUnchanged": true,
+    "exactOriginalCaseSensitiveFileCountScope": true,
+    "ordinalManifestSha256": "537cf7bde0ff169198471af679f6ae784819b5f6bb4310031ba000a4c3a3b659",
+    "scopeReceiptSha256": "0588bae1de47e76f2b6bfe44694862f055a56b1fa6f0e82e21cee4708f1e4bd8",
+    "rawRepresentationAndOneSidedOrderComparisonRefusalsRetained": true,
+    "noTestsOrDeadlinesChanged": true
+  },
+  "source": [
+    {
+      "path": "scripts/phase8-prelaunch-load-fixture.mjs",
+      "sha256": "fe3d83fbddacdf6c9021e4f2fcf0788dbe83d39593e605921f08a67910bcd38b",
+      "unchanged": true
+    },
+    {
+      "path": "scripts/pgtap/runner-readiness.mjs",
+      "sha256": "e2b40029df1a9cd9e55a72bc97c09fb99babc0112cfeae1e2eb68201d5e88e1b",
+      "unchanged": true
+    },
+    {
+      "path": ".github/workflows/native-runner-readiness.yml",
+      "sha256": "142379122f87e7d5c5217e4fe7107380a2058d7b99e2c0ba9129bd9986ac7df0",
+      "unchanged": true
+    },
+    {
+      "path": ".github/workflows/db.yml",
+      "sha256": "e59baf1e7cf5e3741a76792c635ed3524294051688243b55e191a37c3a88a13d",
+      "unchanged": true
+    }
+  ],
+  "readinessIndependentAcceptance": {
+    "visibleCases": 294,
+    "heldCases": 230,
+    "bothPassedInActualCompleteRun": true,
+    "sourceOnlyCriticOwnProbes": 33,
+    "sourceCriticProofSha256": "533d3d960a5ee4b0c7da28b47678a9b4c661211ff5fde14714a0d4b82079f5a3"
+  },
+  "primitiveIdentityRepair": {
+    "freezeCommit": "373a9498c1ce28d545cc72ddf8e1b3572fe2a925",
+    "originalSourceSha256": "357226da749b81e5bfea2847a133143a376064c7f214f1fac9c3b3f5d051acf5",
+    "sourceOnlyCriticGroups": 9,
+    "failedGroups": 0,
+    "proofSha256": "1a52d5130aa5a56cebdb52aaf05fd4cd8dc84f2d98a05220f43abe2a33cdf4a8",
+    "probeSha256": "4261104a21d4614bb6754c026d7e78cf27bbfd67d8695bd5c733ba82830a46cf",
+    "completeIdentityAndSqlBytesPreserved": true,
+    "fullValidationAndSerializationOrderPreserved": true,
+    "maximumSingleMarkerCachedUuidKeys": 100400,
+    "privateInstrumentationSeparateFromDifferentialModules": true
+  },
+  "localGates": {
+    "metadataGatesSha256": "9e53e3972834da2848238c66d0a97b4d83d6bd2cf51150483304c9381b326000",
+    "antiCloneGatesSha256": "943ed15da399f655fa4d6ba3bb00ce7e9b6a7932ebc863ff0f23064a8ee20cd8",
+    "strictSelectedOpenSpecGatesSha256": "84804e48c8d491dc14b06ae0376b919d016beab02c7a12e7d6434aee697d568f",
+    "currentWorkflowActionlintProofSha256": "2116296a89f03a131bebf3c2a80cd9faf45f5ce175958b5cc71d69a5cbf44a7f",
+    "priorUnchangedRuntimeRootLintTypeDependencyGatesPreserved": true,
+    "newPlannerSyntaxAndEslintPassed": true
+  },
+  "preparationOnly": {
+    "trial10ProofSha256": "f062303c9e467dd2601dfa4029269374f29de87f473ec4ce2ec0cdd9c8366b89",
+    "nativeExecutionBlobs": 12,
+    "sqlMetadataRows": 269,
+    "sqlBodiesRead": false,
+    "nativeExecutionAndSqlMetadataIdenticalToAcceptedBaseline": true,
+    "acceptedHostedBaselineRunId": "37680115612",
+    "acceptedHostedNativeFiles": 163,
+    "acceptedHostedAssertions": 16329,
+    "acceptedHostedNativeMs": 7892220,
+    "acceptedHostedCompleteJobMs": 7959000
+  },
+  "priorCompleteFailures": [
+    {
+      "reportSha256": "e16af3b56f4df7c3a5789b7555b31890bdcab666c1e5b71acc05a9d7a9bea6fd",
+      "passed": 8216,
+      "failed": 2
+    },
+    {
+      "reportSha256": "15978768fb85384a51732d24ed698ef99f48585836c8e4ee2cdf6818ef38b587",
+      "passed": 8217,
+      "failed": 1
+    },
+    {
+      "reportSha256": "0e2bfadce73670c378accb8cf05f8f40f25409133e42854c667ce4d8445fc193",
+      "passed": 8217,
+      "failed": 1
+    }
+  ],
+  "remaining": [
+    "coherent-source-push-and-fresh-exact-head-CI",
+    "one-matching-regional-complete-native-validation-and-real-timing-improvement",
+    "exact-restoration-guardian-serialized-seed-and-physical-custody-cleanup",
+    "accepted-OpenSpec-archive",
+    "existing-closed-Alpha-vc6-upload-and-submission"
+  ],
+  "appOrSchemaPayloadChanged": false,
+  "playWriteInvoked": false
+}

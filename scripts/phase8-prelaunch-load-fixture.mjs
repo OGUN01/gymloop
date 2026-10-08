@@ -10,6 +10,8 @@ const {
 const MARKER_RE = /^PHASE8-LOAD-[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
+const plannedUuidCache = { marker: null, uuids: new Map() };
+
 function refuse(message) { throw new Error(`HARD-004 fixture planner: ${message}`); }
 function uuidFrom(seed) {
   const hex = createHash('md5').update(seed, 'utf8').digest('hex');
@@ -17,7 +19,16 @@ function uuidFrom(seed) {
 }
 function plannedUuid(marker, kind, gymIndex, memberIndex) {
   const suffix = memberIndex === undefined ? `${gymIndex}` : `${gymIndex}:${memberIndex}`;
-  return uuidFrom(`${marker}:${kind}:${suffix}`);
+  const seed = `${marker}:${kind}:${suffix}`;
+  if (plannedUuidCache.marker !== marker) {
+    plannedUuidCache.uuids.clear();
+    plannedUuidCache.marker = marker;
+  }
+  const cached = plannedUuidCache.uuids.get(seed);
+  if (cached !== undefined) return cached;
+  const uuid = uuidFrom(seed);
+  plannedUuidCache.uuids.set(seed, uuid);
+  return uuid;
 }
 function exactKeys(value, keys) {
   if (!value || typeof value !== 'object' || Array.isArray(value)) refuse('expected a record.');

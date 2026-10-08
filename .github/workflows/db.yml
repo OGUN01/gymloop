@@ -24,6 +24,7 @@ on:
       - 'scripts/pgtap/native.mjs'
       - 'scripts/pgtap/private-output.mjs'
       - 'scripts/pgtap/runner-job.mjs'
+      - 'scripts/pgtap/runner-readiness.mjs'
       - 'scripts/pgtap/workload-teardown.mjs'
       - 'scripts/pgtap/hosted-completion.mjs'
       - 'scripts/pgtap/unarmed-precheck.mjs'
@@ -35,6 +36,7 @@ on:
       - 'packages/shared/src/config/constants.ts'
       - '.github/actions/native-database-validation/**'
       - '.github/workflows/native-database-preflight.yml'
+      - '.github/workflows/native-runner-readiness.yml'
       - 'pnpm-lock.yaml'
       - '.github/workflows/db.yml'
   workflow_dispatch: {}
@@ -47,6 +49,7 @@ on:
       - 'scripts/pgtap/native.mjs'
       - 'scripts/pgtap/private-output.mjs'
       - 'scripts/pgtap/runner-job.mjs'
+      - 'scripts/pgtap/runner-readiness.mjs'
       - 'scripts/pgtap/workload-teardown.mjs'
       - 'scripts/pgtap/hosted-completion.mjs'
       - 'scripts/pgtap/unarmed-precheck.mjs'
@@ -58,6 +61,7 @@ on:
       - 'packages/shared/src/config/constants.ts'
       - '.github/actions/native-database-validation/**'
       - '.github/workflows/native-database-preflight.yml'
+      - '.github/workflows/native-runner-readiness.yml'
       - 'pnpm-lock.yaml'
       - '.github/workflows/db.yml'
 
@@ -671,7 +675,7 @@ jobs:
           # schema-drift (its own job, always run on a types push) is their gate.
           # A push that changes ONLY packages/db/types/ therefore skips the suite
           # (ADR-177). Any other file under supabase/ or packages/db/ still runs it.
-          if echo "$changed" | grep -vE '^packages/db/types/' | grep -qE '^(supabase/|packages/db/|scripts/check-pgtap-rollback|scripts/pgtap/|scripts/native-(database-validation|runner-guard|runner-hook)\.mjs$|packages/shared/src/config/(env|constants)\.ts$|pnpm-lock\.yaml$|\.github/actions/native-database-validation/|\.github/workflows/(db|native-database-preflight)\.yml$)'; then
+          if echo "$changed" | grep -vE '^packages/db/types/' | grep -qE '^(supabase/|packages/db/|scripts/check-pgtap-rollback|scripts/pgtap/|scripts/native-(database-validation|runner-guard|runner-hook)\.mjs$|packages/shared/src/config/(env|constants)\.ts$|pnpm-lock\.yaml$|\.github/actions/native-database-validation/|\.github/workflows/(db|native-database-preflight|native-runner-readiness)\.yml$)'; then
             echo "run=true" >> "$GITHUB_OUTPUT"
           else
             echo "::notice::This push touches no migration, no pgTAP file, no non-type packages/db file and not this workflow. Skipping the suite; schema-drift still verifies any generated types."
@@ -683,22 +687,111 @@ jobs:
         with:
           script: |
             const {chooseNativeRunnerLabels} = await import(`${process.cwd()}/scripts/pgtap/runner-job.mjs`);
+            const {resolveNativeRunnerReadiness} = await import(`${process.cwd()}/scripts/pgtap/runner-readiness.mjs`);
+            const {exactNativeDataRecord} = await import(`${process.cwd()}/scripts/pgtap/data-record.mjs`);
             const {NATIVE_DB_VALIDATION: limits} = await import(`${process.cwd()}/packages/shared/src/config/constants.ts`);
+            const {spawn} = await import('node:child_process');
             const job = {repository: `${context.repo.owner}/${context.repo.repo}`, eventName: context.eventName,
               ref: context.ref, sourceSha: context.sha, runId: String(context.runId), runAttempt: String(${{ toJSON(github.run_attempt) }}),
               workflowRef: ${{ toJSON(github.workflow_ref) }}};
-            let runner = null;
-            try {
-              const readiness = JSON.parse(${{ toJSON(vars.NATIVE_DB_RUNNER_READINESS) }});
-              const keys = ['formatVersion','verifiedAt','expiresAt','runner'];
-              const now = Date.now();
-              const verified = Date.parse(readiness.verifiedAt);
-              const expires = Date.parse(readiness.expiresAt);
-              if (Object.keys(readiness).length === keys.length && keys.every(key => Object.hasOwn(readiness,key)) &&
-                  readiness.formatVersion === limits.formatVersion && new Date(verified).toISOString() === readiness.verifiedAt &&
-                  new Date(expires).toISOString() === readiness.expiresAt && verified <= now && now - verified <= limits.readinessMaxAgeMs &&
-                  expires > now && expires - verified <= limits.readinessMaxAgeMs) runner = readiness.runner;
-            } catch { /* absent, malformed, or expired admin-verified readiness uses hosted */ }
+            async function nativeReadinessHttpBody(response, signal) {
+              const declared = response.headers.get('content-length');
+              if (declared !== null && (!/^(0|[1-9][0-9]*)$/.test(declared) ||
+                  !Number.isSafeInteger(Number(declared)) || Number(declared) > limits.timeoutQueryMaxBytes)) throw new Error('Readiness transport refused.');
+              if (signal.aborted) throw new Error('Readiness transport expired.');
+              const parts=[]; let length=0;
+              if (response.body) {
+                const reader=response.body.getReader();
+                const cancel=()=>{void reader.cancel().catch(()=>{});};
+                signal.addEventListener('abort',cancel,{once:true});
+                try {
+                  for (;;) {
+                    if (signal.aborted) throw new Error('Readiness transport expired.');
+                    const part=await reader.read();
+                    if (signal.aborted) throw new Error('Readiness transport expired.');
+                    if (part.done) break;
+                    if (!(part.value instanceof Uint8Array)) throw new Error('Readiness transport refused.');
+                    length+=part.value.byteLength;
+                    if (length>limits.timeoutQueryMaxBytes) {
+                      await reader.cancel();
+                      throw new Error('Readiness transport exceeds its bound.');
+                    }
+                    parts.push(Buffer.from(part.value));
+                  }
+                } finally {
+                  signal.removeEventListener('abort',cancel);
+                  reader.releaseLock();
+                }
+              }
+              return Buffer.concat(parts,length);
+            }
+            const ports = {
+              apiGet: async (path,query,signal) => {
+                const prefix=`/repos/${limits.repository}`;
+                const allowed=path===prefix || path===`${prefix}/actions/workflows/native-runner-readiness.yml` ||
+                  path===`${prefix}/actions/artifacts` || new RegExp(`^${prefix}/actions/(?:artifacts/[1-9][0-9]*(?:/zip)?|runs/[1-9][0-9]*(?:/attempts/[1-9][0-9]*(?:/jobs)?)?)$`).test(path);
+                const fields=path===`${prefix}/actions/artifacts` ? ['name'] : [];
+                query=exactNativeDataRecord(query,fields);
+                if (!allowed || !query || (fields.length && query.name!==`native-db-readiness-${job.runId}-${job.runAttempt}-${job.sourceSha}`)) throw new Error('Readiness endpoint refused.');
+                let captured=null;
+                try {
+                  await github.request(`GET ${path}`,{...query,request:{signal,fetch:async (url,options)=>{
+                    const official=new URL(url);
+                    if (official.origin!=='https://api.github.com' || official.pathname!==path || official.username || official.password || official.hash ||
+                        options.method!=='GET' || [...official.searchParams.keys()].length!==fields.length ||
+                        (fields.length && official.searchParams.get('name')!==query.name)) throw new Error('Readiness endpoint refused.');
+                    const response=await fetch(url,{...options,method:'GET',redirect:'manual',signal});
+                    const body=await nativeReadinessHttpBody(response,signal);
+                    captured={status:response.status,body,location:response.headers.get('location')};
+                    return new Response(body,{status:response.status,statusText:response.statusText,headers:response.headers});
+                  }}});
+                } catch {
+                  if (!captured || captured.status!==limits.artifactRedirectStatus) throw new Error('Readiness API unavailable.');
+                }
+                if (!captured || signal.aborted) throw new Error('Readiness API unavailable.');
+                return captured;
+              },
+              storageGet: async (url,signal) => {
+                if (typeof url!=='string' || /[\p{Cc}\s]/u.test(url) || url.includes('#') ||
+                    /^https:[/\\]*[^/\\?#]*@/i.test(url)) throw new Error('Readiness storage refused.');
+                const location=new URL(url);
+                if (location.protocol!=='https:' || location.username || location.password || location.hash) throw new Error('Readiness storage refused.');
+                const response=await fetch(url,{method:'GET',redirect:'error',credentials:'omit',signal});
+                return {status:response.status,body:await nativeReadinessHttpBody(response,signal)};
+              },
+              readZipMember: async (bytes,filename,maxBytes,signal) => {
+                if (!(bytes instanceof Uint8Array) || bytes.byteLength===0 || bytes.byteLength>limits.timeoutQueryMaxBytes ||
+                    filename!=='readiness.json' || maxBytes!==limits.timeoutQueryMaxBytes || signal.aborted) throw new Error('Readiness archive refused.');
+                const script='import io,stat,sys,zipfile\nz=zipfile.ZipFile(io.BytesIO(sys.stdin.buffer.read(int(sys.argv[2])+1)))\nitems=z.infolist()\nif len(items)!=1: raise SystemExit(1)\ni=items[0]\nm=i.external_attr>>int(sys.argv[3])\nif i.orig_filename!=sys.argv[1] or chr(0) in i.orig_filename or i.filename!=sys.argv[1] or i.is_dir() or stat.S_ISLNK(m) or stat.S_IFMT(m) not in (0,stat.S_IFREG): raise SystemExit(1)\nif i.file_size>int(sys.argv[2]) or i.flag_bits&1 or i.compress_type not in (zipfile.ZIP_STORED,zipfile.ZIP_DEFLATED): raise SystemExit(1)\nwith z.open(i) as f:\n b=f.read(int(sys.argv[2])+1)\n if len(b)>int(sys.argv[2]) or len(b)!=i.file_size or f.read(1): raise SystemExit(1)\n sys.stdout.buffer.write(b)';
+                return await new Promise((resolve,reject)=>{
+                  const child=spawn('python3',['-c',script,filename,String(maxBytes),String(limits.artifactUnixModeShiftBits)],
+                    {stdio:['pipe','pipe','pipe'],signal,killSignal:'SIGKILL',timeout:limits.processStopGraceMs});
+                  const parts=[]; let length=0; let failed=false;
+                  child.stdout.on('data',part=>{
+                    length+=part.length;
+                    if (length>maxBytes) {failed=true; child.kill('SIGKILL');}
+                    else parts.push(Buffer.from(part));
+                  });
+                  child.stderr.on('data',()=>{failed=true; child.kill('SIGKILL');});
+                  child.on('error',()=>reject(new Error('Readiness archive refused.')));
+                  child.stdin.on('error',()=>{failed=true; child.kill('SIGKILL');});
+                  child.on('close',code=>{
+                    if (code!==0 || failed || signal.aborted || length===0) reject(new Error('Readiness archive refused.'));
+                    else resolve(Buffer.concat(parts,length));
+                  });
+                  child.stdin.end(bytes);
+                });
+              },
+              utcNow:()=>Date.now(),
+              monotonicNow:()=>performance.now(),
+              pause:async (ms,signal)=>await new Promise((resolve,reject)=>{
+                if (!Number.isFinite(ms) || ms<=0 || ms>limits.processStopGraceMs || signal.aborted) {reject(new Error('Readiness wait refused.')); return;}
+                const abort=()=>{clearTimeout(timer); reject(new Error('Readiness wait expired.'));};
+                const timer=setTimeout(()=>{signal.removeEventListener('abort',abort); resolve();},ms);
+                signal.addEventListener('abort',abort,{once:true});
+              }),
+            };
+            const runner = await resolveNativeRunnerReadiness({job},ports);
             const labels = chooseNativeRunnerLabels({job,runner});
             core.setOutput('labels', JSON.stringify(labels));
             core.setOutput('timeout_minutes', String(limits.maxRunnerLifetimeMinutes));
