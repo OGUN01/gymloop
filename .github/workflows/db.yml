@@ -29,6 +29,7 @@ on:
       - 'scripts/pgtap/hosted-completion.mjs'
       - 'scripts/pgtap/unarmed-precheck.mjs'
       - 'scripts/pgtap/unallocated-cancellation.mjs'
+      - 'scripts/pgtap/unarmed-setup-failure.mjs'
       - 'scripts/pgtap/data-record.mjs'
       - 'scripts/native-database-validation.mjs'
       - 'scripts/native-runner-guard.mjs'
@@ -56,6 +57,7 @@ on:
       - 'scripts/pgtap/hosted-completion.mjs'
       - 'scripts/pgtap/unarmed-precheck.mjs'
       - 'scripts/pgtap/unallocated-cancellation.mjs'
+      - 'scripts/pgtap/unarmed-setup-failure.mjs'
       - 'scripts/pgtap/data-record.mjs'
       - 'scripts/native-database-validation.mjs'
       - 'scripts/native-runner-guard.mjs'
@@ -129,6 +131,7 @@ jobs:
             const {verifyHostedNativeWorkloadCompletion} = await import(`${process.cwd()}/scripts/pgtap/hosted-completion.mjs`);
             const {verifyUnarmedNativePrecheck} = await import(`${process.cwd()}/scripts/pgtap/unarmed-precheck.mjs`);
             const {verifyUnallocatedNativeCancellation} = await import(`${process.cwd()}/scripts/pgtap/unallocated-cancellation.mjs`);
+            const {verifyUnarmedNativeSetupFailure} = await import(`${process.cwd()}/scripts/pgtap/unarmed-setup-failure.mjs`);
             const hash = bytes => createHash('sha256').update(bytes).digest('hex');
             const exact = (value, keys) => value && typeof value === 'object' && !Array.isArray(value) && Object.keys(value).length === keys.length && keys.every(key => Object.hasOwn(value,key));
             const original = value => exact(value,['originalPresent','originalValue']) && typeof value.originalPresent === 'boolean' && (value.originalPresent ? typeof value.originalValue === 'string' && value.originalValue.length > 0 : value.originalValue === null);
@@ -201,6 +204,7 @@ jobs:
             const priorJobs = new Map();
             const priorArtifacts = new Map();
             const verifiedUnarmed = new Set();
+            const verifiedSetupFailures = new Set();
             const verifiedUnallocatedCancellations = new Set();
             let timeoutRecoveryReviews = null;
             async function readHistoricalRestoration(r, recovery, run) {
@@ -352,6 +356,33 @@ jobs:
                   if (verdict.verified !== true) throw new Error('Previous hosted unarmed refusal lacks verified independent evidence; the shared project is blocked.');
                   verifiedUnarmed.add(boundRunAttempt);
                 }
+                if (!recoveryArtifactPresent && nativeJobs.length === 1 && guardianJobs.length === 1 &&
+                    nativeJobs[0].conclusion === 'failure' && guardianJobs[0].conclusion === 'failure') {
+                  const setupMatches = operatorReceipts.filter(teardownReview => verifyNativeWorkloadTeardown({
+                    runId:boundRunAttempt,sourceSha:run.head_sha,jobId:String(nativeJobs[0].id),
+                    runnerId:nativeJobs[0].runner_id,runnerEnvironment:'self-hosted'},teardownReview));
+                  if (setupMatches.length === 1) {
+                  const attemptRun = (await github.rest.actions.getWorkflowRunAttempt({...context.repo,run_id:run.id,attempt_number:attempt})).data;
+                  const setupJobListing = (await github.rest.actions.listJobsForWorkflowRunAttempt({...context.repo,run_id:run.id,attempt_number:attempt})).data;
+                  const setupArtifactListing = (await github.rest.actions.listWorkflowRunArtifacts({...context.repo,run_id:run.id})).data;
+                  if (!attemptRun || String(attemptRun.id) !== String(run.id) || attemptRun.run_attempt !== attempt ||
+                      attemptRun.head_sha !== run.head_sha) throw new Error('Selected setup-failure run identity is invalid.');
+                  if (verifyUnarmedNativeSetupFailure({
+                    run:{id:String(attemptRun?.id),attempt:String(attemptRun?.run_attempt),sourceSha:attemptRun?.head_sha,
+                      repositoryId:attemptRun?.repository?.id,repository:attemptRun?.repository?.full_name,
+                      headRepositoryId:attemptRun?.head_repository?.id,headRepository:attemptRun?.head_repository?.full_name,
+                      event:attemptRun?.event,path:attemptRun?.path,branch:attemptRun?.head_branch,
+                      status:attemptRun?.status,conclusion:attemptRun?.conclusion},
+                    nativeJobs:nativeJobs.map(job => projectUnarmedJob(job,attempt)),
+                    guardianJobs:guardianJobs.map(job => projectUnarmedJob(job,attempt)),
+                    artifactNames:artifacts.map(artifact => artifact.name),
+                    jobListingComplete:Number.isSafeInteger(setupJobListing?.total_count) && setupJobListing.total_count === attemptJobs.length,
+                    artifactListingComplete:Number.isSafeInteger(setupArtifactListing?.total_count) &&
+                      setupArtifactListing.total_count === artifacts.length && artifacts.every(artifact => artifact.expired === false),
+                    teardownReview:setupMatches[0],
+                  })) verifiedSetupFailures.add(`${boundRunAttempt}-${guardianJobs[0].id}`);
+                  }
+                }
                 for (const job of attemptJobs) {
                   jobs.push({...job,boundAttempt:attempt});
                   if (job.name !== limits.job || job.conclusion==='skipped') continue;
@@ -389,6 +420,7 @@ jobs:
                 const jobs = priorJobs.get(run.id) ?? [];
                 if (jobs.some(job => job.name === 'timeout-guardian' && job.conclusion && job.conclusion !== 'skipped' &&
                   !verifiedUnarmed.has(`${run.id}-${job.boundAttempt}`) &&
+                  !verifiedSetupFailures.has(`${run.id}-${job.boundAttempt}-${job.id}`) &&
                   !verifiedUnallocatedCancellations.has(`${run.id}-${job.boundAttempt}-${job.id}`) &&
                   (String(run.id) !== currentRunId || BigInt(job.boundAttempt) < BigInt(currentAttempt)))) throw new Error('Previous attempted guardian has no recovery receipt; the shared project is blocked.');
                 continue;

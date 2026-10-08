@@ -1,0 +1,13 @@
+{
+  "scope": "Exact pre-checkout native failure / pre-link guardian receipt-search failure; no native or performance acceptance",
+  "visible": {"passed": 168, "failed": 0, "suiteSha256": "a4630a87aed67f515afc0bb342d41af74d770f1c5339f9680d63c04f36d65f23", "originalRedPreserved": true, "intermediateTwoWiringFailuresPreserved": true},
+  "held": {"passed": 364, "failed": 0, "suiteSha256": "c661b6ae8d59ace097808dccd3b17ca40e08cb090455126e5cffc4e4003bdcdc", "originalRedPreserved": true},
+  "legacyHeld": {"passed": 30, "failed": 0, "originalSha256": "50abac580a4b469ca238540fedee3dfa0edb7a612f50c06516c29377b7819a1e", "finalSha256": "4437e77665147b50d57de15dec0a6149ab8b56d6c94ac41c4e05f051c7a4cd46", "approvedSpanCount": 1, "fullInverse": true, "outsideBytesUnchanged": true, "physicalMaximumUnchanged": true},
+  "actualPriorPreview": {"runId": "37822050096", "attempt": "1", "reviewMatches": 1, "verified": true, "completeJobs": true, "completeArtifacts": true, "databaseInvoked": false, "indexMutated": false},
+  "sourceCriticSha256": "6f031d66f78db1f3ec2a813ccec0d49a72a936d920ee478c21fbc18ea12a8a8e",
+  "workflowSha256": "e35676f007fed99f5f009c272bdb09a03567d559f97ee91a15e8cdcfc02e8e1b",
+  "localGates": {"sourceLint": "PASS", "authorLint": "PASS", "sharedTypes": "PASS", "registry": "PASS", "escapeHatches": "PASS", "rollback163": "PASS", "whitespace": "PASS"},
+  "originalNativePhysicalLoopPreserved": true,
+  "armedRecoveryUnchanged": true,
+  "newHostedPreflightAndFinalHeadGatesRequired": true
+}
