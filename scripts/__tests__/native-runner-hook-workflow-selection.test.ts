@@ -52,7 +52,9 @@ describe.each(['push', 'pull_request'])('[DBV-012] Windows pre-job workflow sele
 });
 
 import { spawnSync } from 'node:child_process';
-import { platform } from 'node:os';
+import { existsSync, mkdtempSync, rmdirSync, unlinkSync, writeFileSync } from 'node:fs';
+import { platform, tmpdir } from 'node:os';
+import { join } from 'node:path';
 
 // Append-only independent cases from the frozen internal-classification clause.
 // Execute the actual opaque grep pipeline; do not translate or display its source.
@@ -96,23 +98,35 @@ describe('[DBV-012] Windows pre-job internal native-input classification', () =>
     expect(nativeCommands.length).toBe(1);
     expect(nativeExpressions.length).toBe(1);
     expect(generatedTypesExclusions.length).toBe(1);
-    const retainedInputs = spawnSync(
-      platform() === 'win32' ? 'C:/Program Files/Git/usr/bin/grep.exe' : 'grep',
-      ['-vE', '--', generatedTypesExclusions[0] ?? '^$'],
-      { input: `${changedPath}\n`, encoding: 'utf8' },
-    );
-    expect(retainedInputs.error === undefined).toBe(true);
-    expect(retainedInputs.signal === null).toBe(true);
-    expect(retainedInputs.status === 0 || retainedInputs.status === 1).toBe(true);
+    const patternDirectory = mkdtempSync(join(tmpdir(), 'gymloop-visible-classifier-pattern-'));
+    const generatedTypesPatternPath = join(patternDirectory, 'generated-types.pattern').replaceAll('\\', '/');
+    const nativeInputPatternPath = join(patternDirectory, 'native-input.pattern').replaceAll('\\', '/');
+    try {
+      writeFileSync(generatedTypesPatternPath, `${generatedTypesExclusions[0] ?? '^$'}\n`, { encoding: 'utf8', flag: 'wx' });
+      writeFileSync(nativeInputPatternPath, `${nativeExpressions[0] ?? '^$'}\n`, { encoding: 'utf8', flag: 'wx' });
+      const retainedInputs = spawnSync(
+        platform() === 'win32' ? 'C:/Program Files/Git/usr/bin/grep.exe' : 'grep',
+        ['-vE', '-f', generatedTypesPatternPath, '--'],
+        { input: `${changedPath}\n`, encoding: 'utf8' },
+      );
+      expect(retainedInputs.error === undefined).toBe(true);
+      expect(retainedInputs.signal === null).toBe(true);
+      expect(retainedInputs.status === 0 || retainedInputs.status === 1).toBe(true);
 
-    const classification = spawnSync(
-      platform() === 'win32' ? 'C:/Program Files/Git/usr/bin/grep.exe' : 'grep',
-      ['-qE', '--', nativeExpressions[0] ?? '^$'],
-      { input: retainedInputs.stdout, encoding: 'utf8' },
-    );
+      const classification = spawnSync(
+        platform() === 'win32' ? 'C:/Program Files/Git/usr/bin/grep.exe' : 'grep',
+        ['-qE', '-f', nativeInputPatternPath, '--'],
+        { input: retainedInputs.stdout, encoding: 'utf8' },
+      );
 
-    expect(classification.error === undefined).toBe(true);
-    expect(classification.signal === null).toBe(true);
-    expect(classification.status).toBe(requiresNative ? 0 : 1);
+      expect(classification.error === undefined).toBe(true);
+      expect(classification.signal === null).toBe(true);
+      expect(classification.status).toBe(requiresNative ? 0 : 1);
+    } finally {
+      for (const patternPath of [generatedTypesPatternPath, nativeInputPatternPath]) {
+        if (existsSync(patternPath)) unlinkSync(patternPath);
+      }
+      rmdirSync(patternDirectory);
+    }
   });
 });
