@@ -28,6 +28,7 @@ on:
       - 'scripts/pgtap/workload-teardown.mjs'
       - 'scripts/pgtap/hosted-completion.mjs'
       - 'scripts/pgtap/unarmed-precheck.mjs'
+      - 'scripts/pgtap/unallocated-cancellation.mjs'
       - 'scripts/pgtap/data-record.mjs'
       - 'scripts/native-database-validation.mjs'
       - 'scripts/native-runner-guard.mjs'
@@ -53,6 +54,7 @@ on:
       - 'scripts/pgtap/workload-teardown.mjs'
       - 'scripts/pgtap/hosted-completion.mjs'
       - 'scripts/pgtap/unarmed-precheck.mjs'
+      - 'scripts/pgtap/unallocated-cancellation.mjs'
       - 'scripts/pgtap/data-record.mjs'
       - 'scripts/native-database-validation.mjs'
       - 'scripts/native-runner-guard.mjs'
@@ -124,6 +126,7 @@ jobs:
             const {verifyNativeWorkloadTeardown} = await import(`${process.cwd()}/scripts/pgtap/workload-teardown.mjs`);
             const {verifyHostedNativeWorkloadCompletion} = await import(`${process.cwd()}/scripts/pgtap/hosted-completion.mjs`);
             const {verifyUnarmedNativePrecheck} = await import(`${process.cwd()}/scripts/pgtap/unarmed-precheck.mjs`);
+            const {verifyUnallocatedNativeCancellation} = await import(`${process.cwd()}/scripts/pgtap/unallocated-cancellation.mjs`);
             const hash = bytes => createHash('sha256').update(bytes).digest('hex');
             const exact = (value, keys) => value && typeof value === 'object' && !Array.isArray(value) && Object.keys(value).length === keys.length && keys.every(key => Object.hasOwn(value,key));
             const original = value => exact(value,['originalPresent','originalValue']) && typeof value.originalPresent === 'boolean' && (value.originalPresent ? typeof value.originalValue === 'string' && value.originalValue.length > 0 : value.originalValue === null);
@@ -196,6 +199,7 @@ jobs:
             const priorJobs = new Map();
             const priorArtifacts = new Map();
             const verifiedUnarmed = new Set();
+            const verifiedUnallocatedCancellations = new Set();
             let timeoutRecoveryReviews = null;
             async function readHistoricalRestoration(r, recovery, run) {
               const [targetRunId,targetRunAttempt] = r.runId.split('-');
@@ -260,7 +264,13 @@ jobs:
               return restoration;
             }
             for (const run of runs) {
-              if (!['push','workflow_dispatch'].includes(run.event)) continue;
+              if (!['push','workflow_dispatch'].includes(run.event)) {
+                if (operatorReceipts.some(review => review && review.completionKind === 'unallocated-cancellation' &&
+                    typeof review.runId === 'string' && review.runId.startsWith(`${run.id}-`))) {
+                  throw new Error('Reviewed unallocated cancellation has an untrusted workflow event.');
+                }
+                continue;
+              }
               if (!Number.isSafeInteger(run.run_attempt) || run.run_attempt <= 0) throw new Error('Previous native attempt identity is unavailable.');
               const lastAttempt = String(run.id) === currentRunId ? currentAttempt - 1 : run.run_attempt;
               const jobs=[];
@@ -273,6 +283,42 @@ jobs:
                 const smokeArtifacts = artifacts.filter(artifact => artifact.name === `native-db-client-smoke-${boundRunAttempt}`);
                 const nativeJobs = attemptJobs.filter(job => job.name === limits.job);
                 const guardianJobs = attemptJobs.filter(job => job.name === 'timeout-guardian');
+                if (nativeJobs.length === 1 && guardianJobs.length === 1 && [...nativeJobs,...guardianJobs].every(job =>
+                    job.status === 'completed' && job.conclusion === 'cancelled' &&
+                    ['runner_id','runner_name','runner_group_id','runner_group_name'].every(field => job[field] === null) &&
+                    Array.isArray(job.steps) && job.steps.length === 0)) {
+                  const matches = operatorReceipts.filter(review => review && review.runId === boundRunAttempt &&
+                    review.completionKind === 'unallocated-cancellation');
+                  if (matches.length !== 1) throw new Error('Exact administrator unallocated cancellation review is unavailable.');
+                  const attemptRun = (await github.rest.actions.getWorkflowRunAttempt({...context.repo,run_id:run.id,attempt_number:attempt})).data;
+                  if (!attemptRun || String(attemptRun.id) !== String(run.id) || attemptRun.run_attempt !== attempt ||
+                      attemptRun.head_sha !== run.head_sha || !source(attemptRun.head_sha)) throw new Error('Selected unallocated cancellation run identity is invalid.');
+                  const unallocatedJobListing = (await github.rest.actions.listJobsForWorkflowRunAttempt({...context.repo,run_id:run.id,attempt_number:attempt})).data;
+                  const unallocatedArtifactListing = (await github.rest.actions.listWorkflowRunArtifacts({...context.repo,run_id:run.id})).data;
+                  const unallocatedJobs = [...nativeJobs,...guardianJobs].map(job => ({
+                    id:job.id,runId:String(job.run_id),attempt:String(job.run_attempt),sourceSha:job.head_sha,
+                    name:job.name,status:job.status,conclusion:job.conclusion,runnerId:job.runner_id,
+                    runnerName:job.runner_name,runnerGroupId:job.runner_group_id,runnerGroupName:job.runner_group_name,
+                    labels:job.labels,steps:job.steps,startedAt:job.started_at,completedAt:job.completed_at,
+                  }));
+                  const verdict = verifyUnallocatedNativeCancellation({
+                    review:matches[0],
+                    run:{id:String(attemptRun.id),attempt:String(attemptRun.run_attempt),sourceSha:attemptRun.head_sha,
+                      repositoryId:attemptRun.repository?.id,repository:attemptRun.repository?.full_name,
+                      headRepositoryId:attemptRun.head_repository?.id,headRepository:attemptRun.head_repository?.full_name,
+                      event:attemptRun.event,path:attemptRun.path,branch:attemptRun.head_branch,
+                      status:attemptRun.status,conclusion:attemptRun.conclusion},
+                    nativeJobs:unallocatedJobs.filter(job => job.name === limits.job),
+                    guardianJobs:unallocatedJobs.filter(job => job.name === 'timeout-guardian'),
+                    artifactNames:artifacts.map(artifact => artifact.name),
+                    jobListingComplete:Number.isSafeInteger(unallocatedJobListing?.total_count) &&
+                      unallocatedJobListing.total_count >= 0 && unallocatedJobListing.total_count === attemptJobs.length,
+                    artifactListingComplete:Number.isSafeInteger(unallocatedArtifactListing?.total_count) &&
+                      unallocatedArtifactListing.total_count >= 0 && unallocatedArtifactListing.total_count === artifacts.length,
+                  });
+                  if (verdict.verified !== true) throw new Error('Previous unallocated cancellation lacks verified independent evidence; the shared project is blocked.');
+                  for (const job of unallocatedJobs) verifiedUnallocatedCancellations.add(`${boundRunAttempt}-${job.id}`);
+                }
                 if (!recoveryArtifactPresent && smokeArtifacts.length === 1 && nativeJobs.length === 1 && guardianJobs.length === 1 &&
                     nativeJobs[0].status === 'completed' && nativeJobs[0].conclusion === 'failure') {
                   const reviewBytes = await readFile('.dbv/operator-unarmed-prechecks.json');
@@ -308,6 +354,7 @@ jobs:
                   jobs.push({...job,boundAttempt:attempt});
                   if (job.name !== limits.job || job.conclusion==='skipped') continue;
                   if (verifiedUnarmed.has(boundRunAttempt)) continue;
+                  if (verifiedUnallocatedCancellations.has(`${boundRunAttempt}-${job.id}`)) continue;
                   const nativeStep=Array.isArray(job.steps) && job.steps.find(step=>step.name==='Validate the full native suite with outside-worker recovery custody');
                   if ((job.conclusion==='success' || nativeStep && nativeStep.conclusion && nativeStep.conclusion!=='skipped') &&
                       !artifacts.some(artifact=>artifact.name===`native-db-recovery-${run.id}-${attempt}` && !artifact.expired)) {
@@ -340,6 +387,7 @@ jobs:
                 const jobs = priorJobs.get(run.id) ?? [];
                 if (jobs.some(job => job.name === 'timeout-guardian' && job.conclusion && job.conclusion !== 'skipped' &&
                   !verifiedUnarmed.has(`${run.id}-${job.boundAttempt}`) &&
+                  !verifiedUnallocatedCancellations.has(`${run.id}-${job.boundAttempt}-${job.id}`) &&
                   (String(run.id) !== currentRunId || BigInt(job.boundAttempt) < BigInt(currentAttempt)))) throw new Error('Previous attempted guardian has no recovery receipt; the shared project is blocked.');
                 continue;
               }
@@ -669,7 +717,11 @@ jobs:
             echo "run=true" >> "$GITHUB_OUTPUT"
             exit 0
           fi
-          changed="$(git diff --name-only "$before" "${{ github.sha }}")"
+          if ! changed="$(git diff --name-only "$before" "${{ github.sha }}")"; then
+            echo "::notice::Changed-file query failed; running the suite."
+            echo "run=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
           echo "Changed files:"; echo "$changed" | sed 's/^/  /'
           # Generated types are the one packages/db file the suite never reads:
           # schema-drift (its own job, always run on a types push) is their gate.

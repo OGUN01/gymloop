@@ -23,3 +23,12 @@ export function exactNativeDataArray(value) {
   }
   return result;
 }
+
+export function nativeEvidenceClock(value, provider = false) {
+  if (typeof value !== 'string' || !(provider
+    ? /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{3})?Z$/
+    : /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/).test(value)) return null;
+  const clock = Date.parse(value);
+  const canonical = value.includes('.') ? value : value.replace('Z', '.000Z');
+  return Number.isSafeInteger(clock) && clock >= 0 && new Date(clock).toISOString() === canonical ? clock : null;
+}

@@ -1,0 +1,126 @@
+{
+  "formatVersion": 1,
+  "kind": "UNALLOCATED_CANCELLATION_LOCAL_COMPLETE_PASS",
+  "observedAt": "2026-10-08T05:24:57.117Z",
+  "originalTestCommit": "b862cb288a829d28b4848354ba3fb5bfa79f5c26",
+  "authorTransportOnlyCommit": "28e937008dac0e6c8f642283d316fd7058c944b8",
+  "implementationCommitted": false,
+  "visibleRed": {
+    "sha256": "11db273abd3d7f91bad7a73a5552706fced7d0995045ef3d093a24f66c1982e7",
+    "skipped": 0,
+    "failed": 681,
+    "collected": 683,
+    "passed": 2
+  },
+  "originalHeldRed": {
+    "sha256": "b209bfc0fa0aba62b63a4252037b880af07728cbb5e9c8ba6dfef7641423c071",
+    "skipped": 0,
+    "failed": 301,
+    "collected": 301,
+    "passed": 0
+  },
+  "heldTransport": {
+    "correctedRed": {
+      "skipped": 0,
+      "failed": 3,
+      "collected": 301,
+      "passed": 298
+    },
+    "authorOnly": true,
+    "declarationSha256": "03fe58841f48e0268f0801e51287b439cd31f33184a108803771f53d8dbba58e",
+    "finalTestSha256": "573a7dd025a1fdf80650eaa23a131817647a051e474fec13050d1af24b71e105",
+    "assertionsAndScopeByteUnchanged": true,
+    "exactInverseProofSha256": "8f4b9616c1b4ea8000003935dfaa2fdaa84dfa3ceaf754b70b16060bd8393ec1"
+  },
+  "initialSourceFailure": {
+    "failed": 6,
+    "passed": 978,
+    "collected": 984,
+    "retained": true,
+    "skipped": 0,
+    "reportSha256": "bbcab59b5d77eb650190ea9cd7100cadef0557da1623a917c183659ba60d6297"
+  },
+  "focused": {
+    "failed": 0,
+    "pending": 0,
+    "passed": 984,
+    "collected": 984,
+    "exitCode": 0,
+    "reportSha256": "7d00b7c569a4d041534af518a745253ce54bd2fcc899aea30cce8c968036ed28"
+  },
+  "completeTooling": {
+    "collected": 9202,
+    "startedAt": "2026-10-08T05:13:28.3480593Z",
+    "failed": 0,
+    "pending": 0,
+    "capturedSourceTestAndContractSealsUnchanged": true,
+    "exitCode": 0,
+    "reportSha256": "811b8990957881563f9a2572f1f48a061ee914dc8d576b32254308be81b69f83",
+    "files": 170,
+    "completedAt": "2026-10-08T05:19:37.9719441Z",
+    "passed": 9202
+  },
+  "finalSourceCritic": {
+    "testsRead": false,
+    "earlierIncompleteVerdictRetained": true,
+    "sha256": "8cb3157b3144a35c9d826ad28b93f64d84d46c0e48ccd28515680f81094a3e19",
+    "verdict": "GO_SOURCE_ONLY"
+  },
+  "sourceAndTestSeals": [
+    {
+      "path": ".github/workflows/db.yml",
+      "sha256": "4e7ba2eb359a74136a3b9cde9bccba8d904d6e7d654067281da5560d47f4c5c6",
+      "bytes": 76921
+    },
+    {
+      "path": "scripts/pgtap/data-record.mjs",
+      "sha256": "0baaaa2e7808d022a61b3719f7023c5b52971780e1a30c400c908f8af33f85ed",
+      "bytes": 1877
+    },
+    {
+      "path": "scripts/pgtap/hosted-completion.mjs",
+      "sha256": "e80bf02ee333bd65ccca856bde7dd9c95132eaa8c7e5bb6cda74536f593fb86a",
+      "bytes": 3746
+    },
+    {
+      "path": "scripts/pgtap/unallocated-cancellation.mjs",
+      "sha256": "696d8c242a51231e5859300c159e3d152f196de916fdb8d5626cddc1848777bc",
+      "bytes": 5014
+    },
+    {
+      "path": "scripts/__tests__/native-unallocated-cancellation.test.ts",
+      "sha256": "11db273abd3d7f91bad7a73a5552706fced7d0995045ef3d093a24f66c1982e7",
+      "bytes": 43864
+    },
+    {
+      "path": "supabase/tests-holdout/native-unallocated-cancellation.test.ts",
+      "sha256": "573a7dd025a1fdf80650eaa23a131817647a051e474fec13050d1af24b71e105",
+      "bytes": 35420
+    },
+    {
+      "path": "openspec/changes/database-validation-regional-runner/unallocated-cancellation.md",
+      "sha256": "818c75d031aba16d551f4c9e764a66966160a9c5714e1025548324c17c5533e8",
+      "bytes": 9248
+    }
+  ],
+  "gates": {
+    "actionlint": true,
+    "escapeFiles": 1030,
+    "coverageCommandExit": 0,
+    "rootLint": true,
+    "registry": true,
+    "selectedOpenSpecStrict": true,
+    "knip": true,
+    "duplicates": true,
+    "rollbackFiles": 163
+  },
+  "appPackagesLockUnchanged": true,
+  "heldBodyReadByRoot": false,
+  "newHeadCiPending": true,
+  "outsideCompletionIndexCount": 5,
+  "unallocatedPairReviewPublished": false,
+  "regionalPerformanceAccepted": false,
+  "newTrialAdmitted": false,
+  "playUploaded": false,
+  "globalGoalComplete": false
+}
