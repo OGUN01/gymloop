@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { execFileSync } from 'node:child_process';
+import { execFileSync, spawn } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { NATIVE_DB_VALIDATION } from '../../packages/shared/src/config/constants';
@@ -266,7 +266,11 @@ function executeNativeRunnerReadinessPublisher() {
     }
     const margin = Math.min(...selected.filter(line => line.trim()).map(line => line.match(/^\s*/)![0].length));
     const expressions: Record<string, string> = { 'github.run_attempt': job.runAttempt, 'github.workflow_ref': job.workflowRef, 'github.event_name': job.eventName, 'github.repository': job.repository, 'github.ref': job.ref, 'github.sha': job.sourceSha, 'github.run_id': job.runId };
-    const script = selected.map(line => line.slice(margin)).join('\n').replace(/\bimport\s*\(/g, 'fixtureImport(').replace(/\$\{\{\s*([^}]+?)\s*\}\}/g, (_all, expression: string) => expressions[expression.trim()] ?? 'null');
+    const serializedExpressions: Record<string, string> = {
+      'toJSON(github.run_attempt)': JSON.stringify(expressions['github.run_attempt']),
+      'toJSON(github.workflow_ref)': JSON.stringify(expressions['github.workflow_ref']),
+    };
+    const script = selected.map(line => line.slice(margin)).join('\n').replace(/\bimport\s*\(/g, 'fixtureImport(').replace(/\$\{\{\s*([^}]+?)\s*\}\}/g, (_all, expression: string) => expressions[expression.trim()] ?? serializedExpressions[expression.trim()] ?? 'null');
     const fakeFetch = vi.fn(async (url: unknown, options: Record<string, unknown> = {}) => {
       selector.requests.push({ url: String(url), options });
       return new Response(String(url).startsWith('https://api.github.com/') ? selector.apiBytes : selector.storageBytes, { status: NATIVE_DB_VALIDATION.artifactMetadataStatus });
@@ -284,9 +288,27 @@ function executeNativeRunnerReadinessPublisher() {
         return { status: NATIVE_DB_VALIDATION.artifactMetadataStatus, data: JSON.parse(selector.apiBytes.toString('utf8')), headers: {} };
       }),
     };
+    const observeBytes = <T extends object>(response: T): T => {
+      const descriptors = Object.getOwnPropertyDescriptors(response);
+      const body = descriptors.body;
+      if (!body || !('value' in body) || !(body.value instanceof Uint8Array)) throw new Error('Invalid byte observation');
+      const bytes = body.value;
+      return Object.create(Object.getPrototypeOf(response), {
+        ...descriptors,
+        body: { ...body, value: new Uint8Array(bytes.buffer, bytes.byteOffset, bytes.byteLength) },
+      }) as T;
+    };
     const fixtureImport = async (specifier: unknown) => {
       const spec = String(specifier);
-      if (spec.includes('runner-readiness.mjs')) return { resolveNativeRunnerReadiness: async (input: unknown, concretePorts: typeof ports) => { selector.input = input; selector.captured = concretePorts; return null; } };
+      if (spec.includes('runner-readiness.mjs')) return { resolveNativeRunnerReadiness: async (input: unknown, concretePorts: typeof ports) => {
+        selector.input = input;
+        selector.captured = {
+          ...concretePorts,
+          apiGet: vi.fn(async (...args: Parameters<typeof concretePorts.apiGet>) => observeBytes(await concretePorts.apiGet(...args))),
+          storageGet: vi.fn(async (...args: Parameters<typeof concretePorts.storageGet>) => observeBytes(await concretePorts.storageGet(...args))),
+        };
+        return null;
+      } };
       if (spec.includes('runner-job.mjs')) { const moduleUrl = new URL('../pgtap/runner-job.mjs', import.meta.url).href; return import(/* @vite-ignore */ moduleUrl); }
       if (spec.endsWith('/scripts/pgtap/data-record.mjs') || spec.endsWith('\\scripts\\pgtap\\data-record.mjs')) {
         const moduleUrl = new URL('../pgtap/data-record.mjs', import.meta.url).href;
@@ -295,7 +317,10 @@ function executeNativeRunnerReadinessPublisher() {
       if (spec.includes('config/constants')) return { NATIVE_DB_VALIDATION };
       if (spec === 'node:fs/promises' || spec === 'fs/promises') return { readFile: async () => { throw new Error('undeclared file'); } };
       if (spec.startsWith('node:') && spec !== 'node:fs' && spec !== 'node:child_process') return import(/* @vite-ignore */ spec);
-      if (spec === 'node:child_process') return { execFileSync: (command: string, args: readonly string[], options: object) => {
+      if (spec === 'node:child_process') return { spawn: (command: string, args: readonly string[], options: Parameters<typeof spawn>[2]) => {
+        if (command !== 'python3' && command !== 'python') throw new Error('undeclared extraction executable');
+        return spawn(process.platform === 'win32' ? 'python' : command, args, options);
+      }, execFileSync: (command: string, args: readonly string[], options: object) => {
         if (command !== 'python3' && command !== 'python') throw new Error('undeclared extraction executable');
         return execFileSync(process.platform === 'win32' ? 'python' : 'python3', args, options);
       } };
