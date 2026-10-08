@@ -1,6 +1,6 @@
 param(
     [string]$CandidatePath = (Join-Path $PSScriptRoot 'native-runner-hook.ps1'),
-    [string]$OpaqueHookPath = 'C:/fr-sealed-20261007/hook.mjs',
+    [string]$OpaqueHookPath = 'C:/fr-sealed-20261007/hook-headroom-fixture-20261009/hook.mjs',
     [string]$LimitsPath = 'C:/fr-sealed-20261007/watchdog-limits.json',
     [string]$ReceiptRoot = (Join-Path ([IO.Path]::GetTempPath()) 'gymloop Windows prejob visible')
 )

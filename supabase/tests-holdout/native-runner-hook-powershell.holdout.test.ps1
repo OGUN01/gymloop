@@ -7,9 +7,9 @@ function Invoke-HeldPowerShellHookContract {
     $repositoryRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..\..'))
     $bridgePath = Join-Path $repositoryRoot 'scripts\native-runner-hook.ps1'
     $constantsPath = Join-Path $repositoryRoot 'packages\shared\src\config\constants.ts'
-    $approvedHookPath = 'C:\fr-sealed-20261007\hook.mjs'
+    $approvedHookPath = 'C:\fr-sealed-20261007\hook-headroom-fixture-20261009\hook.mjs'
     $nodePath = 'C:\Program Files\nodejs\node.exe'
-    $approvedHookHash = '438D84B0DC988549BABD31DA23EE5E5E4FDD1F6591B58C2E68D4AB33385942A8'
+    $approvedHookHash = '8C278352E810D39ACA6D4ED2940117D3EFA7F6149CDCB3EA60F86AB1F7671A2B'
     $constants = [IO.File]::ReadAllText($constantsPath)
     $boundMatch = [regex]::Match($constants, 'processStopGraceMs:\s*([\d_]+)')
     $secondMatch = [regex]::Match($constants, 'millisecondsPerSecond:\s*([\d_]+)')
