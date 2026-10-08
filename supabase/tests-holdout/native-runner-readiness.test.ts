@@ -162,6 +162,7 @@ function heldReadinessFixture(): HeldReadinessFixture {
     total_count: 1,
     jobs: [{
       id: 8875236147, run_id: publisher.id, run_attempt: 1, name: 'Publish verified readiness',
+      head_sha: job.sourceSha,
       status: 'completed', conclusion: 'success', started_at: '2026-10-08T13:00:01Z',
       completed_at: '2026-10-08T13:00:05Z',
       steps: [
