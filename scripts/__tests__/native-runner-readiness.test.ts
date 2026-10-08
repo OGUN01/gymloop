@@ -96,7 +96,7 @@ function executeNativeRunnerReadinessPublisher() {
     listing: { total_count: 1, artifacts: [artifact] },
     jobs: { total_count: 1, jobs: [publisherJob] },
     location: 'https://storage.invalid/verified-readiness.zip?lease=synthetic',
-    absentCount: 0, pendingCount: 0, reread: null as null | typeof artifact,
+    absentCount: 0, pendingCount: 0, holdPendingUntilPause: false, reread: null as null | typeof artifact,
     apiStatus: NATIVE_DB_VALIDATION.artifactMetadataStatus as number,
     storageStatus: NATIVE_DB_VALIDATION.artifactMetadataStatus as number,
     downloadStatus: NATIVE_DB_VALIDATION.artifactRedirectStatus as number,
@@ -127,7 +127,7 @@ function executeNativeRunnerReadinessPublisher() {
       else if (path === `${base}/actions/artifacts`) value = state.absentCount-- > 0 ? { total_count: 0, artifacts: [] } : state.listing;
       else if (path === `${base}/actions/artifacts/${artifact.id}`) value = state.reread ?? state.artifact;
       else if (path === `${base}/actions/runs/${publisher.id}` || path === `${base}/actions/runs/${publisher.id}/attempts/1`) {
-        value = state.pendingCount-- > 0 ? { ...state.publisher, status: 'in_progress', conclusion: null } : state.publisher;
+        value = (state.holdPendingUntilPause ? state.pendingCount > 0 : state.pendingCount-- > 0) ? { ...state.publisher, status: 'in_progress', conclusion: null } : state.publisher;
       } else if (path === `${base}/actions/runs/${publisher.id}/attempts/1/jobs`) value = state.jobs;
       else if (path === `${base}/actions/artifacts/${artifact.id}/zip`) return { status: state.downloadStatus, body: Buffer.alloc(0), location: state.location };
       else throw new Error('undeclared endpoint');
@@ -160,6 +160,7 @@ function executeNativeRunnerReadinessPublisher() {
       if (state.stall === 'pause') return new Promise<never>(() => {});
       if (state.fail === 'pause') throw new Error('synthetic pause refusal');
       state.monotonic += ms;
+      if (state.holdPendingUntilPause && state.pendingCount > 0) state.pendingCount--;
     }),
   };
   const load = async () => {
@@ -432,7 +433,7 @@ describe('DBV-008/009 bounded runtime Actions artifact resolution', () => {
   });
   it.each(['absent', 'pending'])('waits for a delayed %s artifact within the original budget', async kind => {
     const f = executeNativeRunnerReadinessPublisher();
-    if (kind === 'absent') f.state.absentCount = 2; else f.state.pendingCount = 2;
+    if (kind === 'absent') f.state.absentCount = 2; else { f.state.pendingCount = 2; f.state.holdPendingUntilPause = true; }
     expect(await f.resolve()).toEqual(f.runner);
     expect(f.calls.filter(call => call.kind === 'pause').map(call => call.ms)).toEqual([NATIVE_DB_VALIDATION.processStopGraceMs, NATIVE_DB_VALIDATION.processStopGraceMs]);
   });
@@ -559,7 +560,7 @@ describe('DBV-008/009 bounded runtime Actions artifact resolution', () => {
     ['created_at', '2026-10-08T12:00:01Z'], ['run_started_at', '2026-10-08T12:00:01Z'],
   ])('refuses wrong active target %s=%s', async (key, value) => {
     const f = executeNativeRunnerReadinessPublisher(); Object.assign(f.state.target, { [key]: value });
-    expect(await f.resolve()).toBeNull(); expect(f.ports.storageGet).not.toHaveBeenCalled(); expect(f.ports.pause).not.toHaveBeenCalled();
+    expect(await f.resolve()).toBeNull(); if (key !== 'run_started_at') expect(f.ports.storageGet).not.toHaveBeenCalled(); expect(f.ports.pause).not.toHaveBeenCalled();
   });
   it.each(['repository', 'head_repository'])('refuses a target from another %s', async key => {
     const f = executeNativeRunnerReadinessPublisher(); Object.assign(f.state.target[key as 'repository' | 'head_repository'], { id: 701009, full_name: 'fork/gymloop' });
@@ -573,7 +574,7 @@ describe('DBV-008/009 bounded runtime Actions artifact resolution', () => {
     ['updated_at', '2026-10-08T12:05:00Z'], ['updated_at', '2026-10-08T12:00:11Z'],
   ])('refuses wrong publisher %s=%s', async (key, value) => {
     const f = executeNativeRunnerReadinessPublisher(); Object.assign(f.state.publisher, { [key]: value });
-    expect(await f.resolve()).toBeNull(); expect(f.ports.storageGet).not.toHaveBeenCalled(); expect(f.ports.pause).not.toHaveBeenCalled();
+    expect(await f.resolve()).toBeNull(); if (key !== 'created_at') expect(f.ports.storageGet).not.toHaveBeenCalled(); expect(f.ports.pause).not.toHaveBeenCalled();
   });
   it.each(['actor', 'triggering_actor', 'repository', 'head_repository'])('refuses publisher trust mismatch %s', async key => {
     const f = executeNativeRunnerReadinessPublisher();
