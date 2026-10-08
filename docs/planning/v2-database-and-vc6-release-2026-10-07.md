@@ -8,6 +8,8 @@ The persistent goal has explicitly resumed and is active for the separate faster
 
 Trial15 subsequently stopped during actual launcher setup. Its harmless58/205startup check passed and real runner36 registered, but the suspended listener never received a resume proof/readiness; root cancelled DB37809874857 before native/guardian/seed steps ran. Runner36 is absent, operator/wrapper closed, watchdog all3physicalcleanup flags are true with the original startup failure still recorded. Independent narrow diagnosis/cleanup is pending and the original custodian backstop is preserved. No retry or faster complete result is claimed; see docs/evidence/v2/database-regional-trial15-2026-10-08.json. Testers can use the already published release now.
 
+That original unallocated cancellation is now independently reviewed and accepted by the unchanged canonical verifier. Root published its genuine kind-tagged review exactly once to the outside completion index, preserving the prior nine entries; exact readback gives10entries/hashc8b312fa142d5f10a22ca00fc43d7abad59c37322ca86a93024f168c714536b2. No native worker/timeout/performance pass is inferred. The suspended-listener exit or ownership-observation cause remains unresolved; diagnose it before a separately frozen next action. No new trial is authorized by this closure itself.
+
 ## Historical review-submission checkpoint (8 October, 14:45 UTC)
 
 The required normal DB37775385597/attempt1/source bcdf2723495c88ef34c3b6a861d9c979cbe45ead is genuinely SUCCESS: all nine jobs finished successfully. Root executed the exact independently reviewed memory-only canonical verifier once against five protected original provider inputs. Its safe receipt142bc65c48c4a629d8224c3edb817329d577059080c5af8a704a71d69ce12436 accepts 163 files / 16,329 assertions / zero failures, exact per-file plans and counts, zero incomplete files or missing timers, unchanged input hashes and exact retained final bytes. Native completed14:30:49UTC; guardian freshly verified the captured original present2min at14:31:34.343UTC, then the serial seed's transaction/rollback and independent batch-2 steps succeeded. Public acceptance record: docs/evidence/v2/database-release-acceptance-2026-10-08.json. The prior main0ba23f2617378a231bb408b67eb13c33f5707335 CI, Holdout and immutability runs are all green.
@@ -595,8 +597,8 @@ Next: push the coherent green Shop unit to let CI apply its migration and run th
 - [x] Fresh isolated-device pagination/navigation smoke and screenshots.
 - [x] Verified signed AAB; application bytes remain equivalent through later validation-only source.
 - [x] Closed Alpha upload and review submission with actual Console evidence.
-- [ ] Google approval and observed version6 availability to selected testers (external pending).
+- [x] Google approval and observed version6 availability to selected testers.
 - [x] Completed navigation and Shop units archived; final database and release evidence saved.
-- [ ] Deferred regional outcome and paused goal completion remain open; no performance win is claimed.
+- [ ] Regional performance outcome and active goal completion remain open; no performance win is claimed.
 
-The saved persistent goal is paused and retains the deferred regional outcome. Current explicit owner authorization drives the normal release turn. Neither an unmeasured regional proposal nor a prepared/uploaded draft is completion. Resume from the latest checkpoint above; the initial discovery boundary is historical.
+The saved persistent goal is active and retains the separate unfinished regional performance outcome. The tester release is published and its handoff is ready. Neither an unmeasured regional proposal nor a startup-only check establishes a faster complete validation. Resume from the latest checkpoint above; the initial discovery boundary is historical.

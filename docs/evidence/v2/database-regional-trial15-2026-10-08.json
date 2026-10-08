@@ -44,10 +44,22 @@
     "watchdogJobBindingVerified": false,
     "watchdogErrors": ["WATCHDOG_OPERATION_UNVERIFIED"],
     "originalCustodianBackstopPreserved": true,
-    "independentFinalCleanupReviewPending": true
+    "independentFinalCleanupReviewPending": false,
+    "independentDiagnosticReviewSha256": "b38329d0ceba72e3264e7216bd627f23b88b6e057693c8255c13c6f9dd923939"
+  },
+  "unallocatedCancellationClosure": {
+    "canonicalVerified": true,
+    "completionKind": "unallocated-cancellation",
+    "independentPrivateProofSha256": "98f4983cd6afced23f00231765a913e14492609bb131ae5796e2454b063ce3da",
+    "indexPublishedOnce": true,
+    "indexEntryCount": 10,
+    "indexSha256": "c8b312fa142d5f10a22ca00fc43d7abad59c37322ca86a93024f168c714536b2",
+    "originalNineEntriesPreserved": true,
+    "exactProviderReadbackVerified": true,
+    "nativeWorkerSuccessClaimed": false
   },
   "normalReleaseAcceptance": "docs/evidence/v2/database-release-acceptance-2026-10-08.json",
   "fasterCompleteValidationAccepted": false,
   "publishedTesterReleaseAffected": false,
-  "remainingWork": "Diagnose the actual launcher refusal and independently close cleanup before any separately frozen next trial. No complete regional performance result is claimed."
+  "remainingWork": "Diagnose the underlying suspended-listener exit or ownership-observation cause before any separately frozen next trial. This original unallocated cancellation is canonically closed; no complete regional performance result is claimed."
 }
