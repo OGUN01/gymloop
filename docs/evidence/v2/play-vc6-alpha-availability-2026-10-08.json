@@ -1,0 +1,27 @@
+{
+  "formatVersion": 1,
+  "observedDateUtc": "2026-10-08",
+  "applicationId": "in.fitcruxx.app",
+  "trackName": "Closed testing - Alpha",
+  "trackId": "4699599533532526959",
+  "releaseId": "3",
+  "versionCode": 6,
+  "versionName": "1.0.0",
+  "trackStatusObserved": "Active",
+  "latestReleaseObserved": "6 (1.0.0)",
+  "releaseStatusObserved": "Available to selected testers",
+  "releaseTimeDisplayed": "Released on Oct 8 9:01 PM",
+  "publishingNotificationObserved": "App update published. Users should see changes immediately, but this may take longer.",
+  "availableToSelectedTesters": true,
+  "testerSelectionModified": false,
+  "productionTrackModified": false,
+  "pilotDeviceInstallationModified": false,
+  "testerJoinUrl": "https://play.google.com/apps/testing/in.fitcruxx.app",
+  "screenshot": {
+    "path": "docs/evidence/screens/2026-10-08-play-vc6-alpha-available.jpg",
+    "bytes": 49769,
+    "sha256": "8175e071dc2378f90ee26aa5653096020e33de47601e95a57e3be9eb1fbe71c1"
+  },
+  "earlierSubmissionEvidence": "docs/evidence/v2/play-vc6-alpha-submission-2026-10-08.json",
+  "testerChecklist": "docs/planning/vc6-tester-handoff-2026-10-08.md"
+}

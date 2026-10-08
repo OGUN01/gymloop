@@ -1,6 +1,14 @@
 # Database follow-ups and next closed-test release
 
-## Current release checkpoint (8 October, 14:45 UTC)
+## Current release checkpoint (8 October, after Google approval)
+
+Version6 is now **Available to selected testers** on the active existing closed Alpha track. Root observed latest release6(1.0.0), the actual availability label, and Released on Oct8 9:01PM. Publishing overview also reported the app update published. The join link and updated tester checklist are ready in docs/planning/vc6-tester-handoff-2026-10-08.md; actual screenshot and observation are saved in docs/evidence/screens/2026-10-08-play-vc6-alpha-available.jpg and docs/evidence/v2/play-vc6-alpha-availability-2026-10-08.json. No production/tester-selection change or pilot install occurred.
+
+The persistent goal has explicitly resumed and is active for the separate faster complete database validation follow-up. Trial15 reuses current edeb's unchanged runtime and corrected successful normal baseline; its frozen narrow scope is openspec/changes/database-validation-regional-runner/trial15-corrected-input-mechanical-rebind.md. This performance work does not block or repeat the published tester release. Historical paused/deferred statements below retain their original checkpoint meaning.
+
+Trial15 subsequently stopped during actual launcher setup. Its harmless58/205startup check passed and real runner36 registered, but the suspended listener never received a resume proof/readiness; root cancelled DB37809874857 before native/guardian/seed steps ran. Runner36 is absent, operator/wrapper closed, watchdog all3physicalcleanup flags are true with the original startup failure still recorded. Independent narrow diagnosis/cleanup is pending and the original custodian backstop is preserved. No retry or faster complete result is claimed; see docs/evidence/v2/database-regional-trial15-2026-10-08.json. Testers can use the already published release now.
+
+## Historical review-submission checkpoint (8 October, 14:45 UTC)
 
 The required normal DB37775385597/attempt1/source bcdf2723495c88ef34c3b6a861d9c979cbe45ead is genuinely SUCCESS: all nine jobs finished successfully. Root executed the exact independently reviewed memory-only canonical verifier once against five protected original provider inputs. Its safe receipt142bc65c48c4a629d8224c3edb817329d577059080c5af8a704a71d69ce12436 accepts 163 files / 16,329 assertions / zero failures, exact per-file plans and counts, zero incomplete files or missing timers, unchanged input hashes and exact retained final bytes. Native completed14:30:49UTC; guardian freshly verified the captured original present2min at14:31:34.343UTC, then the serial seed's transaction/rollback and independent batch-2 steps succeeded. Public acceptance record: docs/evidence/v2/database-release-acceptance-2026-10-08.json. The prior main0ba23f2617378a231bb408b67eb13c33f5707335 CI, Holdout and immutability runs are all green.
 
