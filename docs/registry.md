@@ -1643,3 +1643,7 @@ Canonical contract: `openspec/specs/shop-reservation-pagination/spec.md`. Comple
 
 | Windows pre-job workflow selection visible contract | `scripts/__tests__/native-runner-hook-workflow-selection.test.ts` | Seven independently authored event-filter cases; inline callbacks, no helper/export/dependency | Frozen DBV-012 exact bridge classification |
 | Independent held pre-job workflow selection metadata suite | `supabase/tests-holdout/native-runner-hook-workflow-selection.holdout.test.ts` | Six independently authored event-filter cases; inline callbacks, no helper/export/dependency; runtime-only workflow metadata | Frozen DBV-012 exact bridge classification |
+
+| `visibleHookDeadlineSource` / `visibleHookDeadlineExecutable` / `visibleHookDeadlineCases` / inline VM process/time boundary metadata | `scripts/__tests__/native-runner-hook-deadline.test.ts` | Independent visible opaque hook execution with existing TypeScript/VM dependencies and controlled process/time events; no reusable helper/export | Frozen active-deadline and delayed-success race contract |
+
+| Independent held hook deadline inline VM fixture | `supabase/tests-holdout/native-runner-hook-deadline.holdout.test.ts` | Author-owned controlled child, timer and monotonic-clock events over opaque runtime source using existing VM/TypeScript dependencies; no named helper/type/export/dependency | Frozen DBV-008 active-deadline and delayed-success refusal |
