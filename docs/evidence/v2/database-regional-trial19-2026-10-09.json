@@ -1,0 +1,89 @@
+{
+  "kind": "REGIONAL_TRIAL_NATIVE_ACTION_STARTUP_FAILURE",
+  "sourceSha": "8072af53493867a093ea128dc306f375d3ca1789",
+  "runId": "37857261809",
+  "runAttempt": "1",
+  "event": "push",
+  "conclusion": "failure",
+  "nativeJobId": "113584968728",
+  "runnerId": 39,
+  "regionalSelected": true,
+  "setup": {
+    "recoveryPreflight": "success",
+    "supportedHook": "success",
+    "checkout": "success",
+    "pnpmSetup": "success",
+    "nodeSetup": "success",
+    "frozenWindowsDependencyInstall": "success",
+    "gitBashVerification": "success",
+    "pinnedCliSetup": "success",
+    "schemaDownload": "success",
+    "manifestGeneration": "success"
+  },
+  "nativeAction": {
+    "step": 15,
+    "conclusion": "failure",
+    "sanitizedCode": "EVIDENCE_INVALID",
+    "specificFailureLocationProven": false,
+    "fullSuiteAccepted": false,
+    "fasterResultAccepted": false,
+    "armingOrRestorationInferredFromMissingArtifacts": false,
+    "privateLogSha256": "b11c4c6910536dc5f5bc65ab982b044a88ea86f30908b4cc8fd414e53d018787"
+  },
+  "guardian": {
+    "jobId": "113585808843",
+    "conclusion": "failure",
+    "failureStage": "Find the exact armed receipt, including an earlier attempt of this run",
+    "databaseLink": "skipped",
+    "restore": "skipped"
+  },
+  "seed": "skipped",
+  "officialArtifacts": {
+    "count": 3,
+    "losslessTransportsVerified": true,
+    "manifestId": 11585086285,
+    "manifestBytes": 8611,
+    "manifestEntrySha256": "0909f3d58b0ee2e969e9bd7cd4716d567224d7862871e1e5c585edcfad3eda84",
+    "manifestFiles": 163,
+    "manifestPlannedAssertions": 16329,
+    "ciJobId": 11584658017,
+    "ciJobBytes": 398,
+    "schemaId": 11584632409,
+    "schemaBytes": 376,
+    "fullCiJobMs": 156000,
+    "fullCiJobMsIsNativeSuiteTiming": false,
+    "transportReviewSha256": "c6616c31b0cfb61960dfc300680eafb5bc502aedb015919eaeb73fa9cc0d5f58"
+  },
+  "inputEquivalence": {
+    "rawCheckoutAndGitInputsMatch": true,
+    "auditSha256": "4ab9291ea85cae7c47e286765394de9512825d784de29bb961333d5183b2636c",
+    "nativeRunConsumptionAccepted": false,
+    "manifestFingerprint": "550b0d9e9183992d1d57099ae9652c6569f915b606909d5f6fb0f4041af8a306",
+    "migrationFingerprint": "fb90a2b1e30f05b015d43f0dad688e489372c7fa7a1140e618c7015ffd0daf32",
+    "generatedTypesSha256": "047f8d994fd04cf0affbc8452453cdce93f16bcdb376671b0fd97b0bfe31ed7f"
+  },
+  "physicalClosure": {
+    "canonicalAccepted": true,
+    "nativeProcessesStopped": true,
+    "ownedContainersStopped": true,
+    "runnerDeregistered": true,
+    "privateProofSha256": "670d2d958425bb33d2e458e6218c1b4a53e84fd4978af2c791433871db2eeea2",
+    "independentReviewSha256": "bf297db0a0fcdf8bae5d163ad88a66d0570f6a175cbbff637597b67c5006b02f",
+    "verifiedAt": "2026-10-08T23:08:21.333Z",
+    "originalCustodianExactInstanceObservedLive": true,
+    "originalCustodianDeadline": "2026-10-09T03:04:32.122Z",
+    "originalCustodianPreserved": true,
+    "allAuxiliaryProcessesRetiredClaimed": false
+  },
+  "outsideIndex": {
+    "soleRootPublicationComplete": true,
+    "beforeCount": 12,
+    "afterCount": 13,
+    "priorRawPrefixPreserved": true,
+    "readbackExact": true,
+    "sha256": "f4f910e31fbed10a5b65085dfc972494a8066ade5d3cac6e56553f384328fd34",
+    "publishedAt": "2026-10-08T23:22:24.2620383Z"
+  },
+  "remaining": "Diagnose the native action failure and current CI failures; preserve recovery blocking until a defensible narrow resolution. No successful regional benchmark or adoption/archive yet.",
+  "testerRelease": "Version 6 is already available; no further Play action is required."
+}
