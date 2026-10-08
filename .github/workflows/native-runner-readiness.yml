@@ -52,7 +52,43 @@ jobs:
                 !['push','workflow_dispatch'].includes(target.event) || target.path !== '.github/workflows/db.yml' ||
                 target.head_sha !== job.sourceSha || target.head_branch !== 'main' || target.status !== 'in_progress' ||
                 target.conclusion !== null || target.repository?.id !== own.repository.id || target.head_repository?.id !== own.repository.id ||
-                target.repository?.full_name !== limits.repository || target.head_repository?.full_name !== limits.repository) throw new Error('Readiness target identity refused.');
+                target.repository?.full_name !== limits.repository || target.head_repository?.full_name !== limits.repository) {
+              try {
+                const refusedTargetRunId = target?.id;
+                const refusedTargetRunAttempt = target?.run_attempt;
+                const refusedTargetStatus = target?.status;
+                const refusedTargetConclusion = target?.conclusion;
+                core.info(`Native readiness target refusal: ${JSON.stringify({
+                  targetPresent: Boolean(target),
+                  runIdType: typeof refusedTargetRunId,
+                  runAttemptType: typeof refusedTargetRunAttempt,
+                  statusType: typeof refusedTargetStatus,
+                  conclusionType: typeof refusedTargetConclusion,
+                  matches: {
+                    runId: refusedTargetRunId === null || ['undefined','boolean','number','string'].includes(typeof refusedTargetRunId)
+                      ? String(refusedTargetRunId) === job.runId : null,
+                    runAttempt: refusedTargetRunAttempt === null || ['undefined','boolean','number','string'].includes(typeof refusedTargetRunAttempt)
+                      ? String(refusedTargetRunAttempt) === job.runAttempt : null,
+                    event: ['push','workflow_dispatch'].includes(target?.event),
+                    workflowPath: target?.path === '.github/workflows/db.yml',
+                    sourceSha: target?.head_sha === job.sourceSha,
+                    mainBranch: target?.head_branch === 'main',
+                    statusInProgress: refusedTargetStatus === 'in_progress',
+                    conclusionNull: refusedTargetConclusion === null,
+                    repositoryId: target?.repository?.id === own.repository.id,
+                    headRepositoryId: target?.head_repository?.id === own.repository.id,
+                    repositoryName: target?.repository?.full_name === limits.repository,
+                    headRepositoryName: target?.head_repository?.full_name === limits.repository
+                  },
+                  status: ['queued','in_progress','completed','waiting','requested','pending'].includes(refusedTargetStatus) ? refusedTargetStatus : null,
+                  conclusion: ['success','failure','neutral','cancelled','skipped','timed_out','action_required','stale','startup_failure'].includes(refusedTargetConclusion)
+                    ? refusedTargetConclusion : null
+                })}`);
+              } catch {
+                // Preserve the original refusal if diagnostic output fails.
+              }
+              throw new Error('Readiness target identity refused.');
+            }
             job.eventName = target.event;
             publication = createNativeRunnerReadinessPublication({job,readiness,now:Date.now()});
             if (!publication) throw new Error('Readiness publication refused.');

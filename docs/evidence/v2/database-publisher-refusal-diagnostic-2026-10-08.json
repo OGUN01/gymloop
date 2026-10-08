@@ -1,0 +1,61 @@
+{
+  "classification": "SOURCE_DIAGNOSTIC_ONLY",
+  "reviewedSourceBase": "301b6e95d621c214dbf4e3b8a8eeee286f6e3b81",
+  "workflowSha256": "1cd8abe2bb5c51065b3d9fe1e2851fd9478d3754525e371555cca0cabba49384",
+  "contractSha256": "1ee5762096f220c0b7d618a0a0267eaa7a3db27aa83a03b762845a0cfba30197",
+  "originalGuardThrowAndSuccessBytesPreserved": true,
+  "additionalApiCallsOrOperationalAuthority": false,
+  "firstRejectedCandidate": {
+    "workflowSha256": "58c3bc3fa7777091136c620757cc4a496c5ba4daf5d8d466beb2066ef71e3109",
+    "checks": 60,
+    "passed": 57,
+    "failed": 3,
+    "proofSha256": "e323868ea723d54ada2ee7ff168e5a4a7734b2f436fd8d50d13a21f0106ff0f5",
+    "custodySha256": "c401111e7ede6d43fe6769c6997cfd86836d2f8bc56dfe9cc39d3638c7febe3f"
+  },
+  "finalIndependentSourceReview": {
+    "checks": 60,
+    "passed": 60,
+    "failed": 0,
+    "scopeAndExpectationsUnchanged": true,
+    "proofSha256": "c1044860f59a3475126cd066dfc8b03a23353f7b00fcb6699a7d49753222701a",
+    "custodySha256": "9c35c572987eced1a89b4d100add339793df2f73548a401bda9b05566a8fae68"
+  },
+  "existingImmutableRegression": {
+    "startedAt": "2026-10-08T04:21:18.0895466Z",
+    "completedAt": "2026-10-08T04:21:27.2047797Z",
+    "total": 524,
+    "passed": 524,
+    "failed": 0,
+    "pending": 0,
+    "exitCode": 0,
+    "sourceAndTestSealsUnchanged": true,
+    "reportSha256": "d1692e86a8c944385f0fe5760ca7b8f6e41155085a3319d3dab5fe6498d59f89"
+  },
+  "localChecks": {
+    "actionlintVersion": "1.7.12",
+    "twoWorkflowActionlint": "PASS",
+    "registryLint": "PASS",
+    "escapeHatches": "PASS",
+    "pgtapRollback": "PASS",
+    "strictOpenSpec": "PASS",
+    "requirementCoverageExitCode": 0,
+    "existingRequirementCoverage": "145/175;30 uncovered, unchanged baseline limitation"
+  },
+  "trial11HostedClosure": {
+    "runId": "37724036664-1",
+    "candidateSha256": "a2cb3e0e1960c49b63f93cf76699dcbb8ed1fb289e73f4665345ba877772a690",
+    "independentReviewSha256": "70e078310fe5f1bb671651fd78cc0f79a923ffc7e0e1399e8c5e5dc04daf076a",
+    "publishedOnceAt": "2026-10-08T04:14:22.6242894Z",
+    "priorRawFourEntryPrefixPreserved": true,
+    "freshReadbackCount": 5,
+    "freshReadbackValueSha256": "63b98b73de4053c0af84a794b1d699f10e116a877bbd056f742a81dff666bf0b",
+    "publicationProofSha256": "fa8edc354a12457c0666f5a780790da39d86f54fd14c4667712544c8480b9411"
+  },
+  "vc6ReadinessReconfirmationSha256": "7c4ef684b52c9eafc6c5146d44cbf148c5317275cd7fee2bcba81f2eb2e9323e",
+  "historicalFalsePredicateIdentified": false,
+  "regionalPerformanceAccepted": false,
+  "windowsFullWorkloadReceipt": false,
+  "archiveAllowed": false,
+  "playUploaded": false
+}
