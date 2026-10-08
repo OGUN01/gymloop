@@ -914,7 +914,23 @@ jobs:
         run: |
           $storeLimit = & node --input-type=module -e "import { NATIVE_DB_VALIDATION } from './packages/shared/src/config/constants.ts'; console.log(NATIVE_DB_VALIDATION.virtualStoreDirMaxLength)"
           if ($LASTEXITCODE -ne 0) { throw 'Native dependency path bound unavailable.' }
-          pnpm install --frozen-lockfile --filter "@gymloop/shared..." --prod --ignore-scripts --virtual-store-dir .p --virtual-store-dir-max-length $storeLimit
+          $env:PNPM_CONFIG_VIRTUAL_STORE_DIR_MAX_LENGTH = $storeLimit
+          pnpm install --frozen-lockfile --filter "@gymloop/shared..." --prod --ignore-scripts --virtual-store-dir=.p
+          if ($LASTEXITCODE -ne 0) { throw 'Frozen adapter dependency installation failed.' }
+          $moduleConfig = Get-Content -Raw -LiteralPath 'node_modules/.modules.yaml'
+          if ($moduleConfig.TrimStart().StartsWith('{')) {
+            $moduleMetadata = ConvertFrom-Json -InputObject $moduleConfig -ErrorAction Stop
+            $moduleSettingKeys = @([regex]::Matches($moduleConfig, '"((?:[^"\\]|\\.)*)"\s*:') | Where-Object {
+              (ConvertFrom-Json -InputObject ('"' + $_.Groups[1].Value + '"') -ErrorAction Stop) -ceq 'virtualStoreDirMaxLength'
+            })
+            if ($moduleSettingKeys.Count -ne 1 -or ($moduleMetadata.virtualStoreDirMaxLength -isnot [int] -and $moduleMetadata.virtualStoreDirMaxLength -isnot [long])) { throw 'Native dependency metadata setting is ambiguous or non-scalar.' }
+            $moduleLimits = @($moduleMetadata.virtualStoreDirMaxLength)
+          } else {
+            $moduleMatches = [regex]::Matches($moduleConfig, '(?m)^virtualStoreDirMaxLength:[ \t]*([^\r\n]+)\r?$')
+            $moduleLimits = @($moduleMatches | ForEach-Object { $_.Groups[1].Value.Trim() })
+          }
+          if ($moduleLimits.Count -ne 1 -or [string]$moduleLimits[0] -cne [string]$storeLimit) { throw 'Native dependency path setting was not consumed.' }
+          if (-not (Test-Path -LiteralPath '.p' -PathType Container)) { throw 'Native dependency short store is unavailable.' }
       - name: Install the frozen hosted adapter dependencies
         if: runner.os != 'Windows'
         shell: bash

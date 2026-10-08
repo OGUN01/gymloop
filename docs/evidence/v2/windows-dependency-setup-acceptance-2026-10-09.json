@@ -1,0 +1,65 @@
+{
+  "scope": "Pinned Windows dependency installation and exact unarmed setup classifier",
+  "testsFirstCommit": "6349e3448a962e30f1df53b5030cd2e0a9cf894e",
+  "frozenContractSha256": "7180ddf4d5a13f149700dc1359b05094462cae65bb7940f82e2534e1e5afcca4",
+  "visible": {
+    "suiteSha256": "5e7514dacf215775823c7ac60650b08df7eed38c09afab7aed7c2cef220c2b8a",
+    "originalRed": {"total": 889, "passed": 880, "failed": 9, "exitCode": 1},
+    "positiveParserRegression": {"total": 889, "passed": 888, "failed": 1, "exitCode": 1},
+    "finalGreen": {"total": 889, "passed": 889, "failed": 0, "pending": 0, "exitCode": 0},
+    "finalPrivateReportSha256": "300592330befc0b249b78776693855da3cb34f6c13889ebb82ac509d00420fdd",
+    "finalSafeReceiptSha256": "e1bf9ed799396dfa13df7d1d835fb68b026c551d921cda73fed5cd1b268a429a",
+    "suiteEditedAfterRedCommit": false
+  },
+  "held": {
+    "suiteSha256": "cce275d22f6b62886b086f1c06bfedf9834c31d882a59a991d2a13c260fc8544",
+    "originalRed": {"total": 789, "passed": 778, "failed": 11, "exitCode": 1},
+    "finalGreen": {"total": 789, "passed": 789, "failed": 0, "pending": 0, "exitCode": 0},
+    "finalPrivateReportSha256": "03f8612ad91b153b5e3f52870977c1515209963d3039725a21b19f696a4bbb5b",
+    "implementerReadOrEditedBody": false
+  },
+  "priorClassifierCases": {"total": 532, "passed": 532, "failed": 0, "pending": 0, "exitCode": 0},
+  "execution": {"maxWorkers": 1, "fileParallelism": false, "allOriginalFailuresPreserved": true},
+  "pinnedClient": {
+    "version": "12.3.4",
+    "transport": "Step-child PNPM_CONFIG_VIRTUAL_STORE_DIR_MAX_LENGTH with --virtual-store-dir=.p",
+    "effectiveCompactionSetting": 24,
+    "actualShortStore": ".p",
+    "observedNativeHashFloor": 33,
+    "physical24MaximumClaimed": false,
+    "frozenLockUnchanged": true,
+    "developmentDependencyExcluded": true,
+    "lifecycleScriptsRun": false,
+    "effectiveClientProofSha256": "901216bf2fe53ecb2f59a8351326a5cefb6eae1ceebc99afc0c613705af30907",
+    "safeDiscoveryReceiptSha256": "504252549fe07fe00ecae4d3a182f646dca19fe8089c1ba9c7eb727d909ebafc",
+    "rejectedCliCandidatesPreserved": true,
+    "actualJsonMetadataSupported": true
+  },
+  "sourceCritic": {
+    "verdict": "SOURCE_ONLY_GO",
+    "receiptSha256": "b9261c868578b32712a8800c26bab646ddb3b2e871031f44d78b66605ed9b511",
+    "classifierRawSha256": "f60c28c95cc120879355280d40618bcf75460462d73f01f2f39d4168193a0d3f",
+    "workflowRawSha256": "ae3bf9b574870aea884bf07d4815033f53ec64ec8188e9e72165f4cf81b83972",
+    "initialYamlOnlyGoAndSubsequentJsonBlockerPreserved": true,
+    "duplicateKeysEscapedAliasesAndNonscalarJsonRejected": true
+  },
+  "actualPriorPairPreview": {
+    "runId": "37850045697",
+    "attempt": "1",
+    "sourceSha": "aa671256fec55299f5aeb28cae4f17468f16a4f7",
+    "nativeStepCount": 23,
+    "guardianStepCount": 17,
+    "verifiedBefore": false,
+    "verifiedAfter": true,
+    "completeAuthenticatedJobsAndArtifacts": true,
+    "unchangedCanonicalPhysicalProof": true,
+    "databaseCallsOrIndexMutations": false
+  },
+  "localGates": ["targeted lint", "shared types", "registry", "escape hatches", "163-file rollback", "whitespace", "separate test commits"],
+  "limits": [
+    "Only Windows dependency option/metadata guard and an exact additional23-step failure vector changed.",
+    "Original20/17vectors, closed data/identity/listing guards, native cleanup and armed recovery remain unchanged.",
+    "SQL, migrations, generated types, lockfile, pnpm pin, timeouts, app and Play release remain unchanged.",
+    "Genuine hosted preflight and a complete actual faster benchmark remain required; no performance/adoption acceptance."
+  ]
+}

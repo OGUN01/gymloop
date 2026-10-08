@@ -45,7 +45,33 @@ const setupGuardianSteps = [
   ['Complete job', 'success'],
 ];
 
-/** Recognize only the reviewed pre-checkout/pre-link failure pair, never armed work. */
+const dependencyNativeSteps = [
+  ['Set up job', 'success'],
+  ['Set up runner', 'success'],
+  ['Record adapter setup start before checkout', 'success'],
+  ['Record hosted adapter setup start before checkout', 'skipped'],
+  ['Run actions/checkout@v7', 'success'],
+  ['Run pnpm/action-setup@v6', 'success'],
+  ['Run actions/setup-node@v7', 'success'],
+  ['Install the frozen adapter dependencies', 'failure'],
+  ['Install the frozen hosted adapter dependencies', 'skipped'],
+  ['Use the verified Git Bash executable for the pinned CLI installer', 'skipped'],
+  ['Run supabase/setup-cli@v3', 'skipped'],
+  ['Run actions/download-artifact@v5', 'skipped'],
+  ['Freeze full rollback-safe file and schema metadata', 'skipped'],
+  ['Run actions/upload-artifact@v5', 'skipped'],
+  ['Validate the full native suite with outside-worker recovery custody', 'skipped'],
+  ['Retain sanitized native receipt', 'success'],
+  ['Retain client-only smoke metadata', 'success'],
+  ['Retain the explicit interim timing boundary', 'success'],
+  ['Retain sanitized encrypted-artifact custody verification', 'success'],
+  ['Post Run actions/setup-node@v7', 'skipped'],
+  ['Post Run pnpm/action-setup@v6', 'success'],
+  ['Post Run actions/checkout@v7', 'success'],
+  ['Complete job', 'success'],
+];
+
+/** Recognize only the reviewed pre-native/pre-link failure pairs, never armed work. */
 export function verifyUnarmedNativeSetupFailure(input) {
   try {
     const data = exactNativeDataRecord(input, ['run', 'nativeJobs', 'guardianJobs', 'artifactNames',
@@ -84,13 +110,13 @@ export function verifyUnarmedNativeSetupFailure(input) {
       || new Set(nativeLabels).size !== expectedLabels.length
       || !expectedLabels.every(label => nativeLabels.includes(label))
       || guardianLabels.length !== 1 || guardianLabels[0] !== 'ubuntu-latest') return false;
-    for (const [job, vector] of [[native, setupNativeSteps], [guardian, setupGuardianSteps]]) {
+    for (const [job, vectors] of [[native, [setupNativeSteps, dependencyNativeSteps]], [guardian, [setupGuardianSteps]]]) {
       const steps = exactNativeDataArray(job.steps);
-      if (!steps || steps.length !== vector.length || !steps.every((value, index) => {
+      if (!steps || !vectors.some(vector => steps.length === vector.length && steps.every((value, index) => {
         const step = exactNativeDataRecord(value, ['name', 'status', 'conclusion']);
         return step && step.name === vector[index][0] && step.status === 'completed'
           && step.conclusion === vector[index][1];
-      })) return false;
+      }))) return false;
     }
     const artifacts = exactNativeDataArray(data.artifactNames);
     const expectedArtifacts = [`native-db-schema-${run.id}-${run.attempt}`, `native-db-ci-job-${run.id}-${run.attempt}`];
