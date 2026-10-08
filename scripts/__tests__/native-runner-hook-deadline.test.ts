@@ -142,7 +142,7 @@ describe('frozen Windows pre-job termination headroom', () => {
       const missingMember = typeof message === 'string'
         ? /^Cannot read properties of undefined \(reading '([A-Za-z_$][\w$]*)'\)$/.exec(message)?.[1] : null;
       throw new Error('Opaque hook refused the declared controlled visible runtime boundary: ' + category
-        + ' ' + safeExceptionName + ' ' + (missingGlobal ?? missingMember ?? 'UNKNOWN_MEMBER'));
+        + ' ' + safeExceptionName + ' ' + (missingGlobal ?? missingMember ?? 'UNKNOWN_MEMBER'), { cause: opaqueFailure });
     }
 
     expect(spawnChild).toHaveBeenCalledTimes(1);
@@ -178,7 +178,7 @@ describe('frozen Windows pre-job termination headroom', () => {
         child.emit('close', code, signal);
       }
     } catch (termination) {
-      if (termination !== terminalParentExit) throw new Error('Unverified visible event boundary failure.');
+      if (termination !== terminalParentExit) throw new Error('Unverified visible event boundary failure.', { cause: termination });
     }
     const naturalCode = Reflect.get(fakeProcess, 'exitCode');
     const timerCancelled = clearTimer.mock.calls.some(([token]) => token === timers[0].token);
