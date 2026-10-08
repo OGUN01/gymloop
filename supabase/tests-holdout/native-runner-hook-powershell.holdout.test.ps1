@@ -237,7 +237,7 @@ if (fixture.mode === 'accept') {
 
         foreach ($hostItem in $hosts) {
             & $require ([IO.File]::Exists($hostItem.Path)) 'powershell-host-unavailable'
-            $hostResult = [ordered]@{ major = $hostItem.Major; executed = 0; passed = 0; failed = 0; causes = @() }
+            $hostResult = [ordered]@{ major = $hostItem.Major; executed = 0; passed = 0; failed = 0; causes = @(); ownedGuardExitObserved = $false; ownedGuardObservedDurationMs = $null }
             $probe = & $startChild $hostItem.Path '-NoLogo -NoProfile -NonInteractive -Command "$PSVersionTable.PSVersion.Major"' $ownedRoot
             $probeResult = & $finishChild $probe $null
             & $require ($probeResult.ExitCode -eq 0 -and $probeResult.Output.Trim() -ceq $hostItem.Major) 'powershell-host-version'
@@ -297,7 +297,10 @@ if (fixture.mode === 'accept') {
                     if ($scenario -eq 'stall') {
                         & $require ($null -ne $run.Guard -and $run.Guard.HasExited) 'exact-owned-guard-cleanup'
                         & $require (-not $sentinel.Process.HasExited) 'unrelated-child-preserved'
-                        & $require ($run.FinishTime - $record.startedAtMs -le $bound + $second) 'original-child-bound'
+                        $guardExitTimeMs = ([DateTimeOffset] $run.Guard.ExitTime.ToUniversalTime()).ToUnixTimeMilliseconds()
+                        $hostResult.ownedGuardExitObserved = $true
+                        $hostResult.ownedGuardObservedDurationMs = $guardExitTimeMs - $record.startedAtMs
+                        & $require ($guardExitTimeMs - $record.startedAtMs -le $bound + $second) 'original-child-bound'
                     }
                     $hostResult.passed++
                     $null = $results.Add([pscustomobject]@{ major = $hostItem.Major; passed = $true; cause = $null })
@@ -352,6 +355,7 @@ if (fixture.mode === 'accept') {
         bridgeSha256 = $bridgeHash
         constantsSha256 = (Get-FileHash -LiteralPath $constantsPath -Algorithm SHA256).Hash
         originalChildBoundMs = $bound
+        timingBoundary = 'controlled-guard-start-to-kernel-exit'
         planned = @('accept-local', 'accept-foreign-spaces', 'reject', 'missing-binding', 'missing-guard', 'missing-hook', 'stall').Count * @('5', '7').Count
         executed = $results.Count
         passed = $passed
