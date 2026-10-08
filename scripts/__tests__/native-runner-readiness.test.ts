@@ -102,14 +102,22 @@ function executeNativeRunnerReadinessPublisher() {
     downloadStatus: NATIVE_DB_VALIDATION.artifactRedirectStatus as number,
     stall: '', fail: '', invalidBody: false, monotonic: 0,
     utc: now, monotonicReadings: [] as number[], boundaryAdvance: 0,
+    boundaryAdvanceOnce: false,
   };
   const calls: { kind: string; path?: string; query?: unknown; ms?: number; signal?: AbortSignal; filename?: string; maxBytes?: number }[] = [];
+  const entered: Record<string, Promise<void>> = {};
+  const entryResolvers = new Map<string, () => void>();
+  for (const kind of ['api', 'storage', 'zip', 'pause']) {
+    entered[kind] = new Promise(resolve => { entryResolvers.set(kind, resolve); });
+  }
   const base = `/repos/${NATIVE_DB_VALIDATION.repository}`;
   const origin = Date.now();
   const ports = {
     apiGet: vi.fn(async (path: string, query: Record<string, unknown>, signal: AbortSignal) => {
       calls.push({ kind: 'api', path, query, signal });
+      entryResolvers.get('api')?.();
       state.monotonic += state.boundaryAdvance;
+      if (state.boundaryAdvanceOnce) state.boundaryAdvance = 0;
       if (state.stall === path || state.stall === 'api') return new Promise<never>(() => {});
       if (state.fail === path || state.fail === 'api') throw new Error('synthetic refusal');
       let value: unknown;
@@ -127,6 +135,7 @@ function executeNativeRunnerReadinessPublisher() {
     }),
     storageGet: vi.fn(async (url: string, signal: AbortSignal) => {
       calls.push({ kind: 'storage', path: url, signal });
+      entryResolvers.get('storage')?.();
       state.monotonic += state.boundaryAdvance;
       if (state.stall === 'storage') return new Promise<never>(() => {});
       if (state.fail === 'storage') throw new Error('synthetic storage refusal');
@@ -134,6 +143,7 @@ function executeNativeRunnerReadinessPublisher() {
     }),
     readZipMember: vi.fn(async (bytes: Uint8Array, member: string, maxBytes: number, signal: AbortSignal) => {
       calls.push({ kind: 'zip', filename: member, maxBytes, signal });
+      entryResolvers.get('zip')?.();
       state.monotonic += state.boundaryAdvance;
       if (state.stall === 'zip') return new Promise<never>(() => {});
       if (state.fail === 'zip') throw new Error('synthetic constrained ZIP refusal');
@@ -146,6 +156,7 @@ function executeNativeRunnerReadinessPublisher() {
     monotonicNow: vi.fn(() => state.monotonicReadings.length ? state.monotonicReadings.shift()! : state.monotonic + Date.now() - origin),
     pause: vi.fn(async (ms: number, signal: AbortSignal) => {
       calls.push({ kind: 'pause', ms, signal });
+      entryResolvers.get('pause')?.();
       if (state.stall === 'pause') return new Promise<never>(() => {});
       if (state.fail === 'pause') throw new Error('synthetic pause refusal');
       state.monotonic += ms;
@@ -296,7 +307,7 @@ function executeNativeRunnerReadinessPublisher() {
     expect(selector.captured).not.toBeNull();
     return { concretePorts: selector.captured!, fakeFetch, github, core };
   };
-  return { job, runner, readiness, now, body, name, base, state, ports, calls, publication, resolve, workflowText, step, producer, executeProducer, selector, executeSelector };
+  return { job, runner, readiness, now, body, name, base, state, ports, calls, entered, publication, resolve, workflowText, step, producer, executeProducer, selector, executeSelector };
 }
 
 beforeEach(() => {
@@ -410,7 +421,8 @@ describe('DBV-008/009 bounded runtime Actions artifact resolution', () => {
     expect(f.ports.storageGet).not.toHaveBeenCalled();
   });
   it('caps the final poll to the remaining monotonic budget', async () => {
-    const f = executeNativeRunnerReadinessPublisher(); f.state.absentCount = Number.MAX_SAFE_INTEGER; f.state.boundaryAdvance = 777;
+    const f = executeNativeRunnerReadinessPublisher(); f.state.absentCount = Number.MAX_SAFE_INTEGER;
+    f.state.boundaryAdvance = NATIVE_DB_VALIDATION.processStopGraceMs - 1; f.state.boundaryAdvanceOnce = true;
     expect(await f.resolve()).toBeNull();
     const waits = f.calls.filter(call => call.kind === 'pause').map(call => call.ms!);
     expect(waits.every(ms => ms > 0 && ms <= NATIVE_DB_VALIDATION.processStopGraceMs)).toBe(true);
@@ -423,6 +435,7 @@ describe('DBV-008/009 bounded runtime Actions artifact resolution', () => {
     let settled = false;
     const pending = f.resolve().then(value => { settled = true; return value; });
     void pending.catch(() => {});
+    await f.entered[kind];
     await vi.advanceTimersByTimeAsync(NATIVE_DB_VALIDATION.processStopGraceMs - 1);
     expect(settled).toBe(false);
     await vi.advanceTimersByTimeAsync(1);
