@@ -475,7 +475,7 @@ describe('DBV-008/009 independent runtime transport', () => {
   });
 
   it.each([
-    ['target', 'created_at', heldReadinessDate(1)], ['target', 'run_started_at', heldReadinessDate(1)],
+    ['target', 'created_at', heldReadinessDate(1)], ['target', 'run_started_at', heldReadinessDate(1_000)],
     ['publisher', 'created_at', '2026-10-08T12:59:59Z'], ['publisher', 'updated_at', '2026-10-08T13:00:03Z'],
     ['publisher', 'updated_at', '2026-10-08T13:05:00Z'], ['publisher', 'updated_at', '2026-10-08T13:00:08Z'],
     ['artifact', 'created_at', '2026-10-08T13:00:02Z'], ['artifact', 'updated_at', '2026-10-08T13:00:05Z'],
