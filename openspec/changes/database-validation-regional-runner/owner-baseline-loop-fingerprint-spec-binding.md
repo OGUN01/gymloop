@@ -1,0 +1,17 @@
+# Approved owner-baseline exception — physical-loop fingerprint
+
+Frozen by root on 9 October 2026 before the independent visible author's fingerprint edit. This is a narrow binding of the human-approved DBV-015 spec amendment, not an unchanged-oracle claim. The owner approved the one-time CI reset in docs/planning/trial19-owner-timeout-baseline-proposal-2026-10-09.md, replying “Approve the one-time CI reset” to call_37c378f02146450db1b1f343523b62c9. DBV-015 permits only the exact trial19 missing-original/no-recovery exceptions after complete independent baseline and physical evidence. That authorized exception necessarily changes the existing native missing-recovery condition inside the general attemptJobs loop.
+
+CI37918216567 retained an actual RED for the older visible unarmed suite's complete-loop byte fingerprint. Its observation captures the correct physical loop; its earlier pin predates the approved guard. Do not rewrite, strip or reconstruct the observed workflow to make it resemble the old source. Do not change its extraction regex, callbacks, semantic assertions or other expected values.
+
+The authorized prospective fingerprint is independently derived from the exact public loop in Git6d96d0bfdc8803eeeca04f35106f9ba0a9e1b633:.github/workflows/db.yml, with CRLF normalized to LF exactly as the existing observer already does. Insert only this declared line immediately before the existing !artifacts.some missing-recovery clause:
+
+```js
+                      !verifiedOwnerBaselines.has(`${boundRunAttempt}-${job.id}-${NATIVE_DB_OWNER_BASELINE.targetGuardianJobId}`) &&
+```
+
+Root's source-only comparison confirms exactly one133-byte insertion: old loop2180 UTF8 bytes, new loop2313 bytes. Removing that one line restores the complete old loop byte-for-byte. The canonical verifyNativeWorkloadTeardown(expected,receipt) / verifyHostedNativeWorkloadCompletion(expected,hostedJob,receipt) check and every other old loop byte are unchanged. The owner-baseline entry is admitted only by the separately frozen exact-tuple official-custody verifier; it cannot bypass physical verification. Fresh source-only metadata critic independently confirmed this mandatory general branch.
+
+Authorize the independent visible author to derive the new fingerprint from this prior-source-plus-frozen-line formula, verify its equality with the actual observed source, and replace only the single old fingerprint literal in scripts/__tests__/native-unarmed-setup-failure.test.ts. The old expected literal may change at that exact span; explicitly record it as an approved spec binding, not preserved oracle bytes. No helper, extraction, case identity, callback, operator, provider/clock data, tolerance, skip, assertion count or other literal may change. Preserve complete before/after/inverse proof and byte equality outside that one span without exposing private test bodies or expected literals to root.
+
+The DBV-015 independent85-case tests were committed genuinely RED at f4dcf58d before sourcec94afdaa. This older pin adaptation does not add a new behavior or waive those requirements. Preserve the failed c94 CI and local167/168 result. Run the complete168-case visible suite and corrected cancellation suite, obtain independent opaque metadata/inverse review, and commit this one test adaptation separately with a spec: prefix under the already explicit owner approval. Full exact-head Linux CI, unchanged held tests, all other gates and actual one-time maintenance custody still govern dispatch.
