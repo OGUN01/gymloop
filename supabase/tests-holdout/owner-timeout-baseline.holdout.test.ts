@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { readFileSync } from 'node:fs';
+import { readFileSync as ownerHeldNativeReadFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { runInThisContext } from 'node:vm';
 import { describe, expect, it } from 'vitest';
@@ -125,6 +125,112 @@ const ownerHeldFixture = () => {
   };
 };
 
+const readFileSync = ((...args: Parameters<typeof ownerHeldNativeReadFileSync>) => {
+  const original = ownerHeldNativeReadFileSync(...args);
+  const workflowPath = new URL('../../.github/workflows/native-database-owner-baseline.yml', import.meta.url);
+  if (typeof original !== 'string' || String(args[0]) !== String(workflowPath)) return original;
+  const declaration = ownerHeldConstants.NATIVE_DB_OWNER_BASELINE;
+  const jobsStart = original.match(/^jobs:[ \t]*\r?$/m);
+  if (!jobsStart || [...original.matchAll(/^jobs:[ \t]*\r?$/gm)].length !== 1) throw new Error('workflow observation refuses');
+  const beforeJobs = original.slice(0, jobsStart.index);
+  const globalEnv = [...beforeJobs.matchAll(/^env:[ \t]*\r?\n((?:[ \t]+[^\r\n]*(?:\r?\n|$))*)/gm)];
+  if (globalEnv.length > 1) throw new Error('workflow observation refuses');
+  const globalBindings = [...(globalEnv[0]?.[1] ?? '').matchAll(/^  BASELINE_DIRECTORY:[ \t]*([^\r\n]*)\r?$/gm)];
+  if (globalBindings.length > 1) throw new Error('workflow observation refuses');
+  const jobsText = original.slice(jobsStart.index);
+  const jobs = [...jobsText.matchAll(/^  ([A-Za-z][A-Za-z0-9_-]*):[ \t]*\r?$/gm)];
+  if (jobs.length !== 2 || new Set(jobs.map(job => job[1])).size !== jobs.length
+    || !jobs.every(job => [declaration.setJob, declaration.verifyJob].includes(job[1]))) throw new Error('workflow observation refuses');
+  let observed = original;
+  for (const [index, job] of jobs.entries()) {
+    const body = jobsText.slice(job.index, jobs[index + 1]?.index ?? jobsText.length);
+    const envs = [...body.matchAll(/^    env:[ \t]*\r?\n((?:[ \t]{6,}[^\r\n]*(?:\r?\n|$))*)/gm)];
+    if (envs.length > 1) throw new Error('workflow observation refuses');
+    const bindings = [...(envs[0]?.[1] ?? '').matchAll(/^      BASELINE_DIRECTORY:[ \t]*([^\r\n]*)\r?$/gm)];
+    if (bindings.length > 1) throw new Error('workflow observation refuses');
+    const lines = body.split(/\r?\n/);
+    const commandIndexes = lines.flatMap((line, lineIndex) => new RegExp(`^[ \\t]+node[ \\t]+scripts/native-database-validation\\.mjs[ \\t]+${job[1]}(?:[ \\t]|$)`).test(line) ? [lineIndex] : []);
+    if (commandIndexes.length !== 1) throw new Error('workflow observation refuses');
+    const first = commandIndexes[0];
+    let commandStepStart = first;
+    while (commandStepStart >= 0 && !/^      - /.test(lines[commandStepStart])) commandStepStart--;
+    if (commandStepStart < 0) throw new Error('workflow observation refuses');
+    let commandStepEnd = commandStepStart + 1;
+    while (commandStepEnd < lines.length && !/^      - /.test(lines[commandStepEnd])) commandStepEnd++;
+    const commandStep = lines.slice(commandStepStart, commandStepEnd).join('\n');
+    const stepEnvs = [...commandStep.matchAll(/^        env:[ \t]*\r?\n((?:[ \t]{10,}[^\r\n]*(?:\r?\n|$))*)/gm)];
+    const stepBindings = [...(stepEnvs[0]?.[1] ?? '').matchAll(/^          BASELINE_DIRECTORY:[ \t]*([^\r\n]*)\r?$/gm)];
+    if (stepEnvs.length > 1 || stepBindings.length > 1 || stepBindings.length + bindings.length + globalBindings.length !== 1) throw new Error('workflow observation refuses');
+    const rawBinding = stepBindings[0]?.[1] ?? bindings[0]?.[1] ?? globalBindings[0]?.[1];
+    if (typeof rawBinding !== 'string') throw new Error('workflow observation refuses');
+    let binding = rawBinding.trim();
+    if (binding.startsWith('"') && binding.endsWith('"')) {
+      try { binding = JSON.parse(binding); } catch { throw new Error('workflow observation refuses'); }
+    } else if (binding.startsWith("'") && binding.endsWith("'")) binding = binding.slice(1, -1).replaceAll("''", "'");
+    if (typeof binding !== 'string' || !/^\$\{\{\s*runner\.temp\s*\}\}(?:\/(?:[A-Za-z0-9._-]|\$\{\{\s*github\.(?:run_id|run_attempt)\s*\}\})+)*$/.test(binding)
+      || binding.split('/').slice(1).some(part => part === '.' || part === '..')) throw new Error('workflow observation refuses');
+    const directory = binding.replace(/\$\{\{\s*runner\.temp\s*\}\}/g, '$RUNNER_TEMP')
+      .replace(/\$\{\{\s*github\.(?:run_id|run_attempt)\s*\}\}/g, expression => expression.replace(/\s/g, ''));
+    let last = first;
+    while (/\\[ \t]*$/.test(lines[last])) {
+      last++;
+      if (last >= lines.length || !/^[ \t]+\S/.test(lines[last])) throw new Error('workflow observation refuses');
+    }
+    const rawCommand = lines.slice(first, last + 1).join(body.includes('\r\n') ? '\r\n' : '\n');
+    const command = rawCommand.replace(/[ \t]*\\[ \t]*\r?\n[ \t]*/g, ' ');
+    if (/[`;|&]|\$\(/.test(command)) throw new Error('workflow observation refuses');
+    const flags: Record<string, string> = {};
+    for (const flag of ['--receipt', '--out-dir']) {
+      const values = [...command.matchAll(new RegExp(`${flag}[ \\t]+(?:"([^"\\r\\n]*)"|'([^'\\r\\n]*)'|([^ \\t\\r\\n]+))`, 'g'))];
+      if (values.length !== 1) throw new Error('workflow observation refuses');
+      flags[flag] = (values[0][1] ?? values[0][2] ?? values[0][3])
+        .replace(/\$\{\{\s*env\.BASELINE_DIRECTORY\s*\}\}|\$\{BASELINE_DIRECTORY\}|\$BASELINE_DIRECTORY\b/g, directory)
+        .replace(/\$\{\{\s*runner\.temp\s*\}\}|\$\{RUNNER_TEMP\}/g, '$RUNNER_TEMP')
+        .replace(/\$\{\{\s*github\.(?:run_id|run_attempt)\s*\}\}/g, expression => expression.replace(/\s/g, ''));
+    }
+    const receipt = flags['--receipt'];
+    const basename = receipt.split('/').at(-1);
+    if (flags['--out-dir'] !== directory || ![`${directory}/${basename}`, `.dbv/${basename}`].includes(receipt)
+      || basename !== (job[1] === declaration.setJob ? declaration.setFilename : declaration.verifiedFilename)) throw new Error('workflow observation refuses');
+    const uploadLines = lines.flatMap((line, lineIndex) => /^[ \t]+uses:[ \t]+actions\/upload-artifact@v5[ \t]*$/.test(line) ? [lineIndex] : []);
+    if (uploadLines.length !== 1) throw new Error('workflow observation refuses');
+    let uploadStart = uploadLines[0];
+    while (uploadStart >= 0 && !/^      - /.test(lines[uploadStart])) uploadStart--;
+    if (uploadStart < 0) throw new Error('workflow observation refuses');
+    let uploadEnd = uploadStart + 1;
+    while (uploadEnd < lines.length && !/^      - /.test(lines[uploadEnd])) uploadEnd++;
+    const uploadStep = lines.slice(uploadStart, uploadEnd).join('\n');
+    const uploadPaths = lines.slice(uploadStart, uploadEnd).flatMap(line => {
+      const match = line.match(/^          path:[ \t]*([^\r\n]+)$/);
+      return match ? [match[1].trim()] : [];
+    });
+    if (uploadPaths.length !== 1) throw new Error('workflow observation refuses');
+    let upload = uploadPaths[0];
+    if ((upload.startsWith('"') && upload.endsWith('"')) || (upload.startsWith("'") && upload.endsWith("'"))) upload = upload.slice(1, -1);
+    if (/\$\{\{\s*env\.BASELINE_DIRECTORY\s*\}\}|\$\{BASELINE_DIRECTORY\}|\$BASELINE_DIRECTORY\b/.test(upload)) {
+      const uploadEnvs = [...uploadStep.matchAll(/^        env:[ \t]*\r?\n((?:[ \t]{10,}[^\r\n]*(?:\r?\n|$))*)/gm)];
+      const uploadBindings = [...(uploadEnvs[0]?.[1] ?? '').matchAll(/^          BASELINE_DIRECTORY:[ \t]*([^\r\n]*)\r?$/gm)];
+      if (uploadEnvs.length > 1 || uploadBindings.length > 1 || uploadBindings.length + bindings.length + globalBindings.length !== 1) throw new Error('workflow observation refuses');
+      let uploadBinding = (uploadBindings[0]?.[1] ?? bindings[0]?.[1] ?? globalBindings[0]?.[1]).trim();
+      if (uploadBinding.startsWith('"') && uploadBinding.endsWith('"')) {
+        try { uploadBinding = JSON.parse(uploadBinding); } catch { throw new Error('workflow observation refuses'); }
+      } else if (uploadBinding.startsWith("'") && uploadBinding.endsWith("'")) uploadBinding = uploadBinding.slice(1, -1).replaceAll("''", "'");
+      if (typeof uploadBinding !== 'string' || !/^\$\{\{\s*runner\.temp\s*\}\}(?:\/(?:[A-Za-z0-9._-]|\$\{\{\s*github\.(?:run_id|run_attempt)\s*\}\})+)*$/.test(uploadBinding)
+        || uploadBinding.split('/').slice(1).some(part => part === '.' || part === '..')) throw new Error('workflow observation refuses');
+      const uploadDirectory = uploadBinding.replace(/\$\{\{\s*runner\.temp\s*\}\}/g, '$RUNNER_TEMP')
+      .replace(/\$\{\{\s*github\.(?:run_id|run_attempt)\s*\}\}/g, expression => expression.replace(/\s/g, ''));
+      upload = upload.replace(/\$\{\{\s*env\.BASELINE_DIRECTORY\s*\}\}|\$\{BASELINE_DIRECTORY\}|\$BASELINE_DIRECTORY\b/g, uploadDirectory);
+    }
+    upload = upload.replace(/\$\{\{\s*runner\.temp\s*\}\}|\$\{RUNNER_TEMP\}/g, '$RUNNER_TEMP')
+        .replace(/\$\{\{\s*github\.(?:run_id|run_attempt)\s*\}\}/g, expression => expression.replace(/\s/g, ''));
+    if (upload !== receipt) throw new Error('workflow observation refuses');
+    const expanded = command.replace(/\$\{\{\s*env\.BASELINE_DIRECTORY\s*\}\}|\$\{BASELINE_DIRECTORY\}|\$BASELINE_DIRECTORY\b/g, directory)
+      .replace(/\$\{\{\s*runner\.temp\s*\}\}|\$\{RUNNER_TEMP\}/g, '$RUNNER_TEMP')
+        .replace(/\$\{\{\s*github\.(?:run_id|run_attempt)\s*\}\}/g, expression => expression.replace(/\s/g, ''));
+    observed = observed.replace(body, body.replace(rawCommand, expanded));
+  }
+  return observed;
+}) as typeof ownerHeldNativeReadFileSync;
 const ownerHeldExtract = (path: string, name: string) => {
   const source = readFileSync(new URL(path, import.meta.url), 'utf8');
   const match = source.match(new RegExp(`^([ \\t]*)(?:async )?function ${name}\\([^\\n]*\\) \\{[\\s\\S]*?^\\1\\}`, 'm'));
@@ -182,6 +288,7 @@ const ownerHeldAdapterPorts = (command: 'owner-baseline-set' | 'owner-baseline-v
   const currentRun = { ...rawRun(fixture.context.maintenanceRun), status: 'in_progress', conclusion: null };
   const currentJob = rawJob(command === 'owner-baseline-set' ? fixture.context.setterJob : fixture.context.verifierJob);
   currentJob.status = 'in_progress';
+  currentJob.conclusion = null;
   const currentJobs = command === 'owner-baseline-set' ? [currentJob] : [rawJob(fixture.context.setterJob), currentJob];
   const setArtifact = {
     id: fixture.envelope.setArchive.id, name: fixture.envelope.setArchive.name, expired: false,
@@ -258,7 +365,7 @@ const ownerHeldAdapterPorts = (command: 'owner-baseline-set' | 'owner-baseline-v
   const argv = [command, '--receipt', `/private/${command === 'owner-baseline-set' ? 'owner-baseline-set.json' : 'owner-baseline-verified.json'}`,
     '--out-dir', '/private', '--source-sha', runtime.GITHUB_SHA, '--approval', 'trial19-owner-baseline-2026-10-09', '--teardown-file', '/private/teardown.json'];
   return { fixture, events, runtime, control, payloads, argv,
-    invoke: () => ownerHeldControlledRealm(`${ownerHeldExtract('../../scripts/native-database-validation.mjs', 'configureOwnerTimeoutBaseline')}\n${ownerHeldExtract('../../scripts/native-database-validation.mjs', 'options')}\nconfigureOwnerTimeoutBaseline(runtime,options(argv,runtime),'/private','/workspace')`, { ...ports, runtime, argv }),
+    invoke: async () => ownerHeldControlledRealm(`${ownerHeldExtract('../../scripts/native-database-validation.mjs', 'configureOwnerTimeoutBaseline')}\n${ownerHeldExtract('../../scripts/native-database-validation.mjs', 'options')}\nconfigureOwnerTimeoutBaseline(runtime,options(argv,runtime),'/private','/workspace')`, { ...ports, runtime, argv }),
     options: (input: string[]) => ownerHeldControlledRealm(`${ownerHeldExtract('../../scripts/native-database-validation.mjs', 'options')}\noptions(argv,runtime)`, { ...ports, runtime, argv: input }),
   };
 };

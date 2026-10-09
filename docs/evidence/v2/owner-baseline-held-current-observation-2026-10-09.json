@@ -1,0 +1,25 @@
+{
+  "scope": "Independent held author-only current-job and actual workflow observations",
+  "requirementsChanged": false,
+  "originalSha256": "e08c1fadf641909d14aed27812418f447719509623ccca2983774475250b40e1",
+  "transportBaselineSha256": "dc6283083c2da969e345711d7f7a1bf371aee364d0eee54c4780f4766909a909",
+  "finalSha256": "ef2ebfa71909915e3d330e28bf95a23a749370d898f82284405764970b42d1d9",
+  "caseAndOracleSuffixSha256": "1a3f57c0254e818d15721173d48e2489fa77a51ffc83241a1387a7e9794fe1e3",
+  "caseAndOracleSuffixUnchanged": true,
+  "currentInverseSha256": "4e4dfa8821cdf65d31eddcd7b54ccee8b298c11e25aeb173f7417c00d129fb46",
+  "transportInverseSha256": "e5348e88aaf968b900b0f10654ef68b22ca7a8318228a65591e1cbb9e77bb727",
+  "completeOriginalRecoveredByBothInverses": true,
+  "safeRunReceiptSha256": "14cc596056b7cfbc89a742feafdca5e90d66b9d243230c20a3ca7ffb43e83590",
+  "result": { "cases": 20, "passed": 20, "failed": 0, "skipped": 0, "exitCode": 0 },
+  "independentMetadataReview": "GO; exact opaque inverses and unchanged original suffix independently verified",
+  "corrections": [
+    "Actual executing current-job projection has in_progress status and null conclusion",
+    "Existing async invocation observes synchronous options rejection",
+    "Actual protected out-dir and private receipt/upload bindings are observed independently",
+    "Actual shell continuation whitespace projects one argument separator"
+  ],
+  "sourceGuardsRelaxed": false,
+  "configurationEstablished": false,
+  "resetDispatched": false,
+  "fasterFullDatabaseResult": false
+}
