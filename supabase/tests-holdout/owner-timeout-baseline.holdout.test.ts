@@ -135,31 +135,31 @@ const readFileSync = ((...args: Parameters<typeof ownerHeldNativeReadFileSync>) 
   const beforeJobs = original.slice(0, jobsStart.index);
   const globalEnv = [...beforeJobs.matchAll(/^env:[ \t]*\r?\n((?:[ \t]+[^\r\n]*(?:\r?\n|$))*)/gm)];
   if (globalEnv.length > 1) throw new Error('workflow observation refuses');
-  const globalBindings = [...(globalEnv[0]?.[1] ?? '').matchAll(/^  BASELINE_DIRECTORY:[ \t]*([^\r\n]*)\r?$/gm)];
+  const globalBindings = [...(globalEnv[0]?.[1] ?? '').matchAll(/^ {2}BASELINE_DIRECTORY:[ \t]*([^\r\n]*)\r?$/gm)];
   if (globalBindings.length > 1) throw new Error('workflow observation refuses');
   const jobsText = original.slice(jobsStart.index);
-  const jobs = [...jobsText.matchAll(/^  ([A-Za-z][A-Za-z0-9_-]*):[ \t]*\r?$/gm)];
+  const jobs = [...jobsText.matchAll(/^ {2}([A-Za-z][A-Za-z0-9_-]*):[ \t]*\r?$/gm)];
   if (jobs.length !== 2 || new Set(jobs.map(job => job[1])).size !== jobs.length
     || !jobs.every(job => [declaration.setJob, declaration.verifyJob].includes(job[1]))) throw new Error('workflow observation refuses');
   let observed = original;
   for (const [index, job] of jobs.entries()) {
     const body = jobsText.slice(job.index, jobs[index + 1]?.index ?? jobsText.length);
-    const envs = [...body.matchAll(/^    env:[ \t]*\r?\n((?:[ \t]{6,}[^\r\n]*(?:\r?\n|$))*)/gm)];
+    const envs = [...body.matchAll(/^ {4}env:[ \t]*\r?\n((?:[ \t]{6,}[^\r\n]*(?:\r?\n|$))*)/gm)];
     if (envs.length > 1) throw new Error('workflow observation refuses');
-    const bindings = [...(envs[0]?.[1] ?? '').matchAll(/^      BASELINE_DIRECTORY:[ \t]*([^\r\n]*)\r?$/gm)];
+    const bindings = [...(envs[0]?.[1] ?? '').matchAll(/^ {6}BASELINE_DIRECTORY:[ \t]*([^\r\n]*)\r?$/gm)];
     if (bindings.length > 1) throw new Error('workflow observation refuses');
     const lines = body.split(/\r?\n/);
     const commandIndexes = lines.flatMap((line, lineIndex) => new RegExp(`^[ \\t]+node[ \\t]+scripts/native-database-validation\\.mjs[ \\t]+${job[1]}(?:[ \\t]|$)`).test(line) ? [lineIndex] : []);
     if (commandIndexes.length !== 1) throw new Error('workflow observation refuses');
     const first = commandIndexes[0];
     let commandStepStart = first;
-    while (commandStepStart >= 0 && !/^      - /.test(lines[commandStepStart])) commandStepStart--;
+    while (commandStepStart >= 0 && !/^ {6}- /.test(lines[commandStepStart])) commandStepStart--;
     if (commandStepStart < 0) throw new Error('workflow observation refuses');
     let commandStepEnd = commandStepStart + 1;
-    while (commandStepEnd < lines.length && !/^      - /.test(lines[commandStepEnd])) commandStepEnd++;
+    while (commandStepEnd < lines.length && !/^ {6}- /.test(lines[commandStepEnd])) commandStepEnd++;
     const commandStep = lines.slice(commandStepStart, commandStepEnd).join('\n');
-    const stepEnvs = [...commandStep.matchAll(/^        env:[ \t]*\r?\n((?:[ \t]{10,}[^\r\n]*(?:\r?\n|$))*)/gm)];
-    const stepBindings = [...(stepEnvs[0]?.[1] ?? '').matchAll(/^          BASELINE_DIRECTORY:[ \t]*([^\r\n]*)\r?$/gm)];
+    const stepEnvs = [...commandStep.matchAll(/^ {8}env:[ \t]*\r?\n((?:[ \t]{10,}[^\r\n]*(?:\r?\n|$))*)/gm)];
+    const stepBindings = [...(stepEnvs[0]?.[1] ?? '').matchAll(/^ {10}BASELINE_DIRECTORY:[ \t]*([^\r\n]*)\r?$/gm)];
     if (stepEnvs.length > 1 || stepBindings.length > 1 || stepBindings.length + bindings.length + globalBindings.length !== 1) throw new Error('workflow observation refuses');
     const rawBinding = stepBindings[0]?.[1] ?? bindings[0]?.[1] ?? globalBindings[0]?.[1];
     if (typeof rawBinding !== 'string') throw new Error('workflow observation refuses');
@@ -195,23 +195,25 @@ const readFileSync = ((...args: Parameters<typeof ownerHeldNativeReadFileSync>) 
     const uploadLines = lines.flatMap((line, lineIndex) => /^[ \t]+uses:[ \t]+actions\/upload-artifact@v5[ \t]*$/.test(line) ? [lineIndex] : []);
     if (uploadLines.length !== 1) throw new Error('workflow observation refuses');
     let uploadStart = uploadLines[0];
-    while (uploadStart >= 0 && !/^      - /.test(lines[uploadStart])) uploadStart--;
+    while (uploadStart >= 0 && !/^ {6}- /.test(lines[uploadStart])) uploadStart--;
     if (uploadStart < 0) throw new Error('workflow observation refuses');
     let uploadEnd = uploadStart + 1;
-    while (uploadEnd < lines.length && !/^      - /.test(lines[uploadEnd])) uploadEnd++;
+    while (uploadEnd < lines.length && !/^ {6}- /.test(lines[uploadEnd])) uploadEnd++;
     const uploadStep = lines.slice(uploadStart, uploadEnd).join('\n');
     const uploadPaths = lines.slice(uploadStart, uploadEnd).flatMap(line => {
-      const match = line.match(/^          path:[ \t]*([^\r\n]+)$/);
+      const match = line.match(/^ {10}path:[ \t]*([^\r\n]+)$/);
       return match ? [match[1].trim()] : [];
     });
     if (uploadPaths.length !== 1) throw new Error('workflow observation refuses');
     let upload = uploadPaths[0];
     if ((upload.startsWith('"') && upload.endsWith('"')) || (upload.startsWith("'") && upload.endsWith("'"))) upload = upload.slice(1, -1);
     if (/\$\{\{\s*env\.BASELINE_DIRECTORY\s*\}\}|\$\{BASELINE_DIRECTORY\}|\$BASELINE_DIRECTORY\b/.test(upload)) {
-      const uploadEnvs = [...uploadStep.matchAll(/^        env:[ \t]*\r?\n((?:[ \t]{10,}[^\r\n]*(?:\r?\n|$))*)/gm)];
-      const uploadBindings = [...(uploadEnvs[0]?.[1] ?? '').matchAll(/^          BASELINE_DIRECTORY:[ \t]*([^\r\n]*)\r?$/gm)];
+      const uploadEnvs = [...uploadStep.matchAll(/^ {8}env:[ \t]*\r?\n((?:[ \t]{10,}[^\r\n]*(?:\r?\n|$))*)/gm)];
+      const uploadBindings = [...(uploadEnvs[0]?.[1] ?? '').matchAll(/^ {10}BASELINE_DIRECTORY:[ \t]*([^\r\n]*)\r?$/gm)];
       if (uploadEnvs.length > 1 || uploadBindings.length > 1 || uploadBindings.length + bindings.length + globalBindings.length !== 1) throw new Error('workflow observation refuses');
-      let uploadBinding = (uploadBindings[0]?.[1] ?? bindings[0]?.[1] ?? globalBindings[0]?.[1]).trim();
+      let uploadBinding = uploadBindings[0]?.[1] ?? bindings[0]?.[1] ?? globalBindings[0]?.[1];
+      if (uploadBinding === undefined) throw new Error('workflow observation refuses');
+      uploadBinding = uploadBinding.trim();
       if (uploadBinding.startsWith('"') && uploadBinding.endsWith('"')) {
         try { uploadBinding = JSON.parse(uploadBinding); } catch { throw new Error('workflow observation refuses'); }
       } else if (uploadBinding.startsWith("'") && uploadBinding.endsWith("'")) uploadBinding = uploadBinding.slice(1, -1).replaceAll("''", "'");

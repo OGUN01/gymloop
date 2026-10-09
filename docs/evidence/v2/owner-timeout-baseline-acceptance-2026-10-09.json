@@ -1,0 +1,42 @@
+{
+  "scope": "DBV-015 one-time owner-authorized trial19 configuration baseline",
+  "approval": "trial19-owner-baseline-2026-10-09",
+  "testFirstCommit": "f4dcf58d",
+  "requirementsChanged": false,
+  "visible": {
+    "originalSha256": "35dac6103636615deb154e1e7474eb936b2beb9e1148e506f732fd4dd9e62739",
+    "finalSha256": "b10f9743123bf8cd74b120c75cfab5a9d4cb90b9844087db6ea09d47c740e501",
+    "cases": 65, "passed": 65, "failed": 0, "pending": 0,
+    "lintExit": 0, "lintErrors": 0, "lintWarnings": 0,
+    "safeRunReceiptSha256": "630374d1d266fcff4513234ced0215ae1182cf65baa84baae936cb21d35cf94f",
+    "safeLintReceiptSha256": "dd2cec77f65153c62909188eaf3fd9eed40b82e93cc3df4cebd5ce3d853b882a",
+    "lintInverseSha256": "46929e4d35288b57a0adce5654eb5f18f9245083e3cba36e7882b527141057fc",
+    "typeRuntimeSha256": "50cab4a9a32d37ec7fa4e54c1e65ff62560214b0d231e6284de6c0f99018e6a9",
+    "typeOnlyRuntimeBytesUnchanged": true,
+    "expectedValuesAndAssertionOperatorsUnchanged": true,
+    "caseHashChangedOnlyAtFrozenObservationTypeAndEquivalentRegexSpans": true,
+    "completeOriginalInverseVerifiedByAuthor": true
+  },
+  "holdout": {
+    "originalSha256": "e08c1fadf641909d14aed27812418f447719509623ccca2983774475250b40e1",
+    "finalSha256": "ff1c2b635c481027a5b23ff28d179d685546520d378e6885cca4ef4131d24ce9",
+    "cases": 20, "passed": 20, "failed": 0, "pending": 0,
+    "lintExit": 0, "lintErrors": 0, "lintWarnings": 0,
+    "caseAndOracleSuffixSha256": "1a3f57c0254e818d15721173d48e2489fa77a51ffc83241a1387a7e9794fe1e3",
+    "caseAndOracleSuffixUnchanged": true,
+    "safeRunReceiptSha256": "d370d786de893e4b2cdddd137d3483cae466c9d199ce332bbb8b857b01442f67",
+    "lintInverseSha256": "47a4abdc91f881cd1c6c0d80f39fa86d59c27ed9d02cfeb89f12f31c8b60b654",
+    "completeOriginalInverseVerifiedByAuthor": true
+  },
+  "sourceReviewSha256": "325d54af6a7976adbee8df2be62ce206ae9889795e111875fc2d3e27b69016d6",
+  "sourceReviewVerdict": "GO",
+  "finalMetadataReview": "GO",
+  "finalMetadataReviewSha256": "dce324fab3974cc960d12034db2d5211d6923c0553ec44b8166d2706aad2118a",
+  "exactHeadLinuxCI": "pending",
+  "maintenanceDispatch": "not started",
+  "configuredStateIndependentlyVerified": false,
+  "outsideOwnerBaselineIndexPublished": false,
+  "historicalTrial19Verdict": "failed; original timeout remains unknown",
+  "fasterCompleteRegionalMeasurement": false,
+  "testerRelease": "version6 already available; no repeat build or upload"
+}

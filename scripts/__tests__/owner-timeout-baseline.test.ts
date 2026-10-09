@@ -1,10 +1,154 @@
 import { createHash } from 'node:crypto';
-import { readFileSync } from 'node:fs';
+import { readFileSync as ownerBaselineReadFileSync } from 'node:fs';
 import vm from 'node:vm';
 import ts from 'typescript';
 import { describe, expect, it } from 'vitest';
 import { verifyNativeWorkloadTeardown } from '../pgtap/workload-teardown.mjs';
 import { exactNativeDataRecord, exactNativeDataArray, nativeEvidenceClock } from '../pgtap/data-record.mjs';
+
+const ownerBaselineSourceObservation: typeof ownerBaselineReadFileSync = ((...args: unknown[]) => {
+  const loaded = (ownerBaselineReadFileSync as unknown)(...args);
+  const sourcePath = (args[0] instanceof URL ? args[0].pathname : String(args[0])).replaceAll('\\', '/');
+  if (typeof loaded !== 'string' || !/(?:^|\/)\.github\/workflows\/native-database-owner-baseline\.yml$/.test(sourcePath)) return loaded;
+  const headers = [...loaded.matchAll(/^ {2}([A-Za-z0-9_-]+):[ \t]*\r?$/gm)];
+  const jobs = ['owner-baseline-set', 'owner-baseline-verify'];
+  const replacements: { start: number; end: number; value: string }[] = [];
+  for (const job of jobs) {
+    const matches = headers.filter(header => header[1] === job);
+    if (matches.length !== 1) throw new Error('OWNER_BASELINE_WORKFLOW_OBSERVATION');
+    const header = matches[0];
+    const headerIndex = headers.indexOf(header);
+    const start = header.index!;
+    const end = headers[headerIndex + 1]?.index ?? loaded.length;
+    let block = loaded.slice(start, end);
+    const newline = block.includes('\r\n') ? '\r\n' : '\n';
+    const lines = block.split(newline);
+    const commandIndexes = lines.map((line: string, index: number) => /\bnode\b/.test(line) && line.includes('native-database-validation.mjs') && new RegExp(`\\b${job}\\b`).test(line) ? index : -1).filter((index: number) => index >= 0);
+    if (commandIndexes.length !== 1) throw new Error('OWNER_BASELINE_WORKFLOW_OBSERVATION');
+    const commandIndex = commandIndexes[0];
+    const stepStarts = lines.map((line: string, index: number) => /^[ \t]*-[ \t]+(?:name|uses|run|id):/.test(line) ? index : -1).filter((index: number) => index >= 0);
+    const precedingSteps = stepStarts.filter((index: number) => index <= commandIndex);
+    const stepStart = precedingSteps.at(-1);
+    if (stepStart === undefined) throw new Error('OWNER_BASELINE_WORKFLOW_OBSERVATION');
+    const stepEnd = stepStarts.find((index: number) => index > commandIndex) ?? lines.length;
+    const stepLines = lines.slice(stepStart, stepEnd);
+    const envIndexes = stepLines.map((line: string, index: number) => /^[ \t]+env:[ \t]*$/.test(line) ? index : -1).filter((index: number) => index >= 0);
+    if (envIndexes.length !== 1) throw new Error('OWNER_BASELINE_WORKFLOW_OBSERVATION');
+    const envIndex = envIndexes[0];
+    const envIndentation = /^[ \t]*/.exec(stepLines[envIndex])![0].length;
+    let envEnd = envIndex + 1;
+    while (envEnd < stepLines.length && (!stepLines[envEnd].trim() || /^[ \t]*/.exec(stepLines[envEnd])![0].length > envIndentation)) envEnd++;
+    const bindings = [...stepLines.slice(envIndex + 1, envEnd).join(newline).matchAll(/^[ \t]+BASELINE_DIRECTORY:[ \t]*([^\r\n]+)\r?$/gm)];
+    if (bindings.length !== 1) throw new Error('OWNER_BASELINE_WORKFLOW_OBSERVATION');
+    let binding = bindings[0][1].trim();
+    if ((binding.startsWith('"') && binding.endsWith('"')) || (binding.startsWith("'") && binding.endsWith("'"))) binding = binding.slice(1, -1);
+    const protectedBinding = /^\$\{\{\s*runner\.temp\s*\}\}\/(.+)$/.exec(binding);
+    if (!protectedBinding || !/^[A-Za-z0-9_-]+(?:\/[A-Za-z0-9_-]+)*$/.test(protectedBinding[1].replace(/\$\{\{\s*github\.(?:run_id|run_attempt)\s*\}\}/g, 'numeric-context'))) throw new Error('OWNER_BASELINE_WORKFLOW_OBSERVATION');
+    const directory = `$RUNNER_TEMP/${protectedBinding[1].replace(/\$\{\{\s*github\.(run_id|run_attempt)\s*\}\}/g, (_match: string, context: string) => `\${{ github.${context} }}`)}`;
+    let finalCommandIndex = commandIndex;
+    const indentation = /^[ \t]*/.exec(lines[commandIndex])![0].length;
+    while (/\\[ \t]*$/.test(lines[finalCommandIndex])) {
+      finalCommandIndex++;
+      if (finalCommandIndex >= lines.length || /^[ \t]*/.exec(lines[finalCommandIndex])![0].length < indentation || /^[ \t]*-[ \t]+(?:name|uses|run):/.test(lines[finalCommandIndex])) throw new Error('OWNER_BASELINE_WORKFLOW_OBSERVATION');
+    }
+    const command = lines.slice(commandIndex, finalCommandIndex + 1).join(newline);
+    const expandedCommand = command.replace(/\\[ \t]*\r?\n[ \t]*/g, ' ').replace(/\$\{BASELINE_DIRECTORY\}|\$BASELINE_DIRECTORY\b/g, directory);
+    const receiptArguments = [...expandedCommand.matchAll(/--receipt[ \t]+(?:"([^"]+)"|'([^']+)'|([^ \t\r\n]+))/g)];
+    const directoryArguments = [...expandedCommand.matchAll(/--out-dir[ \t]+(?:"([^"]+)"|'([^']+)'|([^ \t\r\n]+))/g)];
+    if (receiptArguments.length !== 1 || directoryArguments.length !== 1) throw new Error('OWNER_BASELINE_WORKFLOW_OBSERVATION');
+    const receipt = receiptArguments[0][1] ?? receiptArguments[0][2] ?? receiptArguments[0][3];
+    const outputDirectory = directoryArguments[0][1] ?? directoryArguments[0][2] ?? directoryArguments[0][3];
+    const checkedReceipt = receipt.replace(/\$\{\{\s*github\.(?:run_id|run_attempt)\s*\}\}/g, 'numeric-context');
+    if (outputDirectory !== directory || !/^(?:\.dbv|\$RUNNER_TEMP)\/[A-Za-z0-9_-]+(?:\/[A-Za-z0-9_-]+)*\.json$/.test(checkedReceipt)) throw new Error('OWNER_BASELINE_WORKFLOW_OBSERVATION');
+    const uploads = [...block.matchAll(/^([ \t]+path:[ \t]*)([^\r\n]+)(\r?)$/gm)];
+    if (uploads.length !== 1) throw new Error('OWNER_BASELINE_WORKFLOW_OBSERVATION');
+    let upload = uploads[0][2].trim();
+    const quote = (upload.startsWith('"') && upload.endsWith('"')) || (upload.startsWith("'") && upload.endsWith("'")) ? upload[0] : '';
+    if (quote) upload = upload.slice(1, -1);
+    if (!/^(?:\.dbv\/|\$\{\{\s*runner\.temp\s*\}\}\/)/.test(upload)) throw new Error('OWNER_BASELINE_WORKFLOW_OBSERVATION');
+    const expandedUpload = upload.replace(/^\$\{\{\s*runner\.temp\s*\}\}/, '$RUNNER_TEMP').replace(/\$\{\{\s*github\.(run_id|run_attempt)\s*\}\}/g, (_match: string, context: string) => `\${{ github.${context} }}`);
+    if (expandedUpload !== receipt) throw new Error('OWNER_BASELINE_WORKFLOW_OBSERVATION');
+    block = block.replace(command, expandedCommand).replace(uploads[0][0], `${uploads[0][1]}${quote}${expandedUpload}${quote}${uploads[0][3]}`);
+    replacements.push({ start, end, value: block });
+  }
+  let observed = loaded;
+  for (const replacement of replacements.sort((left, right) => right.start - left.start)) observed = observed.slice(0, replacement.start) + replacement.value + observed.slice(replacement.end);
+  return observed;
+}) as typeof ownerBaselineReadFileSync;
+const readFileSync = ownerBaselineSourceObservation;
+
+const ownerBaselineTeardownObservation = (workflow: string) => {
+  const refuse = (): never => { throw new Error('OWNER_BASELINE_TEARDOWN_OBSERVATION'); };
+  const lines = workflow.split(/\r?\n/);
+  if (lines.some(line => /^\s*<<:/.test(line) || /^\s*env:\s*\S/.test(line))) refuse();
+  const rootEnvs = lines.map((line, index) => /^env:\s*$/.test(line) ? index : -1).filter(index => index >= 0);
+  if (rootEnvs.length !== 1) refuse();
+  const rootEnvStart = rootEnvs[0];
+  let rootEnvEnd = rootEnvStart + 1;
+  while (rootEnvEnd < lines.length && (!lines[rootEnvEnd].trim() || /^\s/.test(lines[rootEnvEnd]))) rootEnvEnd++;
+  const bindings = lines.map((line, index) => ({ index, match: /^\s*NATIVE_DB_WORKLOAD_TEARDOWN_RECEIPTS\s*:\s*(.*?)\s*$/.exec(line) })).filter(item => item.match);
+  if (bindings.length !== 1 || bindings[0].index <= rootEnvStart || bindings[0].index >= rootEnvEnd || !/^\$\{\{\s*vars\.NATIVE_DB_WORKLOAD_TEARDOWN_RECEIPTS\s*\|\|\s*(['"])\[\]\1\s*\}\}$/.test(bindings[0].match![1])) refuse();
+  if (lines.some(line => /(?:^|[;\s])(?:export\s+)?NATIVE_DB_WORKLOAD_TEARDOWN_RECEIPTS\s*=/.test(line) || /\bunset\s+.*\bNATIVE_DB_WORKLOAD_TEARDOWN_RECEIPTS\b/.test(line) || /\bGITHUB_ENV\b/.test(line))) refuse();
+  const headers = lines.map((line, index) => ({ index, match: /^ {2}([A-Za-z0-9_-]+):\s*$/.exec(line) })).filter(item => item.match);
+  const observations: { job: string; stagedPath: string }[] = [];
+  const isIdentifier = (node: ts.Node | undefined, name: string) => Boolean(node && ts.isIdentifier(node) && node.text === name);
+  const isString = (node: ts.Node | undefined, value: string) => Boolean(node && ts.isStringLiteral(node) && node.text === value);
+  const isProperty = (node: ts.Node | undefined, receiver: string, property: string) => Boolean(node && ts.isPropertyAccessExpression(node) && isIdentifier(node.expression, receiver) && node.name.text === property);
+  const isCall = (node: ts.Node | undefined, receiver: string, method?: string): node is ts.CallExpression => Boolean(node && ts.isCallExpression(node) && (method ? isProperty(node.expression, receiver, method) : isIdentifier(node.expression, receiver)));
+  const declaration = (node: ts.Node | undefined) => node && ts.isVariableStatement(node) && node.declarationList.declarations.length === 1 && ts.isIdentifier(node.declarationList.declarations[0].name) ? node.declarationList.declarations[0] : refuse();
+  const throws = (node: ts.Node | undefined) => Boolean(node && (ts.isThrowStatement(node) || ts.isBlock(node) && node.statements.length === 1 && ts.isThrowStatement(node.statements[0])));
+  const bounded = (node: ts.Node | undefined, variable: string, limits: string) => Boolean(node && ts.isIfStatement(node) && !node.elseStatement && throws(node.thenStatement) && ts.isBinaryExpression(node.expression) && node.expression.operatorToken.kind === ts.SyntaxKind.GreaterThanToken && isProperty(node.expression.left, variable, 'length') && isProperty(node.expression.right, limits, 'timeoutQueryMaxBytes'));
+  for (const job of ['owner-baseline-set', 'owner-baseline-verify']) {
+    const matches = headers.filter(item => item.match![1] === job);
+    if (matches.length !== 1) refuse();
+    const header = matches[0];
+    const end = headers[headers.indexOf(header) + 1]?.index ?? lines.length;
+    const block = lines.slice(header.index, end);
+    const consumers = block.map((line, index) => ({ index, match: /^\s*printf\s+'%s\\n'\s+"\$NATIVE_DB_WORKLOAD_TEARDOWN_RECEIPTS"\s*>\s*(\.dbv\/[A-Za-z0-9_-]+\.json)\s*$/.exec(line) })).filter(item => item.match);
+    if (consumers.length !== 1) refuse();
+    const consumer = consumers[0];
+    const stagedPath = consumer.match![1];
+    const steps = block.map((line, index) => /^\s*-\s+(?:name|uses|run|id):/.test(line) ? index : -1).filter(index => index >= 0);
+    const start = steps.filter(index => index <= consumer.index).at(-1);
+    if (start === undefined) refuse();
+    const stepEnd = steps.find(index => index > consumer.index) ?? block.length;
+    const step = block.slice(start, stepEnd);
+    if (step.filter(line => /^\s*shell:\s*bash\s*$/.test(line)).length !== 1 || step.filter(line => /^\s*run:\s*\|\s*$/.test(line)).length !== 1) refuse();
+    const runIndex = step.findIndex(line => /^\s*run:\s*\|\s*$/.test(line));
+    const consumerIndex = consumer.index - start;
+    const prefix = step.slice(runIndex + 1, consumerIndex).map(line => line.trim()).filter(Boolean);
+    if (prefix.join('\n') !== `umask 077\nmkdir -p ${stagedPath.slice(0, stagedPath.lastIndexOf('/'))}`) refuse();
+    const heredoc = /^\s*node\s+--input-type=module\s+<<(['"])([A-Za-z_][A-Za-z0-9_]*)\1\s*$/.exec(step[consumerIndex + 1] ?? '');
+    if (!heredoc) refuse();
+    const terminal = step.findIndex((line, index) => index > consumerIndex + 1 && line.trim() === heredoc![2]);
+    if (terminal < 0 || step.slice(terminal + 1).some(line => line.trim())) refuse();
+    const script = ts.createSourceFile('owner-baseline-staging-observation.mjs', step.slice(consumerIndex + 2, terminal).join('\n'), ts.ScriptTarget.Latest, true, ts.ScriptKind.JS);
+    if (script.parseDiagnostics.length) refuse();
+    const [fsImport, limitsImport, readStatement, inputBound, parseStatement, arrayGuard, canonicalStatement, canonicalBound, writeStatement, ...extra] = script.statements;
+    if (extra.length || !fsImport || !ts.isImportDeclaration(fsImport) || !isString(fsImport.moduleSpecifier, 'node:fs') || !fsImport.importClause?.namedBindings || !ts.isNamedImports(fsImport.importClause.namedBindings) || !limitsImport || !ts.isImportDeclaration(limitsImport) || !isString(limitsImport.moduleSpecifier, './packages/shared/src/config/constants.ts') || !limitsImport.importClause?.namedBindings || !ts.isNamedImports(limitsImport.importClause.namedBindings)) refuse();
+    const fileNames = fsImport.importClause!.namedBindings as ts.NamedImports;
+    const readImport = fileNames.elements.find(item => (item.propertyName?.text ?? item.name.text) === 'readFileSync');
+    const writeImport = fileNames.elements.find(item => (item.propertyName?.text ?? item.name.text) === 'writeFileSync');
+    const limitNames = limitsImport.importClause!.namedBindings as ts.NamedImports;
+    const limitImport = limitNames.elements.find(item => (item.propertyName?.text ?? item.name.text) === 'NATIVE_DB_VALIDATION');
+    if (!readImport || !writeImport || fileNames.elements.length !== [readImport, writeImport].length || !limitImport || limitNames.elements.length !== [limitImport].length) refuse();
+    const read = declaration(readStatement);
+    const bytesName = (read.name as ts.Identifier).text;
+    if (!isCall(read.initializer, readImport!.name.text) || read.initializer.arguments.length !== [stagedPath].length || !isString(read.initializer.arguments[0], stagedPath) || !bounded(inputBound, bytesName, limitImport!.name.text)) refuse();
+    const parsed = declaration(parseStatement);
+    const valueName = (parsed.name as ts.Identifier).text;
+    if (!isCall(parsed.initializer, 'JSON', 'parse') || parsed.initializer.arguments.length !== [bytesName].length || !isCall(parsed.initializer.arguments[0], bytesName, 'toString') || parsed.initializer.arguments[0].arguments.length !== ['utf8'].length || !isString(parsed.initializer.arguments[0].arguments[0], 'utf8')) refuse();
+    if (!arrayGuard || !ts.isIfStatement(arrayGuard) || arrayGuard.elseStatement || !throws(arrayGuard.thenStatement) || !ts.isPrefixUnaryExpression(arrayGuard.expression) || arrayGuard.expression.operator !== ts.SyntaxKind.ExclamationToken || !isCall(arrayGuard.expression.operand, 'Array', 'isArray') || arrayGuard.expression.operand.arguments.length !== [valueName].length || !isIdentifier(arrayGuard.expression.operand.arguments[0], valueName)) refuse();
+    const canonical = declaration(canonicalStatement);
+    const canonicalName = (canonical.name as ts.Identifier).text;
+    if (!isCall(canonical.initializer, 'Buffer', 'from') || canonical.initializer.arguments.length !== [valueName].length) refuse();
+    const payload = canonical.initializer.arguments[0];
+    if (!ts.isBinaryExpression(payload) || payload.operatorToken.kind !== ts.SyntaxKind.PlusToken || !isCall(payload.left, 'JSON', 'stringify') || payload.left.arguments.length !== [valueName].length || !isIdentifier(payload.left.arguments[0], valueName) || !isString(payload.right, '\n') || !bounded(canonicalBound, canonicalName, limitImport!.name.text)) refuse();
+    if (!writeStatement || !ts.isExpressionStatement(writeStatement) || !isCall(writeStatement.expression, writeImport!.name.text) || writeStatement.expression.arguments.length !== [stagedPath, canonicalName].length || !isString(writeStatement.expression.arguments[0], stagedPath) || !isIdentifier(writeStatement.expression.arguments[1], canonicalName)) refuse();
+    observations.push({ job, stagedPath });
+  }
+  return observations;
+};
 
 const ownerBaselineFixture = () => {
   const source = 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
@@ -149,46 +293,46 @@ describe('DBV-015 configured-state proof', () => {
   });
 
   it.each([
-    { name: 'another original run', mutate: (f: any) => { f.envelope.review.targetRunId = '37857261810'; } },
-    { name: 'another original native job', mutate: (f: any) => { f.envelope.review.targetNativeJobId = '113584968729'; } },
-    { name: 'a maintenance rerun', mutate: (f: any) => { f.context.maintenanceRun.attempt = '2'; } },
-    { name: 'an unapproved owner', mutate: (f: any) => { f.context.maintenanceRun.triggeringActorLogin = 'someone-else'; } },
-    { name: 'a fork identity', mutate: (f: any) => { f.context.maintenanceRun.headRepositoryId = 1358473324; } },
-    { name: 'an untrusted event', mutate: (f: any) => { f.context.maintenanceRun.event = 'push'; } },
-    { name: 'a different source', mutate: (f: any) => { f.context.maintenanceRun.sourceSha = 'eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee'; } },
-    { name: 'an original history rewritten successful', mutate: (f: any) => { f.context.targetGuardianJob.conclusion = 'success'; } },
-    { name: 'missing physical closure', mutate: (f: any) => { f.envelope.teardownReview.runnerDeregistered = false; } },
-    { name: 'substituted physical proof', mutate: (f: any) => { f.envelope.teardownReview.privateProofSha256 = 'eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee'; } },
-    { name: 'an incomplete job listing', mutate: (f: any) => { f.context.jobListingComplete = false; } },
-    { name: 'an incomplete artifact listing', mutate: (f: any) => { f.context.artifactListingComplete = false; } },
-    { name: 'extra original recovery custody', mutate: (f: any) => { f.context.targetArtifactNames.push('native-db-recovery-37857261809-1'); } },
-    { name: 'duplicate original artifact custody', mutate: (f: any) => { f.context.targetArtifactNames.push(f.context.targetArtifactNames[0]); } },
-    { name: 'an expired artifact', mutate: (f: any) => { f.envelope.baselineArchive.expired = true; } },
-    { name: 'a mismatched archive digest', mutate: (f: any) => { f.envelope.setArchive.apiSha256 = f.envelope.baselineArchive.apiSha256; } },
-    { name: 'a different artifact identity', mutate: (f: any) => { f.envelope.baselineArchive.id = 903; } },
-    { name: 'an unsafe artifact size', mutate: (f: any) => { f.envelope.setArchive.sizeBytes = Number.MAX_SAFE_INTEGER + 1; } },
-    { name: 'same worker for set and verification', mutate: (f: any) => { f.context.verifierJob.runnerId = 101; f.context.verifierJob.runnerName = 'GitHub Actions 101'; } },
-    { name: 'a non-hosted worker', mutate: (f: any) => { f.context.setterJob.labels = ['self-hosted']; } },
-    { name: 'a failed setter', mutate: (f: any) => { f.context.setterJob.conclusion = 'failure'; } },
-    { name: 'a skipped effect', mutate: (f: any) => { f.context.setterJob.steps[8].conclusion = 'skipped'; } },
-    { name: 'a failed post-job cleanup', mutate: (f: any) => { f.context.verifierJob.steps[12].conclusion = 'failure'; } },
-    { name: 'an omitted post-job step', mutate: (f: any) => { f.context.setterJob.steps.splice(11, 1); } },
-    { name: 'an extra maintenance step', mutate: (f: any) => { f.context.setterJob.steps.push({ name: 'extra', status: 'completed', conclusion: 'success' }); } },
-    { name: 'reordered workflow steps', mutate: (f: any) => { [f.context.setterJob.steps[7], f.context.setterJob.steps[8]] = [f.context.setterJob.steps[8], f.context.setterJob.steps[7]]; } },
-    { name: 'a guessed different baseline', mutate: (f: any) => { f.envelope.setReceipt.configured.originalValue = '120s'; } },
-    { name: 'a failed fresh observation', mutate: (f: any) => { f.envelope.baselineReceipt.observed.originalValue = '1min'; } },
-    { name: 'an unverified observation', mutate: (f: any) => { f.envelope.baselineReceipt.verified = false; } },
-    { name: 'an inconsistent absent before value', mutate: (f: any) => { f.envelope.setReceipt.before.originalValue = '2min'; } },
-    { name: 'capture after alteration request', mutate: (f: any) => { f.envelope.setReceipt.beforeCapturedAt = '2026-10-09T11:02:01.000Z'; } },
-    { name: 'set outside provider execution', mutate: (f: any) => { f.envelope.setReceipt.requestedAt = '2026-10-09T11:03:01.000Z'; } },
-    { name: 'verification before setter completion', mutate: (f: any) => { f.envelope.baselineReceipt.verifiedAt = '2026-10-09T11:02:00.000Z'; } },
-    { name: 'verification outside its execution', mutate: (f: any) => { f.envelope.baselineReceipt.verifiedAt = '2026-10-09T11:05:01.000Z'; } },
-    { name: 'review before official completion', mutate: (f: any) => { f.envelope.review.reviewedAt = '2026-10-09T11:05:00.000Z'; } },
-    { name: 'a noncanonical review clock', mutate: (f: any) => { f.envelope.review.reviewedAt = '2026-10-09T11:10:00Z'; } },
-    { name: 'restoration claims in a configured-state receipt', mutate: (f: any) => { f.envelope.baselineReceipt.restored = true; } },
-    { name: 'alias receipt keys', mutate: (f: any) => { f.envelope.setReceipt.original = f.envelope.setReceipt.before; } },
-    { name: 'unsafe positive job identity', mutate: (f: any) => { f.envelope.review.setterJobId = Number.MAX_SAFE_INTEGER + 1; } },
-    { name: 'a noncanonical run identity', mutate: (f: any) => { f.envelope.review.maintenanceRunId = '040000000000'; } },
+    { name: 'another original run', mutate: (f: unknown) => { f.envelope.review.targetRunId = '37857261810'; } },
+    { name: 'another original native job', mutate: (f: unknown) => { f.envelope.review.targetNativeJobId = '113584968729'; } },
+    { name: 'a maintenance rerun', mutate: (f: unknown) => { f.context.maintenanceRun.attempt = '2'; } },
+    { name: 'an unapproved owner', mutate: (f: unknown) => { f.context.maintenanceRun.triggeringActorLogin = 'someone-else'; } },
+    { name: 'a fork identity', mutate: (f: unknown) => { f.context.maintenanceRun.headRepositoryId = 1358473324; } },
+    { name: 'an untrusted event', mutate: (f: unknown) => { f.context.maintenanceRun.event = 'push'; } },
+    { name: 'a different source', mutate: (f: unknown) => { f.context.maintenanceRun.sourceSha = 'eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee'; } },
+    { name: 'an original history rewritten successful', mutate: (f: unknown) => { f.context.targetGuardianJob.conclusion = 'success'; } },
+    { name: 'missing physical closure', mutate: (f: unknown) => { f.envelope.teardownReview.runnerDeregistered = false; } },
+    { name: 'substituted physical proof', mutate: (f: unknown) => { f.envelope.teardownReview.privateProofSha256 = 'eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee'; } },
+    { name: 'an incomplete job listing', mutate: (f: unknown) => { f.context.jobListingComplete = false; } },
+    { name: 'an incomplete artifact listing', mutate: (f: unknown) => { f.context.artifactListingComplete = false; } },
+    { name: 'extra original recovery custody', mutate: (f: unknown) => { f.context.targetArtifactNames.push('native-db-recovery-37857261809-1'); } },
+    { name: 'duplicate original artifact custody', mutate: (f: unknown) => { f.context.targetArtifactNames.push(f.context.targetArtifactNames[0]); } },
+    { name: 'an expired artifact', mutate: (f: unknown) => { f.envelope.baselineArchive.expired = true; } },
+    { name: 'a mismatched archive digest', mutate: (f: unknown) => { f.envelope.setArchive.apiSha256 = f.envelope.baselineArchive.apiSha256; } },
+    { name: 'a different artifact identity', mutate: (f: unknown) => { f.envelope.baselineArchive.id = 903; } },
+    { name: 'an unsafe artifact size', mutate: (f: unknown) => { f.envelope.setArchive.sizeBytes = Number.MAX_SAFE_INTEGER + 1; } },
+    { name: 'same worker for set and verification', mutate: (f: unknown) => { f.context.verifierJob.runnerId = 101; f.context.verifierJob.runnerName = 'GitHub Actions 101'; } },
+    { name: 'a non-hosted worker', mutate: (f: unknown) => { f.context.setterJob.labels = ['self-hosted']; } },
+    { name: 'a failed setter', mutate: (f: unknown) => { f.context.setterJob.conclusion = 'failure'; } },
+    { name: 'a skipped effect', mutate: (f: unknown) => { f.context.setterJob.steps[8].conclusion = 'skipped'; } },
+    { name: 'a failed post-job cleanup', mutate: (f: unknown) => { f.context.verifierJob.steps[12].conclusion = 'failure'; } },
+    { name: 'an omitted post-job step', mutate: (f: unknown) => { f.context.setterJob.steps.splice(11, 1); } },
+    { name: 'an extra maintenance step', mutate: (f: unknown) => { f.context.setterJob.steps.push({ name: 'extra', status: 'completed', conclusion: 'success' }); } },
+    { name: 'reordered workflow steps', mutate: (f: unknown) => { [f.context.setterJob.steps[7], f.context.setterJob.steps[8]] = [f.context.setterJob.steps[8], f.context.setterJob.steps[7]]; } },
+    { name: 'a guessed different baseline', mutate: (f: unknown) => { f.envelope.setReceipt.configured.originalValue = '120s'; } },
+    { name: 'a failed fresh observation', mutate: (f: unknown) => { f.envelope.baselineReceipt.observed.originalValue = '1min'; } },
+    { name: 'an unverified observation', mutate: (f: unknown) => { f.envelope.baselineReceipt.verified = false; } },
+    { name: 'an inconsistent absent before value', mutate: (f: unknown) => { f.envelope.setReceipt.before.originalValue = '2min'; } },
+    { name: 'capture after alteration request', mutate: (f: unknown) => { f.envelope.setReceipt.beforeCapturedAt = '2026-10-09T11:02:01.000Z'; } },
+    { name: 'set outside provider execution', mutate: (f: unknown) => { f.envelope.setReceipt.requestedAt = '2026-10-09T11:03:01.000Z'; } },
+    { name: 'verification before setter completion', mutate: (f: unknown) => { f.envelope.baselineReceipt.verifiedAt = '2026-10-09T11:02:00.000Z'; } },
+    { name: 'verification outside its execution', mutate: (f: unknown) => { f.envelope.baselineReceipt.verifiedAt = '2026-10-09T11:05:01.000Z'; } },
+    { name: 'review before official completion', mutate: (f: unknown) => { f.envelope.review.reviewedAt = '2026-10-09T11:05:00.000Z'; } },
+    { name: 'a noncanonical review clock', mutate: (f: unknown) => { f.envelope.review.reviewedAt = '2026-10-09T11:10:00Z'; } },
+    { name: 'restoration claims in a configured-state receipt', mutate: (f: unknown) => { f.envelope.baselineReceipt.restored = true; } },
+    { name: 'alias receipt keys', mutate: (f: unknown) => { f.envelope.setReceipt.original = f.envelope.setReceipt.before; } },
+    { name: 'unsafe positive job identity', mutate: (f: unknown) => { f.envelope.review.setterJobId = Number.MAX_SAFE_INTEGER + 1; } },
+    { name: 'a noncanonical run identity', mutate: (f: unknown) => { f.envelope.review.maintenanceRunId = '040000000000'; } },
   ])('refuses $name independently of successful-looking surrounding evidence', async ({ mutate }) => {
     const { verifyOwnerConfiguredTimeoutBaseline } = await import('../pgtap/owner-timeout-baseline.mjs');
     const fixture = ownerBaselineFixture();
@@ -239,7 +383,7 @@ const ownerBaselineAdapterFixture = async (command = 'owner-baseline-set') => {
     expect(declaration, 'declared owner boundary must exist').toBeDefined();
     return declaration!.getText(parsed);
   });
-  const events: Array<{ kind: string; args: any[] }> = [];
+  const events: Array<{ kind: string; args: unknown[] }> = [];
   const runtime = {
     GITHUB_ACTIONS: 'true', GITHUB_REPOSITORY: 'OGUN01/gymloop', GITHUB_EVENT_NAME: 'workflow_dispatch',
     GITHUB_REF: 'refs/heads/main', GITHUB_SHA: fixture.context.maintenanceRun.sourceSha,
@@ -255,13 +399,13 @@ const ownerBaselineAdapterFixture = async (command = 'owner-baseline-set') => {
     '--out-dir': '/synthetic/private', '--source-sha': runtime.GITHUB_SHA,
     '--approval': 'trial19-owner-baseline-2026-10-09', '--teardown-file': '/synthetic/teardown.json',
   };
-  const rawJob = (job: any) => ({
+  const rawJob = (job: unknown) => ({
     id: job.id, run_id: Number(job.runId), run_attempt: Number(job.attempt), head_sha: job.sourceSha,
     name: job.name, status: job.status, conclusion: job.conclusion, runner_id: job.runnerId,
     runner_name: job.runnerName, runner_group_name: job.runnerGroupName, labels: job.labels,
     steps: job.steps, started_at: job.startedAt, completed_at: job.completedAt,
   });
-  const rawRun = (run: any) => ({
+  const rawRun = (run: unknown) => ({
     id: Number(run.id), run_attempt: Number(run.attempt), head_sha: run.sourceSha, event: run.event,
     head_branch: run.branch, status: run.status, conclusion: run.conclusion, path: run.path,
     repository: { id: run.repositoryId, full_name: run.repository, owner: { login: 'OGUN01' } },
@@ -269,14 +413,14 @@ const ownerBaselineAdapterFixture = async (command = 'owner-baseline-set') => {
     actor: { login: run.actorLogin }, triggering_actor: { login: run.triggeringActorLogin },
     run_started_at: run.startedAt, updated_at: run.updatedAt,
   });
-  const rawArtifact = (archive: any) => ({
+  const rawArtifact = (archive: unknown) => ({
     id: archive.id, name: archive.name, expired: archive.expired, size_in_bytes: archive.sizeBytes,
     digest: `sha256:${archive.apiSha256}`, workflow_run: {
       id: Number(archive.runId), head_sha: archive.sourceSha,
       repository_id: archive.repositoryId, head_repository_id: archive.headRepositoryId,
     },
   });
-  const currentRun: any = rawRun(fixture.context.maintenanceRun);
+  const currentRun: unknown = rawRun(fixture.context.maintenanceRun);
   currentRun.status = 'in_progress';
   currentRun.conclusion = null;
   const targetRun = rawRun(fixture.context.targetRun);
@@ -287,37 +431,37 @@ const ownerBaselineAdapterFixture = async (command = 'owner-baseline-set') => {
       id: 37857261809, head_sha: fixture.context.targetRun.sourceSha, repository_id: 1358473323, head_repository_id: 1358473323,
     },
   }));
-  const currentJobs = [rawJob(fixture.context.setterJob), rawJob(fixture.context.verifierJob)];
+  const currentJobs = [rawJob(fixture.context.setterJob), rawJob(fixture.context.verifierJob)].map((job) => job.name === command ? { ...job, status: 'in_progress', conclusion: null } : job);
   const currentArtifacts = [rawArtifact(fixture.envelope.setArchive)];
   const workflowRuns = [currentRun];
   const teardown = [fixture.envelope.teardownReview];
-  const controls: any = { before: { originalPresent: false, originalValue: null }, observed: { originalPresent: true, originalValue: '2min' }, writeFails: false, alterFails: false, source: runtime.GITHUB_SHA, cli: '2.110.0', linkedRef: 'pecxrpskmfeuyzngvewq', apiMutation: null };
-  const sandbox: any = {
+  const controls: unknown = { before: { originalPresent: false, originalValue: null }, observed: { originalPresent: true, originalValue: '2min' }, writeFails: false, alterFails: false, source: runtime.GITHUB_SHA, cli: '2.110.0', linkedRef: 'pecxrpskmfeuyzngvewq', apiMutation: null };
+  const sandbox: unknown = {
     Buffer, URL, console: { log() {}, error() {} },
     NATIVE_DB_VALIDATION: constants.NATIVE_DB_VALIDATION,
-    NATIVE_DB_OWNER_BASELINE: (constants as any).NATIVE_DB_OWNER_BASELINE,
+    NATIVE_DB_OWNER_BASELINE: (constants as unknown).NATIVE_DB_OWNER_BASELINE,
     target: { projectRef: 'pecxrpskmfeuyzngvewq', role: 'postgres', parameter: 'statement_timeout' },
-    exact: (value: any, keys: string[]) => value !== null && typeof value === 'object' && !Array.isArray(value)
+    exact: (value: unknown, keys: string[]) => value !== null && typeof value === 'object' && !Array.isArray(value)
       && Object.keys(value).length === keys.length && keys.every(key => Object.hasOwn(value, key)),
-    validOriginal: (value: any) => value !== null && typeof value === 'object'
+    validOriginal: (value: unknown) => value !== null && typeof value === 'object'
       && Object.keys(value).length === 2 && typeof value.originalPresent === 'boolean'
       && (value.originalPresent ? typeof value.originalValue === 'string' && value.originalValue.length > 0 : value.originalValue === null),
-    sourceString: (value: any) => typeof value === 'string' && /^[a-f0-9]{40}$/.test(value),
-    sameTimeout: (left: any, right: any) => left.originalPresent === right.originalPresent && left.originalValue === right.originalValue,
-    hash: (bytes: any) => createHash('sha256').update(bytes).digest('hex'),
-    jsonBytes: (value: any) => Buffer.from(`${JSON.stringify(value)}\n`),
+    sourceString: (value: unknown) => typeof value === 'string' && /^[a-f0-9]{40}$/.test(value),
+    sameTimeout: (left: unknown, right: unknown) => left.originalPresent === right.originalPresent && left.originalValue === right.originalValue,
+    hash: (bytes: unknown) => createHash('sha256').update(bytes).digest('hex'),
+    jsonBytes: (value: unknown) => Buffer.from(`${JSON.stringify(value)}\n`),
     refuse: (code: string) => new Error(code), verifyNativeWorkloadTeardown, exactNativeDataRecord, exactNativeDataArray, nativeEvidenceClock,
-    checked: async (...args: any[]) => {
+    checked: async (...args: unknown[]) => {
       events.push({ kind: 'checked', args });
       if (args[0] === 'git') return `${controls.source}\n`;
       if (args[1]?.includes('--version')) return `${controls.cli}\n`;
       return '';
     },
-    artifactApi: async (_runtime: any, path: string, status: number) => {
+    artifactApi: async (_runtime: unknown, path: string, status: number) => {
       expect(status).toBe(200);
       events.push({ kind: 'api', args: [path] });
       const canonical = path.replace(/^\//, '');
-      let body: any;
+      let body: unknown;
       if (canonical === 'actions/runs/37857261809/attempts/1') body = targetRun;
       else if (canonical === 'actions/runs/40000000000/attempts/1') body = currentRun;
       else if (/^actions\/runs\/37857261809\/attempts\/1\/jobs\?page=\d+$/.test(canonical)) body = { total_count: targetJobs.length, jobs: canonical.endsWith('page=1') ? targetJobs : [] };
@@ -338,24 +482,24 @@ const ownerBaselineAdapterFixture = async (command = 'owner-baseline-set') => {
       const text = path.endsWith('project-ref') ? `${controls.linkedRef}\n` : `${JSON.stringify(teardown)}\n`;
       return encoding === 'utf8' ? text : Buffer.from(text);
     },
-    privateWrite: async (...args: any[]) => {
+    privateWrite: async (...args: unknown[]) => {
       events.push({ kind: 'write', args });
       if (controls.writeFails) throw new Error('synthetic exclusive custody failure');
     },
-    queryTimeout: async (...args: any[]) => {
+    queryTimeout: async (...args: unknown[]) => {
       events.push({ kind: 'query', args });
       return structuredClone(command === 'owner-baseline-set' ? controls.before : controls.observed);
     },
-    alterTimeout: async (...args: any[]) => {
+    alterTimeout: async (...args: unknown[]) => {
       events.push({ kind: 'alter', args });
       if (controls.alterFails) throw new Error('synthetic alteration failure');
     },
-    readReceiptArtifact: async (...args: any[]) => {
+    readReceiptArtifact: async (...args: unknown[]) => {
       events.push({ kind: 'download', args });
       return { value: fixture.envelope.setReceipt, hash: fixture.envelope.setArchive.bodySha256, archiveSha256: fixture.envelope.setArchive.archiveSha256 };
     },
   };
-  const boundary: any = vm.compileFunction(`${declarations.join('\n')}\nreturn ({ configureOwnerTimeoutBaseline, options });`, [], { contextExtensions: [sandbox] })();
+  const boundary: unknown = vm.compileFunction(`${declarations.join('\n')}\nreturn ({ configureOwnerTimeoutBaseline, options });`, [], { contextExtensions: [sandbox] })();
   return { ...fixture, runtime, opts, events, controls, targetRun, currentRun, targetJobs, targetArtifacts, currentJobs, currentArtifacts, workflowRuns, teardown, boundary,
     invoke: () => boundary.configureOwnerTimeoutBaseline(runtime, opts, '/synthetic/private', '/synthetic/work') };
 };
@@ -388,19 +532,19 @@ describe('DBV-015 controlled adapter admission and custody', () => {
   });
 
   it.each([
-    { name: 'non-Actions execution', mutate: (f: any) => { f.runtime.GITHUB_ACTIONS = 'false'; } },
-    { name: 'non-hosted execution', mutate: (f: any) => { f.runtime.RUNNER_ENVIRONMENT = 'self-hosted'; } },
-    { name: 'wrong command job', mutate: (f: any) => { f.runtime.GITHUB_JOB = 'owner-baseline-verify'; } },
-    { name: 'missing owner approval', mutate: (f: any) => { f.opts['--approval'] = ''; } },
-    { name: 'a rerun', mutate: (f: any) => { f.runtime.GITHUB_RUN_ATTEMPT = '2'; } },
-    { name: 'source disagreement', mutate: (f: any) => { f.controls.source = 'eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee'; } },
-    { name: 'wrong pinned CLI', mutate: (f: any) => { f.controls.cli = '2.109.0'; } },
-    { name: 'wrong authenticated dispatch owner', mutate: (f: any) => { f.currentRun.actor.login = 'someone-else'; } },
-    { name: 'failed original physical closure', mutate: (f: any) => { f.teardown[0].ownedContainersStopped = false; } },
-    { name: 'duplicate physical receipt', mutate: (f: any) => { f.teardown.push(structuredClone(f.teardown[0])); } },
-    { name: 'conflicting original recovery custody', mutate: (f: any) => { f.targetArtifacts.push({ ...f.targetArtifacts[0], id: 2000, name: 'native-db-recovery-37857261809-1' }); } },
-    { name: 'a prior main owner dispatch', mutate: (f: any) => { f.workflowRuns.push({ ...structuredClone(f.currentRun), id: 39999999999, status: 'completed', conclusion: 'failure' }); } },
-    { name: 'prematurely empty exhaustive job page', mutate: (f: any) => { f.controls.apiMutation = (path: string, body: any) => path.includes('/37857261809/attempts/1/jobs?') ? { total_count: 3, jobs: body.jobs } : body; } },
+    { name: 'non-Actions execution', mutate: (f: unknown) => { f.runtime.GITHUB_ACTIONS = 'false'; } },
+    { name: 'non-hosted execution', mutate: (f: unknown) => { f.runtime.RUNNER_ENVIRONMENT = 'self-hosted'; } },
+    { name: 'wrong command job', mutate: (f: unknown) => { f.runtime.GITHUB_JOB = 'owner-baseline-verify'; } },
+    { name: 'missing owner approval', mutate: (f: unknown) => { f.opts['--approval'] = ''; } },
+    { name: 'a rerun', mutate: (f: unknown) => { f.runtime.GITHUB_RUN_ATTEMPT = '2'; } },
+    { name: 'source disagreement', mutate: (f: unknown) => { f.controls.source = 'eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee'; } },
+    { name: 'wrong pinned CLI', mutate: (f: unknown) => { f.controls.cli = '2.109.0'; } },
+    { name: 'wrong authenticated dispatch owner', mutate: (f: unknown) => { f.currentRun.actor.login = 'someone-else'; } },
+    { name: 'failed original physical closure', mutate: (f: unknown) => { f.teardown[0].ownedContainersStopped = false; } },
+    { name: 'duplicate physical receipt', mutate: (f: unknown) => { f.teardown.push(structuredClone(f.teardown[0])); } },
+    { name: 'conflicting original recovery custody', mutate: (f: unknown) => { f.targetArtifacts.push({ ...f.targetArtifacts[0], id: 2000, name: 'native-db-recovery-37857261809-1' }); } },
+    { name: 'a prior main owner dispatch', mutate: (f: unknown) => { f.workflowRuns.push({ ...structuredClone(f.currentRun), id: 39999999999, status: 'completed', conclusion: 'failure' }); } },
+    { name: 'prematurely empty exhaustive job page', mutate: (f: unknown) => { f.controls.apiMutation = (path: string, body: unknown) => path.includes('/37857261809/attempts/1/jobs?') ? { total_count: 3, jobs: body.jobs } : body; } },
   ])('refuses $name before project link, query or alteration', async ({ mutate }) => {
     const fixture = await ownerBaselineAdapterFixture();
     mutate(fixture);
@@ -471,7 +615,7 @@ describe('DBV-015 fixed maintenance workflow and preflight boundary', () => {
     expect(workflow).toMatch(/actions: read/);
     expect(workflow).toContain("github.repository == 'OGUN01/gymloop'");
     expect(workflow).toContain("github.ref == 'refs/heads/main'");
-    const names = [...workflow.matchAll(/^  ([a-z][a-z-]+):\s*$/gm)].map(match => match[1]);
+    const names = [...workflow.matchAll(/^ {2}([a-z][a-z-]+):\s*$/gm)].map(match => match[1]);
     expect(names.filter(name => name.startsWith('owner-baseline-'))).toEqual(['owner-baseline-set', 'owner-baseline-verify']);
     expect(workflow).toMatch(/owner-baseline-verify:[\s\S]*?needs: owner-baseline-set/);
     expect(workflow.match(/runs-on: ubuntu-latest/g)).toHaveLength(2);
@@ -498,7 +642,7 @@ describe('DBV-015 fixed maintenance workflow and preflight boundary', () => {
     for (const flag of ['--receipt', '--out-dir', '--source-sha', '--approval', '--teardown-file']) {
       expect(workflow.match(new RegExp(flag, 'g'))).toHaveLength(2);
     }
-    expect(workflow.match(/NATIVE_DB_WORKLOAD_TEARDOWN_RECEIPTS/g)).toHaveLength(2);
+    expect(ownerBaselineTeardownObservation(workflow)).toHaveLength(2);
     expect(workflow).toContain('Configure the owner-approved trial19 timeout baseline');
     expect(workflow).toContain('Independently verify the owner-approved trial19 timeout baseline');
     expect(workflow.match(/name: Install the frozen owner-baseline adapter dependencies/g)).toHaveLength(2);
