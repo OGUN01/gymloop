@@ -1,0 +1,40 @@
+{
+  "scope": "DBV-015 legacy fixture bindings and approved loop fingerprint",
+  "failedCi": "37918216567/1/c94afdaa1a060d64c78fef1aa0c4183e27fdd3ec",
+  "failedCiSuites": 5,
+  "failedCiAssertions": 30,
+  "visible": {
+    "paginationPassed": 35,
+    "cancellationPassed": 683,
+    "unarmedPassed": 168,
+    "failed": 0,
+    "skipped": 0,
+    "scopedLintExit": 0,
+    "readFileBindingClosuresChanged": 2,
+    "approvedFingerprintLiteralChanges": 1,
+    "allOtherCaseCallbackOperatorAssertionBytesUnchanged": true,
+    "fullInverseVerified": true
+  },
+  "holdout": {
+    "paginationPassed": 22,
+    "cancellationPassed": 301,
+    "failed": 0,
+    "skipped": 0,
+    "readFileBindingClosuresChanged": 2,
+    "caseCallbackAssertionBytesUnchanged": true,
+    "fullInverseVerified": true,
+    "scopedLint": "one pre-existing no-regex-spaces finding outside the unchanged oracle span; c94 ordinary CI lint succeeded"
+  },
+  "approvedFingerprintFormula": "exact prior Git6d96d0bf loop plus the frozen133-byte owner-baseline missing-recovery guard; full one-line inverse",
+  "oldLoopBytes": 2180,
+  "newLoopBytes": 2313,
+  "physicalVerificationStillMandatory": true,
+  "independentMetadataReview": "GO at dd0c9b49",
+  "independentMetadataReviewSha256": "9769b0a7e1c44ed8d8314721837a09e75a99166f35ebb449dfcdcbd6f5c3230e",
+  "productionCodeChanged": false,
+  "historicalFailuresRetained": true,
+  "exactHeadLinuxCi": "pending after the test-only push",
+  "maintenanceDispatched": false,
+  "configuredBaselineAccepted": false,
+  "fasterFullRegionalResult": false
+}

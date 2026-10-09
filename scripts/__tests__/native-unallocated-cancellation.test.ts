@@ -237,10 +237,11 @@ async function executeVisibleUnallocatedPreflight(options: {
     github,
     context: {repo: {owner: 'OGUN01', repo: 'gymloop'}, runId: current.id, sha: current.head_sha, eventName: 'push'},
     core: {info: vi.fn(), warning: vi.fn(), setFailed: (message: unknown) => failures.push(String(message))},
-    readFile: async (path: string) => {
-      if (path === '.dbv/current-attempt.txt') return options.currentAttempt ?? '1';
-      if (path === '.dbv/operator-workload-teardowns.json') return JSON.stringify(options.reviews ?? [pair.review]);
-      if (path === '.dbv/operator-unarmed-prechecks.json' || path === '.dbv/operator-timeout-recoveries.json') return '[]';
+    readFile: async (path: string, encoding?: string) => {
+      if (path === '.dbv/current-attempt.txt') return encoding === undefined ? Buffer.from(options.currentAttempt ?? '1', 'utf8') : options.currentAttempt ?? '1';
+      if (path === '.dbv/operator-workload-teardowns.json') return encoding === undefined ? Buffer.from(JSON.stringify(options.reviews ?? [pair.review]), 'utf8') : JSON.stringify(options.reviews ?? [pair.review]);
+      if (path === '.dbv/operator-unarmed-prechecks.json' || path === '.dbv/operator-timeout-recoveries.json') return encoding === undefined ? Buffer.from('[]', 'utf8') : '[]';
+      if (path === '.dbv/operator-owner-baselines.json' && (encoding === undefined || encoding === 'utf8')) return encoding === undefined ? Buffer.from('[]\n', 'utf8') : '[]\n';
       throw new Error('Undeclared filesystem read refused');
     },
     process: {cwd: () => fileURLToPath(new URL('../../', import.meta.url))},

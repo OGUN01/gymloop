@@ -460,11 +460,12 @@ async function executeHeldUnallocatedPreflight(input = heldUnallocatedFixture(),
   const core = { info(message: unknown) { events.push(`info:${String(message)}`); } };
   async function heldUnallocatedImport(specifier: string) {
     events.push(`import:${specifier}`);
-    if (specifier === 'node:fs/promises') return { readFile: async (path: string, encoding: string) => {
+    if (specifier === 'node:fs/promises') return { readFile: async (path: string, encoding?: string) => {
       events.push(`file:${path}`);
-      if (path === '.dbv/current-attempt.txt') return '1\n';
-      if (path === '.dbv/operator-workload-teardowns.json') return JSON.stringify(reviews);
-      if (path === '.dbv/operator-unarmed-prechecks.json' || path === '.dbv/operator-timeout-recoveries.json') return '[]';
+      if (path === '.dbv/current-attempt.txt') return encoding === undefined ? Buffer.from('1\n', 'utf8') : '1\n';
+      if (path === '.dbv/operator-workload-teardowns.json') return encoding === undefined ? Buffer.from(JSON.stringify(reviews), 'utf8') : JSON.stringify(reviews);
+      if (path === '.dbv/operator-unarmed-prechecks.json' || path === '.dbv/operator-timeout-recoveries.json') return encoding === undefined ? Buffer.from('[]', 'utf8') : '[]';
+      if ((encoding === 'utf8' || encoding === undefined) && path === '.dbv/operator-owner-baselines.json') return encoding === undefined ? Buffer.from('[]\n', 'utf8') : '[]\n';
       return readFile(path, encoding as 'utf8');
     } };
     if (specifier === 'node:child_process') return { execFileSync() { events.push('forbidden-exec'); throw new Error('absence class may not execute native tools'); } };

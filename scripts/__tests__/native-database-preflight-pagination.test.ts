@@ -157,7 +157,11 @@ async function executePreflight(fixture: Fixture = {}) {
   };
   const fixtureReadFile = async (path: Parameters<typeof filesystem.readFile>[0], encoding: Parameters<typeof filesystem.readFile>[1]) => {
     if (path === '.dbv/current-attempt.txt' && encoding === 'utf8') return `${attempt}\n`;
+    if (path === '.dbv/current-attempt.txt' && encoding === undefined) return Buffer.from(`${attempt}\n`, 'utf8');
     if (path === '.dbv/operator-workload-teardowns.json' && encoding === 'utf8') return '[]\n';
+    if (path === '.dbv/operator-workload-teardowns.json' && encoding === undefined) return Buffer.from('[]\n', 'utf8');
+    if (path === '.dbv/operator-owner-baselines.json' && encoding === 'utf8') return '[]\n';
+    if (path === '.dbv/operator-owner-baselines.json' && encoding === undefined) return Buffer.from('[]\n', 'utf8');
     return filesystem.readFile(path, encoding);
   };
   const fileBoundary = "const {readFile} = await import('node:fs/promises');";

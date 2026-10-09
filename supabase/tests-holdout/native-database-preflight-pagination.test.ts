@@ -265,9 +265,10 @@ async function execute(scenario: Scenario = {}) {
     },
   });
   try {
-    await preflight(github, context, core, requireFromRoot, async (path: string, encoding: string) => {
-      if (encoding === 'utf8' && path === '.dbv/current-attempt.txt') return `${attempt}\n`;
-      if (encoding === 'utf8' && path === '.dbv/operator-workload-teardowns.json') return '[]\n';
+    await preflight(github, context, core, requireFromRoot, async (path: string, encoding?: string) => {
+      if ((encoding === 'utf8' || encoding === undefined) && path === '.dbv/current-attempt.txt') return encoding === undefined ? Buffer.from(`${attempt}\n`, 'utf8') : `${attempt}\n`;
+      if ((encoding === 'utf8' || encoding === undefined) && path === '.dbv/operator-workload-teardowns.json') return encoding === undefined ? Buffer.from('[]\n', 'utf8') : '[]\n';
+      if ((encoding === 'utf8' || encoding === undefined) && path === '.dbv/operator-owner-baselines.json') return encoding === undefined ? Buffer.from('[]\n', 'utf8') : '[]\n';
       return requireFromRoot('node:fs/promises').readFile(path, encoding);
     });
   } catch (caught) {

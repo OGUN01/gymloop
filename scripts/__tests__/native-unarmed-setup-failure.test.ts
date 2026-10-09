@@ -450,6 +450,6 @@ describe('public workflow preserves the narrow unarmed guardian exception', () =
     const physicalLoop = visibleUnarmedWorkflow.match(/^ {16}for \(const job of attemptJobs\) \{[\s\S]*?^ {16}\}/m)?.[0];
     expect(physicalLoop).toContain('verifyNativeWorkloadTeardown(expected,receipt)');
     expect(physicalLoop).not.toContain('verifiedSetupFailures');
-    expect(createHash('sha256').update(physicalLoop!).digest('hex')).toBe('8c50697e379cefa818a83b09e40fbc2f4acbae16de0c4af297487782c62dbf25');
+    expect(createHash('sha256').update(physicalLoop!).digest('hex')).toBe('a15751477e173397cc6f164ca573f574b36362e42c84fc5b62c6ad1e367f552a');
   });
 });
