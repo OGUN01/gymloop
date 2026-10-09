@@ -1,0 +1,26 @@
+{
+  "scope": "Owner-approved exact trial19 configured baseline; independent tests before implementation",
+  "contractSha256": "01967a992e8831c0fc39152ef25817bd5fa2866a363dde463b3fabbc61086ec8",
+  "approval": "Approve the one-time CI reset",
+  "visible": {
+    "exitCode": 1,
+    "tests": 65,
+    "passed": 0,
+    "failed": 65,
+    "fileSha256": "35dac6103636615deb154e1e7474eb936b2beb9e1148e506f732fd4dd9e62739",
+    "category": "Absent new verifier, adapter/options, workflow and inline loader boundaries"
+  },
+  "holdout": {
+    "exitCode": 1,
+    "tests": 20,
+    "passed": 0,
+    "failed": 20,
+    "pending": 0,
+    "fileSha256": "e08c1fadf641909d14aed27812418f447719509623ccca2983774475250b40e1",
+    "category": "Absent new declarations"
+  },
+  "sourceImplemented": false,
+  "configurationChanged": false,
+  "historicalOriginalVerified": false,
+  "performanceAccepted": false
+}
