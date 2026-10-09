@@ -1,0 +1,62 @@
+{
+  "kind": "DBV_015_RECEIPT_LOCATION_SOURCE_ADJUDICATION",
+  "reviewedAt": "2026-10-09T09:43:35.576Z",
+  "sourceVerdict": "GO",
+  "scope": "Four fixed configured-state receipt command/upload path changes only; frozen DBV-015 privacy and official custody requirements preserved",
+  "contractSha256": "01967a992e8831c0fc39152ef25817bd5fa2866a363dde463b3fabbc61086ec8",
+  "workflowSha256": "34ccd95841f7fccc6d6f5549b3996c55c303cd8feaf0b10c3bebb4181579885a",
+  "priorApprovedWorkflowSha256": "f2ffe6c9ae332626feb5eacd07974cc19053f4d74a6f136e794c74b6350713da",
+  "exactFourPathChangesVerifiedByWholeByteInverse": true,
+  "receiptPaths": [
+    ".dbv/owner-baseline-set.json",
+    ".dbv/owner-baseline-verified.json"
+  ],
+  "decision": "Frozen independent --receipt and --out-dir flags permit canonical configured-state receipt files in the private .dbv directory while protected runner.temp out-dir remains outside the worktree.",
+  "privacyConditions": [
+    "Trusted workflow stage creates private .dbv under umask077 (0700).",
+    "Existing privateWrite retains0600 mode, exclusive wx creation and byte readback.",
+    "Only the two fixed nonsecret configured-state metadata files are uploaded.",
+    "Query and raw diagnostic temporary files stay within the verified protected outside-worktree out-dir."
+  ],
+  "custodyPreserved": [
+    "Exact canonical JSON+LF and fixed ordinary ZIP member names",
+    "Exact owner/repository/main/source/run/job authority and one-time dispatch admission",
+    "Complete authenticated provider listings, archive/body digests and expiration checks",
+    "Separate hosted verification, exact steps/post-job cleanup and clock agreement",
+    "Canonical original physical closure, narrow historical exception and independently reviewed outside index"
+  ],
+  "sourceGuardRelaxation": false,
+  "specAmendmentRequired": false,
+  "sourceHashes": [
+    {
+      "path": "openspec/changes/database-validation-regional-runner/trial19-owner-timeout-baseline.md",
+      "sha256": "01967a992e8831c0fc39152ef25817bd5fa2866a363dde463b3fabbc61086ec8"
+    },
+    {
+      "path": "scripts/native-database-validation.mjs",
+      "sha256": "c1a184637756649df61764ba78178e0ad976108d029f24fcebd8284d5233715f"
+    },
+    {
+      "path": "scripts/pgtap/owner-timeout-baseline.mjs",
+      "sha256": "c024193d58c5d368d249c69b53de3556780095f867ff8eeb00e0cfa104e83fc9"
+    },
+    {
+      "path": "packages/shared/src/config/constants.ts",
+      "sha256": "5fb2a28e96540fe064c0d897b2d8be21614b2c74a747868ca0a9af32f84bd6c3"
+    },
+    {
+      "path": ".github/workflows/db.yml",
+      "sha256": "9652e8588e6667508b158bc38cd14a4e00f7f4152d816c58a8f464a687bad122"
+    },
+    {
+      "path": ".github/workflows/native-database-owner-baseline.yml",
+      "sha256": "34ccd95841f7fccc6d6f5549b3996c55c303cd8feaf0b10c3bebb4181579885a"
+    }
+  ],
+  "testsOrOraclesRead": false,
+  "testsRun": false,
+  "actualConfigurationVerified": false,
+  "outsideIndexPublished": false,
+  "dispatchApproved": false,
+  "remaining": "Green independent tests and all required gates remain mandatory before the sole maintenance dispatch."
+}
