@@ -4,6 +4,18 @@ Provide complete, independently checked native database validation with trustwor
 
 ## ADDED Requirements
 
+### Requirement: DBV-015 Exact owner-configured timeout baseline
+
+WHEN the owner explicitly approves the one-time trial19 configuration action, THE SYSTEM SHALL establish and independently verify present2min only for the fixed failed run37857261809/attempt1/source8072af53493867a093ea128dc306f375d3ca1789/nativejob113584968728/runner39, retain its failed verdict and unknown original, and discharge only its missing-original block after canonical physical closure, official two-worker custody and independent outside review. IF any bound identity, configuration, verification, custody or cleanup proof is incomplete, THE SYSTEM SHALL retain the block. The complete frozen interface is in `trial19-owner-timeout-baseline.md`.
+
+#### Scenario: Owner configuration is verified independently
+- **WHEN** the exact approved main CI dispatch sets the fixed baseline and a separate hosted worker freshly verifies it, with accepted official provenance and outside review
+- **THEN** a new full run may capture and restore its own original; the old attempt remains failed and no original restoration is fabricated
+
+#### Scenario: Incomplete or wrong authority
+- **WHEN** the action, tuple, configured state, outside evidence or physical closure differs or is incomplete
+- **THEN** the shared-project recovery block remains and the action cannot be replayed automatically
+
 ### Requirement: DBV-001 Exact complete manifest
 
 WHEN a database suite is required, THE SYSTEM SHALL freeze the exact current visible and holdout file manifest, source revision, schema identity, each file's SHA-256 and positive literal assertion plan before execution, and SHALL reject absent suites, duplicate paths, invalid paths, missing or ambiguous plans, unexpected files and changed hashes.
