@@ -30,6 +30,7 @@ on:
       - 'scripts/pgtap/unarmed-precheck.mjs'
       - 'scripts/pgtap/unallocated-cancellation.mjs'
       - 'scripts/pgtap/unarmed-setup-failure.mjs'
+      - 'scripts/pgtap/owner-timeout-baseline.mjs'
       - 'scripts/pgtap/data-record.mjs'
       - 'scripts/native-database-validation.mjs'
       - 'scripts/native-runner-guard.mjs'
@@ -39,6 +40,7 @@ on:
       - 'packages/shared/src/config/constants.ts'
       - '.github/actions/native-database-validation/**'
       - '.github/workflows/native-database-preflight.yml'
+      - '.github/workflows/native-database-owner-baseline.yml'
       - '.github/workflows/native-runner-readiness.yml'
       - 'pnpm-lock.yaml'
       - '.github/workflows/db.yml'
@@ -58,6 +60,7 @@ on:
       - 'scripts/pgtap/unarmed-precheck.mjs'
       - 'scripts/pgtap/unallocated-cancellation.mjs'
       - 'scripts/pgtap/unarmed-setup-failure.mjs'
+      - 'scripts/pgtap/owner-timeout-baseline.mjs'
       - 'scripts/pgtap/data-record.mjs'
       - 'scripts/native-database-validation.mjs'
       - 'scripts/native-runner-guard.mjs'
@@ -67,6 +70,7 @@ on:
       - 'packages/shared/src/config/constants.ts'
       - '.github/actions/native-database-validation/**'
       - '.github/workflows/native-database-preflight.yml'
+      - '.github/workflows/native-database-owner-baseline.yml'
       - '.github/workflows/native-runner-readiness.yml'
       - 'pnpm-lock.yaml'
       - '.github/workflows/db.yml'
@@ -104,21 +108,35 @@ jobs:
     steps:
       - uses: actions/checkout@v7
         with: { fetch-depth: 0 }
+      - uses: actions/setup-node@v7
+        with: { node-version: '24' }
       - name: Stage administrator preflight reviews and current attempt
         shell: bash
         env:
           NATIVE_DB_UNARMED_PRECHECK_RECEIPTS: ${{ vars.NATIVE_DB_UNARMED_PRECHECK_RECEIPTS || '[]' }}
           NATIVE_DB_TIMEOUT_RECOVERY_RECEIPTS: ${{ vars.NATIVE_DB_TIMEOUT_RECOVERY_RECEIPTS || '[]' }}
           NATIVE_DB_WORKLOAD_TEARDOWN_RECEIPTS: ${{ vars.NATIVE_DB_WORKLOAD_TEARDOWN_RECEIPTS || '[]' }}
+          NATIVE_DB_OWNER_BASELINE_RECEIPTS: ${{ vars.NATIVE_DB_OWNER_BASELINE_RECEIPTS || '[]' }}
           CURRENT_RUN_ATTEMPT: ${{ github.run_attempt }}
         run: |
+          umask 077
           mkdir -p .dbv
           printf '%s\n' "$NATIVE_DB_UNARMED_PRECHECK_RECEIPTS" > .dbv/operator-unarmed-prechecks.json
           printf '%s\n' "$NATIVE_DB_TIMEOUT_RECOVERY_RECEIPTS" > .dbv/operator-timeout-recoveries.json
           printf '%s\n' "$NATIVE_DB_WORKLOAD_TEARDOWN_RECEIPTS" > .dbv/operator-workload-teardowns.json
+          printf '%s\n' "$NATIVE_DB_OWNER_BASELINE_RECEIPTS" > .dbv/operator-owner-baselines.json
           printf '%s\n' "$CURRENT_RUN_ATTEMPT" > .dbv/current-attempt.txt
-      - uses: actions/setup-node@v7
-        with: { node-version: '24' }
+          node --input-type=module <<'NODE'
+          import {readFileSync,writeFileSync} from 'node:fs';
+          import {NATIVE_DB_VALIDATION as limits} from './packages/shared/src/config/constants.ts';
+          const bytes=readFileSync('.dbv/operator-workload-teardowns.json');
+          if (bytes.length>limits.timeoutQueryMaxBytes) throw new Error('Workload teardown index exceeds its bound.');
+          const value=JSON.parse(bytes.toString('utf8'));
+          if (!Array.isArray(value)) throw new Error('Workload teardown index is malformed.');
+          const canonical=Buffer.from(JSON.stringify(value)+'\n');
+          if (canonical.length>limits.timeoutQueryMaxBytes) throw new Error('Workload teardown index exceeds its bound.');
+          writeFileSync('.dbv/operator-workload-teardowns.json',canonical);
+          NODE
       - uses: actions/github-script@v8
         name: Require the previous armed attempt's verified restoration
         with:
@@ -126,12 +144,13 @@ jobs:
             const {createHash} = await import('node:crypto');
             const {execFileSync} = await import('node:child_process');
             const {readFile} = await import('node:fs/promises');
-            const {NATIVE_DB_VALIDATION: limits} = await import(`${process.cwd()}/packages/shared/src/config/constants.ts`);
+            const {NATIVE_DB_VALIDATION: limits,NATIVE_DB_OWNER_BASELINE} = await import(`${process.cwd()}/packages/shared/src/config/constants.ts`);
             const {verifyNativeWorkloadTeardown} = await import(`${process.cwd()}/scripts/pgtap/workload-teardown.mjs`);
             const {verifyHostedNativeWorkloadCompletion} = await import(`${process.cwd()}/scripts/pgtap/hosted-completion.mjs`);
             const {verifyUnarmedNativePrecheck} = await import(`${process.cwd()}/scripts/pgtap/unarmed-precheck.mjs`);
             const {verifyUnallocatedNativeCancellation} = await import(`${process.cwd()}/scripts/pgtap/unallocated-cancellation.mjs`);
             const {verifyUnarmedNativeSetupFailure} = await import(`${process.cwd()}/scripts/pgtap/unarmed-setup-failure.mjs`);
+            const {verifyOwnerConfiguredTimeoutBaseline} = await import(`${process.cwd()}/scripts/pgtap/owner-timeout-baseline.mjs`);
             const hash = bytes => createHash('sha256').update(bytes).digest('hex');
             const exact = (value, keys) => value && typeof value === 'object' && !Array.isArray(value) && Object.keys(value).length === keys.length && keys.every(key => Object.hasOwn(value,key));
             const original = value => exact(value,['originalPresent','originalValue']) && typeof value.originalPresent === 'boolean' && (value.originalPresent ? typeof value.originalValue === 'string' && value.originalValue.length > 0 : value.originalValue === null);
@@ -199,14 +218,144 @@ jobs:
               }
               runs.unshift(current);
             }
-            const operatorReceipts = JSON.parse(await readFile('.dbv/operator-workload-teardowns.json','utf8'));
+            const operatorBytes = await readFile('.dbv/operator-workload-teardowns.json');
+            if (operatorBytes.length > limits.timeoutQueryMaxBytes) throw new Error('Owner workload teardown proof exceeds its bound.');
+            const operatorReceipts = JSON.parse(operatorBytes.toString('utf8'));
             if (!Array.isArray(operatorReceipts)) throw new Error('Owner workload teardown proof is malformed.');
+            const ownerBaselineBytes = await readFile('.dbv/operator-owner-baselines.json');
+            if (ownerBaselineBytes.length > limits.timeoutQueryMaxBytes) throw new Error('Owner baseline review index exceeds its bound.');
+            const ownerBaselineReviews = JSON.parse(ownerBaselineBytes.toString('utf8'));
+            if (!Array.isArray(ownerBaselineReviews)) throw new Error('Owner baseline review index is malformed.');
             const priorJobs = new Map();
             const priorArtifacts = new Map();
             const verifiedUnarmed = new Set();
             const verifiedSetupFailures = new Set();
             const verifiedUnallocatedCancellations = new Set();
+            const verifiedOwnerBaselines = new Set();
             let timeoutRecoveryReviews = null;
+            async function readOwnerTimeoutBaseline(run, attempt, nativeJob, guardianJob, artifacts) {
+              try {
+                const fixed = NATIVE_DB_OWNER_BASELINE;
+                if (String(run.id) !== fixed.targetRunId || String(attempt) !== fixed.targetRunAttempt ||
+                    run.head_sha !== fixed.targetSourceSha || String(nativeJob?.id) !== fixed.targetNativeJobId ||
+                    guardianJob?.id !== fixed.targetGuardianJobId || !Array.isArray(artifacts)) throw new Error('Blocked owner baseline.');
+                const matches = ownerBaselineReviews.filter(review => review &&
+                  review.targetRunId === fixed.targetRunId && review.targetRunAttempt === fixed.targetRunAttempt &&
+                  review.targetNativeJobId === fixed.targetNativeJobId);
+                if (matches.length !== 1) throw new Error('Blocked owner baseline.');
+                const review = matches[0];
+                if (!exact(review,['formatVersion','authorityKind','targetRunId','targetRunAttempt','targetSourceSha',
+                    'targetNativeJobId','targetRunnerId','maintenanceRunId','maintenanceRunAttempt','maintenanceSourceSha',
+                    'setterJobId','verifierJobId','setArtifactId','setArchiveSha256','baselineArtifactId','baselineArchiveSha256',
+                    'teardownPrivateProofSha256','privateProofSha256','reviewedAt']) || review.formatVersion !== limits.formatVersion ||
+                    review.authorityKind !== fixed.authorityKind || review.targetSourceSha !== fixed.targetSourceSha ||
+                    review.targetRunnerId !== fixed.targetRunnerId || typeof review.maintenanceRunId !== 'string' ||
+                    !/^[1-9]\d*$/.test(review.maintenanceRunId) || review.maintenanceRunAttempt !== fixed.targetRunAttempt ||
+                    !source(review.maintenanceSourceSha) ||
+                    ![review.setterJobId,review.verifierJobId,review.setArtifactId,review.baselineArtifactId].every(id =>
+                      Number.isSafeInteger(id) && id > 0) || review.setterJobId === review.verifierJobId ||
+                    review.setArtifactId === review.baselineArtifactId ||
+                    ![review.setArchiveSha256,review.baselineArchiveSha256,review.teardownPrivateProofSha256,review.privateProofSha256].every(digest) ||
+                    review.teardownPrivateProofSha256 !== fixed.teardownPrivateProofSha256 ||
+                    typeof review.reviewedAt !== 'string' || !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/.test(review.reviewedAt) ||
+                    !Number.isSafeInteger(Date.parse(review.reviewedAt)) || Date.parse(review.reviewedAt) < 0 ||
+                    new Date(review.reviewedAt).toISOString() !== review.reviewedAt) throw new Error('Blocked owner baseline.');
+                const targetRun = (await github.rest.actions.getWorkflowRunAttempt({...context.repo,
+                  run_id:fixed.targetRunId,attempt_number:fixed.targetRunAttempt})).data;
+                const maintenanceRun = (await github.rest.actions.getWorkflowRunAttempt({...context.repo,
+                  run_id:review.maintenanceRunId,attempt_number:review.maintenanceRunAttempt})).data;
+                const listings = [
+                  {kind:'jobs',runId:fixed.targetRunId,attempt:fixed.targetRunAttempt,items:[]},
+                  {kind:'artifacts',runId:fixed.targetRunId,items:[]},
+                  {kind:'jobs',runId:review.maintenanceRunId,attempt:review.maintenanceRunAttempt,items:[]},
+                  {kind:'artifacts',runId:review.maintenanceRunId,items:[]},
+                ];
+                for (const listing of listings) {
+                  let total = null;
+                  const ids = new Set();
+                  for (let page=1; ; page++) {
+                    const response = listing.kind === 'jobs'
+                      ? await github.rest.actions.listJobsForWorkflowRunAttempt({...context.repo,
+                        run_id:listing.runId,attempt_number:listing.attempt,page})
+                      : await github.rest.actions.listWorkflowRunArtifacts({...context.repo,run_id:listing.runId,page});
+                    const data = response.data;
+                    if (!data || Buffer.byteLength(JSON.stringify(data),'utf8') > limits.timeoutQueryMaxBytes ||
+                        !Number.isSafeInteger(data.total_count) || data.total_count < 0 ||
+                        (total !== null && data.total_count !== total)) throw new Error('Blocked owner baseline.');
+                    total = data.total_count;
+                    const items = listing.kind === 'jobs' ? data.jobs : data.artifacts;
+                    if (!Array.isArray(items) || (items.length === 0 && listing.items.length !== total)) throw new Error('Blocked owner baseline.');
+                    for (const item of items) {
+                      if (!Number.isSafeInteger(item?.id) || item.id <= 0 || ids.has(item.id)) throw new Error('Blocked owner baseline.');
+                      ids.add(item.id);
+                      listing.items.push(item);
+                    }
+                    if (listing.items.length > total) throw new Error('Blocked owner baseline.');
+                    if (listing.items.length === total) break;
+                  }
+                }
+                const [targetJobs,targetArtifacts,maintenanceJobs,maintenanceArtifacts] = listings.map(listing => listing.items);
+                const natives = targetJobs.filter(job => job.name === limits.job);
+                const guardians = targetJobs.filter(job => job.name === 'timeout-guardian');
+                const setters = maintenanceJobs.filter(job => job.name === fixed.setJob);
+                const verifiers = maintenanceJobs.filter(job => job.name === fixed.verifyJob);
+                const setArtifacts = maintenanceArtifacts.filter(artifact =>
+                  artifact.name === `${fixed.setArtifactPrefix}${review.maintenanceRunId}-${review.maintenanceRunAttempt}`);
+                const baselineArtifacts = maintenanceArtifacts.filter(artifact =>
+                  artifact.name === `${fixed.verifiedArtifactPrefix}${review.maintenanceRunId}-${review.maintenanceRunAttempt}`);
+                if (natives.length !== 1 || guardians.length !== 1 || setters.length !== 1 || verifiers.length !== 1 ||
+                    maintenanceJobs.length !== setters.length + verifiers.length || setArtifacts.length !== 1 || baselineArtifacts.length !== 1 ||
+                    maintenanceArtifacts.length !== setArtifacts.length + baselineArtifacts.length ||
+                    artifacts.length !== targetArtifacts.length || !targetArtifacts.every(artifact =>
+                      artifacts.filter(prior => prior.id === artifact.id && prior.name === artifact.name).length === 1)) throw new Error('Blocked owner baseline.');
+                const projectRun = raw => ({
+                  id:String(raw?.id),attempt:String(raw?.run_attempt),sourceSha:raw?.head_sha,
+                  repositoryId:raw?.repository?.id,repository:raw?.repository?.full_name,
+                  headRepositoryId:raw?.head_repository?.id,headRepository:raw?.head_repository?.full_name,
+                  event:raw?.event,path:raw?.path,branch:raw?.head_branch,status:raw?.status,conclusion:raw?.conclusion,
+                  actorLogin:raw?.actor?.login,triggeringActorLogin:raw?.triggering_actor?.login,
+                  startedAt:raw?.run_started_at,updatedAt:raw?.updated_at,
+                });
+                const projectJob = (raw, boundAttempt) => ({
+                  id:raw.id,runId:String(raw.run_id),attempt:String(boundAttempt),sourceSha:raw.head_sha,
+                  name:raw.name,status:raw.status,conclusion:raw.conclusion,runnerId:raw.runner_id,
+                  runnerName:raw.runner_name,runnerGroupName:raw.runner_group_name,labels:raw.labels,
+                  steps:Array.isArray(raw.steps) ? raw.steps.map(step => ({name:step.name,status:step.status,conclusion:step.conclusion})) : raw.steps,
+                  startedAt:raw.started_at,completedAt:raw.completed_at,
+                });
+                if (JSON.stringify(projectJob(natives[0],attempt)) !== JSON.stringify(projectJob(nativeJob,attempt)) ||
+                    JSON.stringify(projectJob(guardians[0],attempt)) !== JSON.stringify(projectJob(guardianJob,attempt))) throw new Error('Blocked owner baseline.');
+                const teardownMatches = operatorReceipts.filter(receipt => receipt &&
+                  receipt.runId === `${fixed.targetRunId}-${fixed.targetRunAttempt}` && receipt.jobId === fixed.targetNativeJobId);
+                if (teardownMatches.length !== 1 || !verifyNativeWorkloadTeardown({
+                  runId:`${fixed.targetRunId}-${fixed.targetRunAttempt}`,sourceSha:fixed.targetSourceSha,
+                  jobId:fixed.targetNativeJobId,runnerId:fixed.targetRunnerId,runnerEnvironment:'self-hosted'},teardownMatches[0]) ||
+                    teardownMatches[0].privateProofSha256 !== fixed.teardownPrivateProofSha256 ||
+                    teardownMatches[0].verifiedAt !== fixed.teardownVerifiedAt) throw new Error('Blocked owner baseline.');
+                const setArtifact = setArtifacts[0], baselineArtifact = baselineArtifacts[0];
+                const setReceipt = await readArtifact(setArtifact,fixed.setFilename);
+                const baselineReceipt = await readArtifact(baselineArtifact,fixed.verifiedFilename);
+                const projectArchive = (artifact, downloaded) => ({
+                  id:artifact.id,name:artifact.name,runId:String(artifact.workflow_run?.id),sourceSha:artifact.workflow_run?.head_sha,
+                  repositoryId:artifact.workflow_run?.repository_id,headRepositoryId:artifact.workflow_run?.head_repository_id,
+                  sizeBytes:artifact.size_in_bytes,apiSha256:typeof artifact.digest === 'string' && artifact.digest.startsWith('sha256:')
+                    ? artifact.digest.slice('sha256:'.length) : null,
+                  archiveSha256:downloaded.archiveSha256,bodySha256:downloaded.hash,expired:artifact.expired,
+                });
+                if (verifyOwnerConfiguredTimeoutBaseline({
+                  targetRun:projectRun(targetRun),targetNativeJob:projectJob(natives[0],fixed.targetRunAttempt),
+                  targetGuardianJob:projectJob(guardians[0],fixed.targetRunAttempt),targetArtifactNames:targetArtifacts.map(artifact => artifact.name),
+                  maintenanceRun:projectRun(maintenanceRun),setterJob:projectJob(setters[0],review.maintenanceRunAttempt),
+                  verifierJob:projectJob(verifiers[0],review.maintenanceRunAttempt),jobListingComplete:true,artifactListingComplete:true,
+                },{
+                  review,setArchive:projectArchive(setArtifact,setReceipt),baselineArchive:projectArchive(baselineArtifact,baselineReceipt),
+                  setReceipt:setReceipt.value,baselineReceipt:baselineReceipt.value,teardownReview:teardownMatches[0],
+                }) !== true) throw new Error('Blocked owner baseline.');
+                return true;
+              } catch {
+                throw new Error('Owner-configured timeout baseline lacks verified independent evidence; the shared project is blocked.');
+              }
+            }
             async function readHistoricalRestoration(r, recovery, run) {
               const [targetRunId,targetRunAttempt] = r.runId.split('-');
               const matches = timeoutRecoveryReviews.filter(item => item && item.targetRunId === targetRunId && item.targetRunAttempt === targetRunAttempt);
@@ -289,6 +438,11 @@ jobs:
                 const smokeArtifacts = artifacts.filter(artifact => artifact.name === `native-db-client-smoke-${boundRunAttempt}`);
                 const nativeJobs = attemptJobs.filter(job => job.name === limits.job);
                 const guardianJobs = attemptJobs.filter(job => job.name === 'timeout-guardian');
+                if (String(run.id) === NATIVE_DB_OWNER_BASELINE.targetRunId && String(attempt) === NATIVE_DB_OWNER_BASELINE.targetRunAttempt) {
+                  if (await readOwnerTimeoutBaseline(run,attempt,nativeJobs.length === 1 ? nativeJobs[0] : null,
+                      guardianJobs.length === 1 ? guardianJobs[0] : null,artifacts) !== true) throw new Error('Owner baseline remains blocked.');
+                  verifiedOwnerBaselines.add(`${boundRunAttempt}-${nativeJobs[0].id}-${guardianJobs[0].id}`);
+                }
                 if (nativeJobs.length === 1 && guardianJobs.length === 1 && [...nativeJobs,...guardianJobs].every(job =>
                     job.status === 'completed' && job.conclusion === 'cancelled' &&
                     ['runner_id','runner_name','runner_group_id','runner_group_name'].every(field => job[field] === null) &&
@@ -390,6 +544,7 @@ jobs:
                   if (verifiedUnallocatedCancellations.has(`${boundRunAttempt}-${job.id}`)) continue;
                   const nativeStep=Array.isArray(job.steps) && job.steps.find(step=>step.name==='Validate the full native suite with outside-worker recovery custody');
                   if ((job.conclusion==='success' || nativeStep && nativeStep.conclusion && nativeStep.conclusion!=='skipped') &&
+                      !verifiedOwnerBaselines.has(`${boundRunAttempt}-${job.id}-${NATIVE_DB_OWNER_BASELINE.targetGuardianJobId}`) &&
                       !artifacts.some(artifact=>artifact.name===`native-db-recovery-${run.id}-${attempt}` && !artifact.expired)) {
                     throw new Error('A newer native execution lacks its bound recovery protocol; the shared project is blocked.');
                   }
@@ -422,6 +577,7 @@ jobs:
                   !verifiedUnarmed.has(`${run.id}-${job.boundAttempt}`) &&
                   !verifiedSetupFailures.has(`${run.id}-${job.boundAttempt}-${job.id}`) &&
                   !verifiedUnallocatedCancellations.has(`${run.id}-${job.boundAttempt}-${job.id}`) &&
+                  !verifiedOwnerBaselines.has(`${run.id}-${job.boundAttempt}-${NATIVE_DB_OWNER_BASELINE.targetNativeJobId}-${job.id}`) &&
                   (String(run.id) !== currentRunId || BigInt(job.boundAttempt) < BigInt(currentAttempt)))) throw new Error('Previous attempted guardian has no recovery receipt; the shared project is blocked.');
                 continue;
               }
@@ -761,7 +917,7 @@ jobs:
           # schema-drift (its own job, always run on a types push) is their gate.
           # A push that changes ONLY packages/db/types/ therefore skips the suite
           # (ADR-177). Any other file under supabase/ or packages/db/ still runs it.
-          if echo "$changed" | grep -vE '^packages/db/types/' | grep -qE '^(supabase/|packages/db/|scripts/check-pgtap-rollback|scripts/pgtap/|scripts/native-(database-validation|runner-guard|runner-hook)\.mjs$|packages/shared/src/config/(env|constants)\.ts$|pnpm-lock\.yaml$|\.github/actions/native-database-validation/|\.github/workflows/(db|native-database-preflight|native-runner-readiness)\.yml$|scripts/native-runner-hook\.ps1$)'; then
+          if echo "$changed" | grep -vE '^packages/db/types/' | grep -qE '^(supabase/|packages/db/|scripts/check-pgtap-rollback|scripts/pgtap/|scripts/native-(database-validation|runner-guard|runner-hook)\.mjs$|packages/shared/src/config/(env|constants)\.ts$|pnpm-lock\.yaml$|\.github/actions/native-database-validation/|\.github/workflows/(db|native-database-preflight|native-database-owner-baseline|native-runner-readiness)\.yml$|scripts/native-runner-hook\.ps1$)'; then
             echo "run=true" >> "$GITHUB_OUTPUT"
           else
             echo "::notice::This push touches no migration, no pgTAP file, no non-type packages/db file and not this workflow. Skipping the suite; schema-drift still verifies any generated types."

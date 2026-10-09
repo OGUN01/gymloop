@@ -53,7 +53,15 @@
     "mechanicalInverseOracleSha256": "e26dd1ad39909e50fe1d9f75a464fa957095deb2210e53a875de652fd1f8ec24",
     "namesCallbacksAssertionsAndCaseCountPreserved": true
   },
-  "actualLinuxCi": "Pending fresh complete CI",
+  "actualLinuxCi": {
+    "sourceSha": "6d96d0bfdc8803eeeca04f35106f9ba0a9e1b633",
+    "ciRunId": "37884047053",
+    "holdoutRunId": "37884047082",
+    "immutabilityRunId": "37884047095",
+    "status": "completed",
+    "conclusion": "success",
+    "completeGatesAndScriptSuitePassed": true
+  },
   "historicalTrial19Clearance": false,
   "fasterFullDatabaseResult": false,
   "applicationOrPlayReleaseChanged": false,

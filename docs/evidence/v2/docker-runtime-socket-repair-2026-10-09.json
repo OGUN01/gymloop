@@ -1,0 +1,36 @@
+{
+  "scope": "Repair observed Docker Desktop startup socket access failures",
+  "observedFailures": [
+    "Docker/run/sailor-ingest.sock could not be accessed by the system",
+    "docker-secrets-engine/engine.sock could not be accessed by the system"
+  ],
+  "preservedDirectories": [
+    "C:/Users/Harsh/AppData/Local/Docker/run.owner-baseline-20261009",
+    "C:/Users/Harsh/AppData/Local/Docker/run.owner-baseline-20261009-second",
+    "C:/Users/Harsh/AppData/Local/docker-secrets-engine.owner-baseline-20261009"
+  ],
+  "preservationChecks": {
+    "ordinaryParentDirectories": true,
+    "inspectedEntriesOnlyEmptySocketReparsePoints": true,
+    "noRecursiveDelete": true,
+    "noFilesDeleted": true,
+    "noSettingsChanged": true,
+    "noPersistentDataChanged": true,
+    "stoppedProcessesMatchedObservedPidBirthAndExecutable": true
+  },
+  "latestLaunch": {
+    "pid": 160596,
+    "startedAt": "2026-10-09T08:27:53.6346977Z",
+    "hidden": true
+  },
+  "verifiedResult": {
+    "dockerServerVersion": "29.7.2",
+    "versionCommandExitCode": 0,
+    "containerListCommandExitCode": 0,
+    "existingRunningContainer": "supabase_db_harsh_platform",
+    "daemonReadyAt": "2026-10-09T08:30:05.979Z"
+  },
+  "ownerTimeoutResetDispatched": false,
+  "historicalOriginalRestorationVerified": false,
+  "fasterFullDatabaseResult": false
+}

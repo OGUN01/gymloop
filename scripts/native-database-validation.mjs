@@ -7,11 +7,12 @@ import { createRequire } from 'node:module';
 import { basename, dirname, isAbsolute, join, relative, resolve } from 'node:path';
 import { pathToFileURL, URL } from 'node:url';
 import { nativeDatabaseValidationEnv, nativeDatabaseProcessEnv, backupKeyEnv } from '../packages/shared/src/config/env.ts';
-import { NATIVE_DB_VALIDATION, PHASE8_BACKUP_LIMITS } from '../packages/shared/src/config/constants.ts';
+import { NATIVE_DB_VALIDATION, NATIVE_DB_OWNER_BASELINE, PHASE8_BACKUP_LIMITS } from '../packages/shared/src/config/constants.ts';
 import { findNonRolledBackTests } from './check-pgtap-rollback.mjs';
 import { buildNativePgtapManifest, runNativePgtapValidation, verifyNativePgtapRun } from './pgtap/native.mjs';
 import { protectNativePgtapOutput, recoverNativePgtapOutput } from './pgtap/private-output.mjs';
-import { exactNativeDataRecord } from './pgtap/data-record.mjs';
+import { exactNativeDataRecord, exactNativeDataArray, nativeEvidenceClock } from './pgtap/data-record.mjs';
+import { verifyNativeWorkloadTeardown } from './pgtap/workload-teardown.mjs';
 
 const target = Object.freeze({ projectRef: NATIVE_DB_VALIDATION.projectRef, role: NATIVE_DB_VALIDATION.role,
   parameter: NATIVE_DB_VALIDATION.parameter });
@@ -410,7 +411,8 @@ async function artifactApi(runtime, path, expectedStatus) {
 async function readReceiptArtifact(runtime, artifact, filename) {
   try {
   if (runtime.GITHUB_ACTIONS !== 'true' || runtime.RUNNER_ENVIRONMENT !== 'github-hosted' || runtime.RUNNER_OS !== 'Linux' ||
-      !['manifest.json', 'recovery.json'].includes(filename) ||
+      (!['manifest.json', 'recovery.json'].includes(filename) &&
+        ![NATIVE_DB_OWNER_BASELINE.setFilename, NATIVE_DB_OWNER_BASELINE.verifiedFilename].includes(filename)) ||
       !Number.isSafeInteger(artifact?.id) || artifact.id <= 0 || artifact.expired !== false ||
       !Number.isSafeInteger(artifact.size_in_bytes) || artifact.size_in_bytes <= 0 ||
       artifact.size_in_bytes > NATIVE_DB_VALIDATION.timeoutQueryMaxBytes ||
@@ -682,19 +684,22 @@ function options(argv, runtime) {
     '--receipt', runtime.INPUT_RECEIPT ?? runtime.DBV_RECEIPT, '--out-dir', runtime['INPUT_OUT-DIR'] ?? runtime.DBV_OUT_DIR,
     '--source-sha', runtime['INPUT_SOURCE-SHA'] ?? runtime.DBV_SOURCE_SHA];
   const [command, ...tail] = args;
-  if (!['manifest', 'run', 'verify', 'restore', 'restore-prior'].includes(command)) throw refuse();
+  const ownerBaseline = ['owner-baseline-set', 'owner-baseline-verify'].includes(command);
+  if (!['manifest', 'run', 'verify', 'restore', 'restore-prior'].includes(command) && !ownerBaseline) throw refuse();
   const result = { command };
   while (tail.length > 0) {
     const key = tail.shift();
     const value = tail.shift();
-    const allowed = ['--manifest', '--receipt', '--out-dir', '--source-sha',
-      ...(command === 'restore-prior' ? ['--target-run-id', '--target-run-attempt'] : [])];
+    const allowed = ownerBaseline ? ['--receipt', '--out-dir', '--source-sha', '--approval', '--teardown-file']
+      : ['--manifest', '--receipt', '--out-dir', '--source-sha',
+        ...(command === 'restore-prior' ? ['--target-run-id', '--target-run-attempt'] : [])];
     if (!allowed.includes(key) || Object.hasOwn(result, key) ||
         typeof value !== 'string' || value.length === 0) throw refuse();
     result[key] = value;
   }
-  if (!sourceString(result['--source-sha']) || !result['--manifest'] || !result['--receipt'] ||
+  if (!sourceString(result['--source-sha']) || (!ownerBaseline && !result['--manifest']) || !result['--receipt'] ||
       (!result['--out-dir'] && command !== 'manifest')) throw refuse();
+  if (ownerBaseline && (result['--approval'] !== NATIVE_DB_OWNER_BASELINE.approval || !result['--teardown-file'])) throw refuse();
   if (command === 'restore-prior' && (!/^[1-9]\d*$/.test(result['--target-run-id'] ?? '') ||
       !/^[1-9]\d*$/.test(result['--target-run-attempt'] ?? ''))) throw refuse();
   if (!result['--out-dir']) result['--out-dir'] = join(runtime.RUNNER_TEMP, `native-db-${runtime.GITHUB_RUN_ID}-${runtime.GITHUB_RUN_ATTEMPT}`);
@@ -817,6 +822,132 @@ async function recoverPriorTimeout(runtime, opts, directory, workdir) {
   await guardian(runtime, { ...opts, '--receipt': recoveryPath }, manifest, directory, workdir, binding);
 }
 
+async function configureOwnerTimeoutBaseline(runtime, opts, directory, workdir) {
+  const limits = NATIVE_DB_OWNER_BASELINE;
+  const isSetter = opts.command === 'owner-baseline-set';
+  const currentJobName = isSetter ? limits.setJob : limits.verifyJob;
+  const sourceSha = opts['--source-sha'];
+  const positive = value => Number.isSafeInteger(value) && value > 0;
+  const decimal = value => typeof value === 'string' && /^[1-9]\d*$/.test(value);
+  if (!['owner-baseline-set', 'owner-baseline-verify'].includes(opts.command) ||
+      opts['--approval'] !== limits.approval || runtime.GITHUB_ACTIONS !== 'true' ||
+      runtime.GITHUB_REPOSITORY !== NATIVE_DB_VALIDATION.repository || runtime.GITHUB_EVENT_NAME !== 'workflow_dispatch' ||
+      runtime.GITHUB_REF !== NATIVE_DB_VALIDATION.mainRef || runtime.GITHUB_WORKFLOW_REF !== limits.workflowRef ||
+      runtime.RUNNER_ENVIRONMENT !== 'github-hosted' || runtime.RUNNER_OS !== 'Linux' || runtime.GITHUB_JOB !== currentJobName ||
+      runtime.GITHUB_SHA !== sourceSha || !sourceString(sourceSha) || !decimal(runtime.GITHUB_RUN_ID) ||
+      runtime.GITHUB_RUN_ATTEMPT !== limits.targetRunAttempt || typeof opts['--receipt'] !== 'string' ||
+      opts['--receipt'].length === 0 || typeof opts['--teardown-file'] !== 'string' || opts['--teardown-file'].length === 0) throw refuse('RUNNER_UNTRUSTED');
+  const processOptions = { cwd: workdir, timeoutMs: NATIVE_DB_VALIDATION.nativeCleanupReserveMs,
+    maxBytes: NATIVE_DB_VALIDATION.timeoutQueryMaxBytes };
+  if ((await checked('git', ['rev-parse', 'HEAD'], processOptions)).trim() !== sourceSha ||
+      (await checked('supabase', ['--version'], processOptions)).trim() !== NATIVE_DB_VALIDATION.cliVersion) throw refuse('RUNNER_UNTRUSTED');
+  const api = async path => JSON.parse((await boundedResponseBytes(
+    await artifactApi(runtime, path, NATIVE_DB_VALIDATION.artifactMetadataStatus), NATIVE_DB_VALIDATION.timeoutQueryMaxBytes)).toString('utf8'));
+  const list = async (path, field) => {
+    const items = []; let total = null; let page = 1;
+    do {
+      const result = await api(`${path}?page=${page}`);
+      const entries = exactNativeDataArray(result?.[field]);
+      if (!Number.isSafeInteger(result?.total_count) || result.total_count < 0 || !entries ||
+          (total !== null && total !== result.total_count) || (entries.length === 0 && items.length < result.total_count)) throw refuse('RECEIPT_UNAVAILABLE');
+      total = result.total_count;
+      items.push(...entries);
+      if (items.length > total || items.some(item => !positive(item?.id)) || new Set(items.map(item => item.id)).size !== items.length) throw refuse('RECEIPT_UNAVAILABLE');
+      page += 1;
+    } while (items.length < total);
+    return items;
+  };
+  const trustedRun = (run, id, attempt, sha, path, event, status, conclusion) =>
+    positive(run?.id) && String(run.id) === id && positive(run.run_attempt) && String(run.run_attempt) === attempt &&
+    run.head_sha === sha && run.head_branch === 'main' && run.path === path && run.event === event &&
+    run.status === status && run.conclusion === conclusion &&
+    run.repository?.id === limits.repositoryId && run.head_repository?.id === limits.repositoryId &&
+    run.repository.full_name === NATIVE_DB_VALIDATION.repository && run.head_repository.full_name === NATIVE_DB_VALIDATION.repository;
+  const currentRun = await api(`actions/runs/${runtime.GITHUB_RUN_ID}/attempts/${runtime.GITHUB_RUN_ATTEMPT}`);
+  if (!trustedRun(currentRun, runtime.GITHUB_RUN_ID, runtime.GITHUB_RUN_ATTEMPT, sourceSha, limits.workflowPath,
+    'workflow_dispatch', 'in_progress', null) || currentRun.repository.owner?.login !== limits.ownerLogin ||
+    currentRun.actor?.login !== limits.ownerLogin || currentRun.triggering_actor?.login !== limits.ownerLogin) throw refuse('RUNNER_UNTRUSTED');
+  const priorMaintenance = await list(`actions/workflows/${limits.workflowPath.split('/').at(-1)}/runs`, 'workflow_runs');
+  if (priorMaintenance.filter(run => run.head_branch === 'main' && run.event === 'workflow_dispatch').some(run =>
+    String(run.id) !== runtime.GITHUB_RUN_ID || run.run_attempt !== Number(limits.targetRunAttempt)) ||
+    priorMaintenance.filter(run => String(run.id) === runtime.GITHUB_RUN_ID).length !== 1) throw refuse('RUNNER_UNTRUSTED');
+  const oldRun = await api(`actions/runs/${limits.targetRunId}/attempts/${limits.targetRunAttempt}`);
+  if (!trustedRun(oldRun, limits.targetRunId, limits.targetRunAttempt, limits.targetSourceSha, '.github/workflows/db.yml',
+    'push', 'completed', 'failure')) throw refuse('RECEIPT_UNAVAILABLE');
+  const oldJobs = await list(`actions/runs/${limits.targetRunId}/attempts/${limits.targetRunAttempt}/jobs`, 'jobs');
+  const oldArtifacts = await list(`actions/runs/${limits.targetRunId}/artifacts`, 'artifacts');
+  const uniqueStep = (job, name, conclusion) => Array.isArray(job.steps) &&
+    job.steps.filter(step => step.name === name).length === 1 && job.steps.some(step => step.name === name && step.status === 'completed' && step.conclusion === conclusion);
+  const native = oldJobs.filter(job => job.name === NATIVE_DB_VALIDATION.job);
+  const guardian = oldJobs.filter(job => job.name === 'timeout-guardian');
+  if (oldJobs.some(job => job.status !== 'completed' || !job.conclusion || String(job.run_id) !== limits.targetRunId || job.head_sha !== limits.targetSourceSha) ||
+      native.length !== 1 || guardian.length !== 1 || String(native[0].id) !== limits.targetNativeJobId ||
+      native[0].runner_id !== limits.targetRunnerId || native[0].runner_name !== limits.targetRunnerName || native[0].runner_group_name !== 'Default' ||
+      JSON.stringify(native[0].labels) !== JSON.stringify(limits.targetLabels) || native[0].conclusion !== 'failure' ||
+      !uniqueStep(native[0], limits.nativeStep, 'failure') || guardian[0].id !== Number(limits.targetGuardianJobId) || guardian[0].conclusion !== 'failure' ||
+      !uniqueStep(guardian[0], limits.guardianFindStep, 'failure') || !uniqueStep(guardian[0], limits.guardianLinkStep, 'skipped') ||
+      !uniqueStep(guardian[0], limits.guardianRestoreStep, 'skipped') || oldArtifacts.length !== limits.targetArtifactNames.length ||
+      !limits.targetArtifactNames.every(name => oldArtifacts.filter(artifact => artifact.name === name).length === 1)) throw refuse('RECEIPT_UNAVAILABLE');
+  const teardownText = await readFile(opts['--teardown-file'], 'utf8');
+  if (Buffer.byteLength(teardownText, 'utf8') > NATIVE_DB_VALIDATION.timeoutQueryMaxBytes) throw refuse('RECEIPT_UNAVAILABLE');
+  const teardownReviews = exactNativeDataArray(JSON.parse(teardownText));
+  const expected = { runId: `${limits.targetRunId}-${limits.targetRunAttempt}`, sourceSha: limits.targetSourceSha,
+    jobId: limits.targetNativeJobId, runnerId: limits.targetRunnerId, runnerEnvironment: 'self-hosted' };
+  const teardowns = teardownReviews?.filter(review => review?.runId === expected.runId && review?.jobId === expected.jobId);
+  if (!teardowns || teardowns.length !== 1 || !verifyNativeWorkloadTeardown(expected, teardowns[0]) ||
+      teardowns[0].privateProofSha256 !== limits.teardownPrivateProofSha256 ||
+      teardowns[0].verifiedAt !== limits.teardownVerifiedAt) throw refuse('RECEIPT_UNAVAILABLE');
+  const jobs = await list(`actions/runs/${runtime.GITHUB_RUN_ID}/attempts/${runtime.GITHUB_RUN_ATTEMPT}/jobs`, 'jobs');
+  const currentJobs = jobs.filter(job => job.name === currentJobName);
+  const hosted = job => positive(job?.id) && positive(job.runner_id) && String(job.run_id) === runtime.GITHUB_RUN_ID &&
+    job.head_sha === sourceSha && job.runner_name === `GitHub Actions ${job.runner_id}` && job.runner_group_name === 'GitHub Actions' &&
+    JSON.stringify(job.labels) === JSON.stringify(['ubuntu-latest']);
+  if (jobs.some(job => ![limits.setJob, limits.verifyJob].includes(job.name)) || currentJobs.length !== 1 ||
+      !hosted(currentJobs[0]) || currentJobs[0].status !== 'in_progress' || currentJobs[0].conclusion !== null ||
+      nativeEvidenceClock(currentJobs[0].started_at, true) === null) throw refuse('RUNNER_UNTRUSTED');
+  const common = { formatVersion: NATIVE_DB_VALIDATION.formatVersion, authorityKind: limits.authorityKind,
+    targetRunId: limits.targetRunId, targetRunAttempt: limits.targetRunAttempt, targetSourceSha: limits.targetSourceSha,
+    targetNativeJobId: limits.targetNativeJobId, targetRunnerId: limits.targetRunnerId,
+    maintenanceRunId: runtime.GITHUB_RUN_ID, maintenanceRunAttempt: runtime.GITHUB_RUN_ATTEMPT, maintenanceSourceSha: sourceSha,
+    target, configured: limits.configured };
+  let setter; let setReceipt;
+  if (!isSetter) {
+    const setters = jobs.filter(job => job.name === limits.setJob);
+    if (setters.length !== 1 || !hosted(setters[0]) || setters[0].status !== 'completed' || setters[0].conclusion !== 'success' ||
+        setters[0].runner_id === currentJobs[0].runner_id || setters[0].id === currentJobs[0].id ||
+        nativeEvidenceClock(setters[0].completed_at, true) === null || Date.parse(setters[0].completed_at) > Date.parse(currentJobs[0].started_at)) throw refuse('RECEIPT_UNAVAILABLE');
+    setter = setters[0];
+    const artifacts = await list(`actions/runs/${runtime.GITHUB_RUN_ID}/artifacts`, 'artifacts');
+    const matches = artifacts.filter(artifact => artifact.name === `${limits.setArtifactPrefix}${runtime.GITHUB_RUN_ID}-${runtime.GITHUB_RUN_ATTEMPT}`);
+    if (matches.length !== 1 || String(matches[0].workflow_run?.id) !== runtime.GITHUB_RUN_ID ||
+        matches[0].workflow_run.head_sha !== sourceSha || matches[0].workflow_run.repository_id !== limits.repositoryId ||
+        matches[0].workflow_run.head_repository_id !== limits.repositoryId) throw refuse('RECEIPT_UNAVAILABLE');
+    setReceipt = await readReceiptArtifact(runtime, matches[0], limits.setFilename);
+    const fields = [...Object.keys(common), 'setterJobId', 'before', 'beforeCapturedAt', 'requestedAt'];
+    const intent = exactNativeDataRecord(setReceipt.value, fields);
+    if (!intent || !Object.keys(common).every(field => JSON.stringify(intent[field]) === JSON.stringify(common[field])) ||
+        intent.setterJobId !== setter.id || !validOriginal(intent.before) || hash(jsonBytes(intent)) !== setReceipt.hash ||
+        nativeEvidenceClock(intent.beforeCapturedAt) === null || nativeEvidenceClock(intent.requestedAt) === null ||
+        nativeEvidenceClock(setter.started_at, true) === null || Date.parse(intent.beforeCapturedAt) < Date.parse(setter.started_at) ||
+        Date.parse(intent.requestedAt) < Date.parse(intent.beforeCapturedAt) || Date.parse(intent.requestedAt) > Date.parse(setter.completed_at)) throw refuse('RECEIPT_UNAVAILABLE');
+  }
+  await checked('supabase', ['link', '--project-ref', NATIVE_DB_VALIDATION.projectRef, '--yes'], processOptions);
+  if ((await readFile(`${workdir}/supabase/.temp/project-ref`, 'utf8')).trim() !== NATIVE_DB_VALIDATION.projectRef) throw refuse('RUNNER_UNTRUSTED');
+  if (isSetter) {
+    const before = await queryTimeout(workdir, directory, target);
+    if (!validOriginal(before)) throw refuse('TIMEOUT_CAPTURE_INVALID');
+    const beforeCapturedAt = new Date().toISOString();
+    const requestedAt = new Date().toISOString();
+    await privateWrite(opts['--receipt'], jsonBytes({ ...common, setterJobId: currentJobs[0].id, before, beforeCapturedAt, requestedAt }));
+    await alterTimeout(workdir, directory, { target, setting: limits.configured });
+  } else {
+    const observed = await queryTimeout(workdir, directory, target);
+    if (!validOriginal(observed) || !sameTimeout(observed, limits.configured)) throw refuse('TIMEOUT_RESTORE_INVALID');
+    await privateWrite(opts['--receipt'], jsonBytes({ ...common, setterJobId: setter.id, verifierJobId: currentJobs[0].id,
+      setReceiptSha256: setReceipt.hash, observed, verified: true, verifiedAt: new Date().toISOString() }));
+  }
+}
+
 async function main() {
   const runtime = nativeDatabaseValidationEnv();
   const [, , ...argv] = process.argv;
@@ -824,6 +955,10 @@ async function main() {
   const workdir = await realpath(process.cwd());
   const directory = await privateDirectory(opts['--out-dir'], workdir);
   const sourceSha = opts['--source-sha'];
+  if (['owner-baseline-set', 'owner-baseline-verify'].includes(opts.command)) {
+    await configureOwnerTimeoutBaseline(runtime, opts, directory, workdir);
+    return;
+  }
   if (opts.command === 'restore-prior') {
     await recoverPriorTimeout(runtime, opts, directory, workdir);
     return;

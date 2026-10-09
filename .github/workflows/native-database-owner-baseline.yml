@@ -1,0 +1,137 @@
+name: Native database owner timeout baseline
+
+on:
+  workflow_dispatch:
+    inputs:
+      approval:
+        description: Exact owner approval for the one-time trial19 configuration
+        required: true
+        type: string
+
+permissions: { contents: read, actions: read }
+concurrency:
+  group: db-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+  SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+  NATIVE_DB_WORKLOAD_TEARDOWN_RECEIPTS: ${{ vars.NATIVE_DB_WORKLOAD_TEARDOWN_RECEIPTS || '[]' }}
+
+jobs:
+  owner-baseline-set:
+    if: github.repository == 'OGUN01/gymloop' && github.ref == 'refs/heads/main' && github.event_name == 'workflow_dispatch' && github.run_attempt == 1 && inputs.approval == 'trial19-owner-baseline-2026-10-09'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with: { node-version: '24', cache: pnpm }
+      - name: Install the frozen owner-baseline adapter dependencies
+        run: pnpm install --frozen-lockfile --filter "@gymloop/shared..." --prod --ignore-scripts
+      - uses: supabase/setup-cli@v3
+        with: { version: 2.110.0 }
+      - name: Stage the accepted original workload teardown
+        shell: bash
+        run: |
+          umask 077
+          mkdir -p .dbv
+          printf '%s\n' "$NATIVE_DB_WORKLOAD_TEARDOWN_RECEIPTS" > .dbv/operator-workload-teardowns.json
+          node --input-type=module <<'NODE'
+          import {readFileSync,writeFileSync} from 'node:fs';
+          import {NATIVE_DB_VALIDATION as limits} from './packages/shared/src/config/constants.ts';
+          const bytes=readFileSync('.dbv/operator-workload-teardowns.json');
+          if (bytes.length>limits.timeoutQueryMaxBytes) throw new Error('Workload teardown index exceeds its bound.');
+          const value=JSON.parse(bytes.toString('utf8'));
+          if (!Array.isArray(value)) throw new Error('Workload teardown index is malformed.');
+          const canonical=Buffer.from(JSON.stringify(value)+'\n');
+          if (canonical.length>limits.timeoutQueryMaxBytes) throw new Error('Workload teardown index exceeds its bound.');
+          writeFileSync('.dbv/operator-workload-teardowns.json',canonical);
+          NODE
+      - name: Read the existing owner-baseline retention limit
+        id: limits
+        uses: actions/github-script@v8
+        with:
+          script: |
+            const {NATIVE_DB_VALIDATION:limits} = await import('${{ github.workspace }}/packages/shared/src/config/constants.ts');
+            core.setOutput('retention',String(limits.artifactRetentionDays));
+      - name: Configure the owner-approved trial19 timeout baseline
+        id: configured
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          BASELINE_APPROVAL: ${{ inputs.approval }}
+          CURRENT_SOURCE: ${{ github.sha }}
+          BASELINE_DIRECTORY: ${{ runner.temp }}/native-db-owner-baseline-set-${{ github.run_id }}-${{ github.run_attempt }}
+        run: |
+          node scripts/native-database-validation.mjs owner-baseline-set \
+            --receipt .dbv/owner-baseline-set.json --out-dir "$BASELINE_DIRECTORY" \
+            --source-sha "$CURRENT_SOURCE" --approval "$BASELINE_APPROVAL" \
+            --teardown-file .dbv/operator-workload-teardowns.json
+      - name: Retain owner baseline configuration evidence
+        if: always()
+        uses: actions/upload-artifact@v5
+        with:
+          name: native-db-owner-baseline-set-${{ github.run_id }}-${{ github.run_attempt }}
+          path: .dbv/owner-baseline-set.json
+          if-no-files-found: error
+          retention-days: ${{ steps.limits.outputs.retention }}
+
+  owner-baseline-verify:
+    needs: owner-baseline-set
+    if: github.repository == 'OGUN01/gymloop' && github.ref == 'refs/heads/main' && github.event_name == 'workflow_dispatch' && github.run_attempt == 1 && inputs.approval == 'trial19-owner-baseline-2026-10-09'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with: { node-version: '24', cache: pnpm }
+      - name: Install the frozen owner-baseline adapter dependencies
+        run: pnpm install --frozen-lockfile --filter "@gymloop/shared..." --prod --ignore-scripts
+      - uses: supabase/setup-cli@v3
+        with: { version: 2.110.0 }
+      - name: Stage the accepted original workload teardown
+        shell: bash
+        run: |
+          umask 077
+          mkdir -p .dbv
+          printf '%s\n' "$NATIVE_DB_WORKLOAD_TEARDOWN_RECEIPTS" > .dbv/operator-workload-teardowns.json
+          node --input-type=module <<'NODE'
+          import {readFileSync,writeFileSync} from 'node:fs';
+          import {NATIVE_DB_VALIDATION as limits} from './packages/shared/src/config/constants.ts';
+          const bytes=readFileSync('.dbv/operator-workload-teardowns.json');
+          if (bytes.length>limits.timeoutQueryMaxBytes) throw new Error('Workload teardown index exceeds its bound.');
+          const value=JSON.parse(bytes.toString('utf8'));
+          if (!Array.isArray(value)) throw new Error('Workload teardown index is malformed.');
+          const canonical=Buffer.from(JSON.stringify(value)+'\n');
+          if (canonical.length>limits.timeoutQueryMaxBytes) throw new Error('Workload teardown index exceeds its bound.');
+          writeFileSync('.dbv/operator-workload-teardowns.json',canonical);
+          NODE
+      - name: Read the existing owner-baseline retention limit
+        id: limits
+        uses: actions/github-script@v8
+        with:
+          script: |
+            const {NATIVE_DB_VALIDATION:limits} = await import('${{ github.workspace }}/packages/shared/src/config/constants.ts');
+            core.setOutput('retention',String(limits.artifactRetentionDays));
+      - name: Independently verify the owner-approved trial19 timeout baseline
+        id: verified
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          BASELINE_APPROVAL: ${{ inputs.approval }}
+          CURRENT_SOURCE: ${{ github.sha }}
+          BASELINE_DIRECTORY: ${{ runner.temp }}/native-db-owner-baseline-verify-${{ github.run_id }}-${{ github.run_attempt }}
+        run: |
+          node scripts/native-database-validation.mjs owner-baseline-verify \
+            --receipt .dbv/owner-baseline-verified.json --out-dir "$BASELINE_DIRECTORY" \
+            --source-sha "$CURRENT_SOURCE" --approval "$BASELINE_APPROVAL" \
+            --teardown-file .dbv/operator-workload-teardowns.json
+      - name: Retain independent owner baseline verification evidence
+        if: steps.verified.outcome == 'success'
+        uses: actions/upload-artifact@v5
+        with:
+          name: native-db-owner-baseline-verified-${{ github.run_id }}-${{ github.run_attempt }}
+          path: .dbv/owner-baseline-verified.json
+          if-no-files-found: error
+          retention-days: ${{ steps.limits.outputs.retention }}
