@@ -1,9 +1,9 @@
 import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { runInNewContext } from 'node:vm';
+import { runInThisContext } from 'node:vm';
 import { describe, expect, it } from 'vitest';
-import { exactNativeDataRecord } from '../../scripts/pgtap/data-record.mjs';
+import { exactNativeDataRecord, exactNativeDataArray, nativeEvidenceClock } from '../../scripts/pgtap/data-record.mjs';
 import { verifyNativeWorkloadTeardown } from '../../scripts/pgtap/workload-teardown.mjs';
 
 const ownerHeldHash = (value: unknown) => createHash('sha256').update(`${JSON.stringify(value)}\n`).digest('hex');
@@ -144,6 +144,11 @@ const ownerHeldFields = (fixture: ReturnType<typeof ownerHeldFixture>) => [
   fixture.envelope.setReceipt.before, fixture.envelope.baselineReceipt.observed,
 ];
 
+const ownerHeldControlledRealm = (source: string, dependencies: Record<string, unknown>) => {
+  const names = Object.keys(dependencies);
+  const invoke = runInThisContext(`(function(${names.join(',')}, ownerHeldSource) { return eval(ownerHeldSource); })`) as (...values: unknown[]) => unknown;
+  return invoke(...names.map(name => dependencies[name]), source);
+};
 const ownerHeldAdapterPorts = (command: 'owner-baseline-set' | 'owner-baseline-verify') => {
   const fixture = ownerHeldFixture();
   const now = command === 'owner-baseline-set' ? '2026-10-09T12:00:11.000Z' : '2026-10-09T12:02:30.000Z';
@@ -199,6 +204,7 @@ const ownerHeldAdapterPorts = (command: 'owner-baseline-set' | 'owner-baseline-v
   };
   const exact = (value: unknown, fields: string[]) => Boolean(exactNativeDataRecord(value, fields));
   const ports = {
+    exactNativeDataRecord, exactNativeDataArray, nativeEvidenceClock,
     NATIVE_DB_OWNER_BASELINE: ownerHeldConstants.NATIVE_DB_OWNER_BASELINE,
     NATIVE_DB_VALIDATION: ownerHeldConstants.NATIVE_DB_VALIDATION,
     target: fixture.envelope.setReceipt.target, exact,
@@ -252,8 +258,8 @@ const ownerHeldAdapterPorts = (command: 'owner-baseline-set' | 'owner-baseline-v
   const argv = [command, '--receipt', `/private/${command === 'owner-baseline-set' ? 'owner-baseline-set.json' : 'owner-baseline-verified.json'}`,
     '--out-dir', '/private', '--source-sha', runtime.GITHUB_SHA, '--approval', 'trial19-owner-baseline-2026-10-09', '--teardown-file', '/private/teardown.json'];
   return { fixture, events, runtime, control, payloads, argv,
-    invoke: () => runInNewContext(`${ownerHeldExtract('../../scripts/native-database-validation.mjs', 'configureOwnerTimeoutBaseline')}\n${ownerHeldExtract('../../scripts/native-database-validation.mjs', 'options')}\nconfigureOwnerTimeoutBaseline(runtime,options(argv,runtime),'/private','/workspace')`, { ...ports, runtime, argv }),
-    options: (input: string[]) => runInNewContext(`${ownerHeldExtract('../../scripts/native-database-validation.mjs', 'options')}\noptions(argv,runtime)`, { ...ports, runtime, argv: input }),
+    invoke: () => ownerHeldControlledRealm(`${ownerHeldExtract('../../scripts/native-database-validation.mjs', 'configureOwnerTimeoutBaseline')}\n${ownerHeldExtract('../../scripts/native-database-validation.mjs', 'options')}\nconfigureOwnerTimeoutBaseline(runtime,options(argv,runtime),'/private','/workspace')`, { ...ports, runtime, argv }),
+    options: (input: string[]) => ownerHeldControlledRealm(`${ownerHeldExtract('../../scripts/native-database-validation.mjs', 'options')}\noptions(argv,runtime)`, { ...ports, runtime, argv: input }),
   };
 };
 

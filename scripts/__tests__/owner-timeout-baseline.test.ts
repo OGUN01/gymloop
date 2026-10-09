@@ -4,6 +4,7 @@ import vm from 'node:vm';
 import ts from 'typescript';
 import { describe, expect, it } from 'vitest';
 import { verifyNativeWorkloadTeardown } from '../pgtap/workload-teardown.mjs';
+import { exactNativeDataRecord, exactNativeDataArray, nativeEvidenceClock } from '../pgtap/data-record.mjs';
 
 const ownerBaselineFixture = () => {
   const source = 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
@@ -305,7 +306,7 @@ const ownerBaselineAdapterFixture = async (command = 'owner-baseline-set') => {
     sameTimeout: (left: any, right: any) => left.originalPresent === right.originalPresent && left.originalValue === right.originalValue,
     hash: (bytes: any) => createHash('sha256').update(bytes).digest('hex'),
     jsonBytes: (value: any) => Buffer.from(`${JSON.stringify(value)}\n`),
-    refuse: (code: string) => new Error(code), verifyNativeWorkloadTeardown,
+    refuse: (code: string) => new Error(code), verifyNativeWorkloadTeardown, exactNativeDataRecord, exactNativeDataArray, nativeEvidenceClock,
     checked: async (...args: any[]) => {
       events.push({ kind: 'checked', args });
       if (args[0] === 'git') return `${controls.source}\n`;
@@ -354,7 +355,7 @@ const ownerBaselineAdapterFixture = async (command = 'owner-baseline-set') => {
       return { value: fixture.envelope.setReceipt, hash: fixture.envelope.setArchive.bodySha256, archiveSha256: fixture.envelope.setArchive.archiveSha256 };
     },
   };
-  const boundary: any = vm.runInNewContext(`${declarations.join('\n')}\n({ configureOwnerTimeoutBaseline, options })`, sandbox);
+  const boundary: any = vm.compileFunction(`${declarations.join('\n')}\nreturn ({ configureOwnerTimeoutBaseline, options });`, [], { contextExtensions: [sandbox] })();
   return { ...fixture, runtime, opts, events, controls, targetRun, currentRun, targetJobs, targetArtifacts, currentJobs, currentArtifacts, workflowRuns, teardown, boundary,
     invoke: () => boundary.configureOwnerTimeoutBaseline(runtime, opts, '/synthetic/private', '/synthetic/work') };
 };

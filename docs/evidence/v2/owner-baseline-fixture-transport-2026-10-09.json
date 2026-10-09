@@ -1,0 +1,34 @@
+{
+  "scope": "Independent author-only controlled fixture transport repair",
+  "testFirstCommit": "f4dcf58d",
+  "contractChanged": false,
+  "visible": {
+    "originalSha256": "35dac6103636615deb154e1e7474eb936b2beb9e1148e506f732fd4dd9e62739",
+    "correctedSha256": "6b3583df79e6c0c4344864ae0f6cdbdc385838b71c4f24ca90b0e35cd332500f",
+    "inverseReceiptSha256": "0ae84b50ac5f07bb349f53b2ca748e94337d23b487c21c094cdc277f5a6e2e40",
+    "cases": 65,
+    "passed": 60,
+    "failed": 5,
+    "pending": 0
+  },
+  "holdout": {
+    "originalSha256": "e08c1fadf641909d14aed27812418f447719509623ccca2983774475250b40e1",
+    "correctedSha256": "dc6283083c2da969e345711d7f7a1bf371aee364d0eee54c4780f4766909a909",
+    "inverseReceiptSha256": "e5348e88aaf968b900b0f10654ef68b22ca7a8318228a65591e1cbb9e77bb727",
+    "cases": 20,
+    "passed": 15,
+    "failed": 5,
+    "pending": 0
+  },
+  "independentMetadataReview": {
+    "decision": "GO",
+    "receiptSha256": "795d1a55ed92bc1790f781ea436dda1e94312523793e198c0208ddc5965d2c49",
+    "wholeOriginalBytesRecoveredByInverse": true,
+    "caseAndOracleBytesUnchanged": true,
+    "onlyApprovedImportsDependenciesAndRealmAllocationChanged": true
+  },
+  "sourceAccepted": false,
+  "dispatchApprovedByThisEvidence": false,
+  "configurationChanged": false,
+  "fasterFullDatabaseResult": false
+}
