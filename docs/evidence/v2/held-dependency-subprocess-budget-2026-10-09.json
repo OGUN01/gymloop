@@ -1,0 +1,66 @@
+{
+  "scope": "Independent held dependency fixture child bounds and framework timing metadata only",
+  "failedCi": {
+    "runId": "37862415202",
+    "sourceSha": "6a43249365bfb51171194cc76dbc67be59e8b715",
+    "tests": 11556,
+    "passed": 11414,
+    "failed": 1,
+    "platformSkipped": 141,
+    "safeTriageSha256": "bb7a5e3b8508b3119419535437dab8be1d561e8c2eb50b74fddb828acdbf96ed",
+    "firstSynchronousTransportMs": 10128,
+    "frameworkDefaultMs": 5000,
+    "coldInitializationCauseProven": false
+  },
+  "repair": {
+    "fileSha256": "e20c1a9e3a33468e7554b3b95846fcc763fcbddbbba5b0a4d881c9556c19e83f",
+    "fileBytes": 40402,
+    "cumulativeChildAllowanceMs": 60000,
+    "integrationFrameworkAllowanceMs": 70000,
+    "budgetsFromExistingCentralConstants": true,
+    "helperRegions": 1,
+    "registrationMetadataSpans": 2,
+    "processCases": 5,
+    "pureCaseBudgetsChanged": false,
+    "transportErrorsSignalsAbsentStatusThrow": true,
+    "ordinaryNonzeroSourceExitPreserved": true,
+    "warmupOrSourcePreexecutionAdded": false,
+    "sourceDeadlinesChanged": false,
+    "newCasesSkipsHelpersOrExports": false
+  },
+  "independentAuthorEvidence": {
+    "completionReceiptSha256": "4e9c7e582f1007022b59436743971f5f5c35c4dd5fa018b76cf3a99f727a5467",
+    "actualWindows": {
+      "total": 789,
+      "passed": 789,
+      "failed": 0,
+      "pending": 0,
+      "runs": 1
+    },
+    "lintExitCode": 0,
+    "parseDiagnostics": 0,
+    "opaqueTransportControlChecksPassed": 7,
+    "actualImmediateChildTimeout": {
+      "fullCentralAllowanceMs": 60000,
+      "observedMs": 60016.5676,
+      "errorCode": "ETIMEDOUT",
+      "signal": "SIGKILL",
+      "ownedPidClosed": true,
+      "withinFrameworkAllowance": true,
+      "processTreeContainmentCertified": false
+    },
+    "mechanicalInverseWholeFileSha256": "8dd3ba1acdfd5a36a61fa60213fbf47999202e59aa890c855d4c60c55148c2fc",
+    "mechanicalInverseOracleSha256": "e26dd1ad39909e50fe1d9f75a464fa957095deb2210e53a875de652fd1f8ec24",
+    "namesCallbacksAssertionsAndCaseCountPreserved": true
+  },
+  "actualLinuxCi": "Pending fresh complete CI",
+  "historicalTrial19Clearance": false,
+  "fasterFullDatabaseResult": false,
+  "applicationOrPlayReleaseChanged": false,
+  "independentReview": {
+    "decision": "GO",
+    "receiptSha256": "094bad967686059a89357ae0f6c5af03950f41df2c11766e4159df5cf83849bd",
+    "inverseAndMetadataIndependentlyVerified": true,
+    "sourceScopesUnchanged": true
+  }
+}

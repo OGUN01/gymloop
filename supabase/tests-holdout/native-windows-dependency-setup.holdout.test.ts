@@ -185,9 +185,13 @@ function heldDependencyInstallProbe(mode: string): number {
   expect(dirname(owned)).toBe(temporaryRoot);
   const moduleLink = join(owned, 'node_modules', '@gymloop', 'shared');
   const directLink = join(owned, 'packages', 'shared');
+  const deadline = performance.now() + NATIVE_DB_VALIDATION.nativeCleanupReserveMs;
   try {
     if (platform() === 'win32') {
-      const acl = spawnSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', "$ErrorActionPreference = 'Stop'; $metadata = [Console]::In.ReadToEnd() | ConvertFrom-Json; & icacls.exe $metadata.path /inheritance:r /grant:r ($metadata.trustee + ':(OI)(CI)F'); exit $LASTEXITCODE"], { encoding: 'utf8', input: JSON.stringify({ path: owned, trustee: userInfo().username }) });
+      if (performance.now() >= deadline) throw new Error('Held dependency transport budget exhausted');
+      const acl = spawnSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', "$ErrorActionPreference = 'Stop'; $metadata = [Console]::In.ReadToEnd() | ConvertFrom-Json; & icacls.exe $metadata.path /inheritance:r /grant:r ($metadata.trustee + ':(OI)(CI)F'); exit $LASTEXITCODE"], { encoding: 'utf8', input: JSON.stringify({ path: owned, trustee: userInfo().username }), timeout: Math.max(1, Math.ceil(deadline - performance.now())), killSignal: 'SIGKILL' });
+      if (acl.error) throw acl.error;
+      if (acl.signal !== null || acl.status === null) throw new Error('Held dependency ACL transport did not complete normally');
       expect(acl.status).toBe(0);
     } else {
       chmodSync(owned, NATIVE_DB_VALIDATION.privateDirectoryMode);
@@ -204,8 +208,11 @@ function heldDependencyInstallProbe(mode: string): number {
     }
     if (mode !== 'missingStore') mkdirSync(join(owned, '.p'));
     const prelude = `$ErrorActionPreference = 'Stop'\nfunction global:pnpm { $global:LASTEXITCODE = ${mode === 'failedInstall' ? 29 : 0} }\n`;
-    const outcome = spawnSync(platform() === 'win32' ? 'powershell.exe' : 'pwsh', ['-NoProfile', '-NonInteractive', '-Command', `${prelude}${body}\nif ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }\nexit 0`], { cwd: owned, encoding: 'utf8' });
-    return outcome.status ?? -1;
+    if (performance.now() >= deadline) throw new Error('Held dependency transport budget exhausted');
+    const outcome = spawnSync(platform() === 'win32' ? 'powershell.exe' : 'pwsh', ['-NoProfile', '-NonInteractive', '-Command', `${prelude}${body}\nif ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }\nexit 0`], { cwd: owned, encoding: 'utf8', timeout: Math.max(1, Math.ceil(deadline - performance.now())), killSignal: 'SIGKILL' });
+    if (outcome.error) throw outcome.error;
+    if (outcome.signal !== null || outcome.status === null) throw new Error('Held dependency guard transport did not complete normally');
+    return outcome.status;
   } finally {
     if (existsSync(moduleLink)) unlinkSync(moduleLink);
     if (existsSync(directLink)) unlinkSync(directLink);
@@ -612,11 +619,11 @@ describe('independently derived frozen installation and guardian wiring', () => 
     expect(step).not.toMatch(/pnpm\s+(?:config\s+set|update|add)|--no-frozen-lockfile|--ignore-scripts=false/);
   });
 
-  it('accepts the real central compaction metadata and actual short store after successful installation', () => {
+  it('accepts the real central compaction metadata and actual short store after successful installation', { timeout: NATIVE_DB_VALIDATION.nativeCleanupReserveMs + NATIVE_DB_VALIDATION.processStopGraceMs }, () => {
     expect(heldDependencyInstallProbe('matching')).toBe(0);
   });
 
-  it.each(['failedInstall', 'ignoredSetting', 'missingMetadata', 'missingStore'])('refuses actual installation guard regression %s before native work', mode => {
+  it.each(['failedInstall', 'ignoredSetting', 'missingMetadata', 'missingStore'])('refuses actual installation guard regression %s before native work', { timeout: NATIVE_DB_VALIDATION.nativeCleanupReserveMs + NATIVE_DB_VALIDATION.processStopGraceMs }, mode => {
     expect(heldDependencyInstallProbe(mode)).not.toBe(0);
   });
 
